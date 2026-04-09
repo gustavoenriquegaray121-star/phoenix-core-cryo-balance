@@ -6,13 +6,13 @@ plugins {
 
 android {
     namespace "com.altea_garay.phoenix_core"
-    compileSdk flutter.compileSdkVersion
+    compileSdk 35
     ndkVersion flutter.ndkVersion
 
     defaultConfig {
         applicationId "com.altea_garay.phoenix_core"
         minSdk 21
-        targetSdk flutter.targetSdkVersion
+        targetSdk 35
         versionCode 1
         versionName "1.0.0"
     }
