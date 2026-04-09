@@ -8,7 +8,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // MobileAds.instance.initialize(); // ← Descomenta con tus IDs reales
+  // MobileAds.instance.initialize(); // Se mantiene para cuando configures tus IDs
   runApp(const PhoenixCoreApp());
 }
 
@@ -67,12 +67,16 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
   }
 
   Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _cryoCoins   = prefs.getInt('cryo_coins') ?? 0;
-      _highScore   = prefs.getInt('cryo_highscore') ?? 0;
-      _selectedSkin = prefs.getString('selected_skin') ?? 'cyan';
-    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _cryoCoins   = prefs.getInt('cryo_coins') ?? 0;
+        _highScore   = prefs.getInt('cryo_highscore') ?? 0;
+        _selectedSkin = prefs.getString('selected_skin') ?? 'cyan';
+      });
+    } catch (e) {
+      debugPrint("Error inicializando SharedPreferences: $e");
+    }
   }
 
   @override
@@ -96,7 +100,6 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Glow fondo animado
           AnimatedBuilder(
             animation: _glowAnim,
             builder: (_, __) => Container(
@@ -113,7 +116,6 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
           SafeArea(
             child: Column(
               children: [
-                // Header
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
@@ -131,14 +133,12 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
                   ),
                 ),
                 const Spacer(),
-                // Título
                 const Text('PHOENIX CORE',
                     style: TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: Colors.white,
                         shadows: [Shadow(color: Colors.cyan, blurRadius: 20)])),
                 const Text('CRYO BALANCE',
                     style: TextStyle(fontSize: 22, color: Colors.cyan, letterSpacing: 3)),
                 const SizedBox(height: 36),
-                // PageView de modos
                 SizedBox(
                   height: 360,
                   child: PageView(
@@ -169,7 +169,6 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
                   ),
                 ),
                 const SizedBox(height: 28),
-                // Botón Skins
                 ElevatedButton.icon(
                   onPressed: () => _goMode(const SkinsScreen()),
                   icon: const Icon(Icons.palette, color: Colors.black),
@@ -190,9 +189,6 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// TARJETA DE MODO
-// ══════════════════════════════════════════════════════════════
 class _ModeCard extends StatelessWidget {
   final String title, subtitle, score;
   final Color color;
@@ -248,17 +244,18 @@ class _ModeCard extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// MIXIN COMPARTIDO — lógica de monedas
-// ══════════════════════════════════════════════════════════════
 Future<int> earnCoins(int score, int combo) async {
-  final prefs = await SharedPreferences.getInstance();
-  int earned = (score ~/ 2) + (combo * 10);
-  if (combo >= 8)   earned += 50;
-  if (score > 5000) earned += 100;
-  int current = (prefs.getInt('cryo_coins') ?? 0) + earned;
-  await prefs.setInt('cryo_coins', current);
-  return earned;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    int earned = (score ~/ 2) + (combo * 10);
+    if (combo >= 8)   earned += 50;
+    if (score > 5000) earned += 100;
+    int current = (prefs.getInt('cryo_coins') ?? 0) + earned;
+    await prefs.setInt('cryo_coins', current);
+    return earned;
+  } catch (e) {
+    return 0;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -314,31 +311,36 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
   }
 
   void _loadAds() {
-    RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917', // TEST ID
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => _rewardedAd = ad,
-        onAdFailedToLoad: (_) => _rewardedAd = null,
-      ),
-    );
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712', // TEST ID
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
-        onAdFailedToLoad: (_) => _interstitialAd = null,
-      ),
-    );
+    // Se corrigen las llamadas para que no crasheen si MobileAds no está init
+    try {
+      RewardedAd.load(
+        adUnitId: 'ca-app-pub-3940256099942544/5224354917', 
+        request: const AdRequest(),
+        rewardedAdLoadCallback: RewardedAdLoadCallback(
+          onAdLoaded: (ad) => _rewardedAd = ad,
+          onAdFailedToLoad: (_) => _rewardedAd = null,
+        ),
+      );
+      InterstitialAd.load(
+        adUnitId: 'ca-app-pub-3940256099942544/1033173712',
+        request: const AdRequest(),
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (ad) => _interstitialAd = ad,
+          onAdFailedToLoad: (_) => _interstitialAd = null,
+        ),
+      );
+    } catch (e) {
+      debugPrint("Ads no disponibles");
+    }
   }
 
   void _startGame() {
     _gameTimer?.cancel();
     _gameTimer = Timer.periodic(const Duration(milliseconds: 45), (_) {
       if (_isFrozen) return;
+      if (!mounted) return;
       setState(() {
         double diff = 1.0 + log(_score + 1) / 5;
-
         _temperature += (_rng.nextDouble() * 0.9 * diff * _gameSpeed) + (_combo * 0.06);
 
         if (_rng.nextDouble() < 0.09 * diff) {
@@ -355,9 +357,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
 
         for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.04; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
-        if (_particles.length > 80) _particles.removeAt(0);
 
-        // Rayos eléctricos
         if (_rng.nextDouble() < 0.08) {
           _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
         }
@@ -394,7 +394,10 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) setState(() => _coreScale = 1.0);
     });
-    await _audio.play(AssetSource('sounds/tap.wav'));
+    
+    try {
+      await _audio.play(AssetSource('sounds/tap.wav'));
+    } catch (_) {}
   }
 
   void _spawnParticles(int n) {
@@ -417,10 +420,13 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     _gameTimer?.cancel(); _freezeTimer?.cancel(); _ringCtrl.stop();
     await _saveHS();
     int coins = await earnCoins(_score, _combo);
-    await _audio.play(AssetSource('sounds/quench.wav'));
+    try {
+      await _audio.play(AssetSource('sounds/quench.wav'));
+    } catch (_) {}
     _gamesPlayed++;
     if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
 
+    if (!mounted) return;
     showDialog(
       context: context, barrierDismissible: false,
       builder: (_) => AlertDialog(
@@ -447,15 +453,19 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
   }
 
   void _revive() {
-    _rewardedAd?.show(onUserEarnedReward: (_, __) {
-      _score *= 2;
-      setState(() { _temperature = -30; _combo = (_combo / 2).floor();
-        _isFrozen = true; _canRevive = false; });
-      Future.delayed(const Duration(milliseconds: 800), () {
-        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
+    try {
+      _rewardedAd?.show(onUserEarnedReward: (_, __) {
+        _score *= 2;
+        setState(() { _temperature = -30; _combo = (_combo / 2).floor();
+          _isFrozen = true; _canRevive = false; });
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) { setState(() => _isFrozen = false); _startGame(); }
+        });
       });
-    });
-    _rewardedAd = null; _loadAds();
+      _rewardedAd = null; _loadAds();
+    } catch (e) {
+      _restart();
+    }
   }
 
   void _restart() {
@@ -480,18 +490,14 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
       body: GestureDetector(
         onTapDown: _onTap,
         child: Stack(children: [
-          // Temperatura
           Positioned(top: 50, left: 20,
             child: Text('${_temperature.toStringAsFixed(1)} μK',
               style: TextStyle(fontSize: 48, color: _gradient.first, fontWeight: FontWeight.bold))),
-          // Score
           Positioned(top: 50, right: 20,
             child: Text('$_score', style: const TextStyle(fontSize: 36, color: Colors.white))),
-          // Combo
           Positioned(top: 100, right: 20,
             child: Text('×$_combo',
               style: TextStyle(fontSize: 36, color: _combo >= 8 ? Colors.purpleAccent : Colors.cyan))),
-          // Núcleo
           Center(
             child: ScaleTransition(
               scale: AlwaysStoppedAnimation(_coreScale),
@@ -513,20 +519,16 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
               ),
             ),
           ),
-          // Bolas
           ..._balls.map((b) => Positioned(left: b['x'], top: b['y'],
             child: Container(width: 44, height: 44,
               decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
-          // Partículas
           ..._particles.map((p) => Positioned(left: p['x'], top: p['y'],
             child: Opacity(opacity: p['alpha'],
               child: Container(width: 9, height: 9,
                 decoration: const BoxDecoration(color: Colors.cyan, shape: BoxShape.circle))))),
-          // Rayos
           ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'],
             child: Opacity(opacity: l['alpha'],
               child: Container(width: 2, height: 40, color: Colors.blueAccent)))),
-          // FREEZE
           if (_isFrozen)
             Container(color: Colors.cyan.withOpacity(0.13),
               child: const Center(child: Text('FREEZE',
@@ -544,576 +546,180 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     super.dispose();
   }
 }
-
 // ══════════════════════════════════════════════════════════════
-// MODO 2: ALTA VELOCIDAD
+// MODO 2: HIGH SPEED (REACCIÓN PURA)
 // ══════════════════════════════════════════════════════════════
 class HighSpeedScreen extends StatefulWidget {
   final String selectedSkin;
-  const HighSpeedScreen({super.key, this.selectedSkin = 'cyan'});
+  const HighSpeedScreen({super.key, required this.selectedSkin});
   @override State<HighSpeedScreen> createState() => _HighSpeedState();
 }
 
-class _HighSpeedState extends State<HighSpeedScreen>
-    with SingleTickerProviderStateMixin {
-
-  double _temperature = 0;
-  int _combo = 0, _score = 0, _multiplier = 1, _highScore = 0;
-  bool _isFrozen = false;
-  double _gameSpeed = 1.0, _coreScale = 1.0;
-  bool _canRevive = true;
-  int _gamesPlayed = 0;
-
-  Timer? _gameTimer, _freezeTimer;
+class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderStateMixin {
+  int _score = 0, _combo = 0;
+  double _targetY = 0;
+  bool _isActive = false;
+  Timer? _timer;
   final Random _rng = Random();
   final AudioPlayer _audio = AudioPlayer();
-  late AnimationController _ringCtrl;
-
-  List<Map<String, dynamic>> _balls = [];
-  List<Map<String, dynamic>> _particles = [];
-  List<Map<String, dynamic>> _lightning = [];
-
-  RewardedAd? _rewardedAd;
-  InterstitialAd? _interstitialAd;
 
   @override
   void initState() {
     super.initState();
-    _loadHS();
-    _loadAds();
-    _ringCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
-    _startGame();
+    _startMode();
   }
 
-  Future<void> _loadHS() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() => _highScore = p.getInt('highspeed_highscore') ?? 0);
-  }
-
-  Future<void> _saveHS() async {
-    if (_score <= _highScore) return;
-    final p = await SharedPreferences.getInstance();
-    await p.setInt('highspeed_highscore', _score);
-    setState(() => _highScore = _score);
-  }
-
-  void _loadAds() {
-    RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => _rewardedAd = ad,
-        onAdFailedToLoad: (_) => _rewardedAd = null,
-      ),
-    );
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712',
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
-        onAdFailedToLoad: (_) => _interstitialAd = null,
-      ),
-    );
-  }
-
-  void _startGame() {
-    _gameTimer?.cancel();
-    _gameTimer = Timer.periodic(const Duration(milliseconds: 30), (_) {
-      if (_isFrozen) return;
+  void _startMode() {
+    _timer = Timer.periodic(Duration(milliseconds: (800 - (_score ~/ 100)).clamp(300, 800)), (_) {
+      if (!mounted) return;
       setState(() {
-        double diff = 1.0 + log(_score + 1) / 3; // sube más rápido
-        _temperature += (_rng.nextDouble() * 1.8 * diff * _gameSpeed) + (_combo * 0.12);
-
-        if (_rng.nextDouble() < 0.14 * diff) {
-          _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
-            'speed': 6.5 + _rng.nextDouble() * 6.0 * diff, 'hit': false});
+        _targetY = _rng.nextDouble() * 400 + 100;
+        _isActive = true;
+      });
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted && _isActive) {
+          setState(() { _isActive = false; _combo = 0; });
         }
-        if (_balls.length > 25) _balls.removeAt(0);
-
-        for (var b in _balls) {
-          b['y'] += b['speed'];
-          if (b['y'] > 340 && !b['hit']) { _temperature += 10.0; b['hit'] = true; }
-        }
-        _balls.removeWhere((b) => b['y'] > 620);
-
-        for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.045; }
-        _particles.removeWhere((p) => p['alpha'] <= 0);
-        if (_particles.length > 80) _particles.removeAt(0);
-
-        if (_rng.nextDouble() < 0.10) {
-          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
-        }
-        for (var l in _lightning) { l['alpha'] -= 0.08; }
-        _lightning.removeWhere((l) => l['alpha'] <= 0);
-
-        _multiplier = 1 + (_combo ~/ 4);
-        _temperature = _temperature.clamp(-120.0, 120.0);
-        if (_temperature.abs() > 100) _gameOver();
       });
     });
   }
 
-  void _onTap(TapDownDetails d) async {
-    HapticFeedback.mediumImpact();
-    double best = 0;
-    for (var b in _balls) {
-      if (b['hit']) continue;
-      double dist = (b['y'] - 340).abs();
-      if (dist < 88) best = max(best, (88 - dist) / 88);
+  void _handleTap() {
+    if (_isActive) {
+      HapticFeedback.lightImpact();
+      setState(() {
+        _isActive = false;
+        _combo++;
+        _score += 100 * _combo;
+      });
+      try { _audio.play(AssetSource('sounds/hit.wav')); } catch (_) {}
+    } else {
+      _gameOver();
     }
-    double cooling = 10 + best * 22;
-    setState(() {
-      _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
-      if (best > 0.75) {
-        HapticFeedback.heavyImpact(); _combo++; _score += (28 * _combo) * _multiplier; _spawnParticles(22);
-      } else if (best > 0.45) {
-        _combo++; _score += (14 * _combo) * _multiplier; _spawnParticles(12);
-      } else {
-        _combo = (_combo - 3).clamp(0, 9999);
-      }
-      _coreScale = 1.4;
-      if (_combo >= 6 && _combo % 3 == 0) _freeze();
-    });
-    Future.delayed(const Duration(milliseconds: 90), () {
-      if (mounted) setState(() => _coreScale = 1.0);
-    });
-    await _audio.play(AssetSource('sounds/tap.wav'));
-  }
-
-  void _spawnParticles(int n) {
-    for (int i = 0; i < n; i++) {
-      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0,
-        'speed': 4.5 + _rng.nextDouble() * 4.5, 'alpha': 1.0});
-    }
-  }
-
-  void _freeze() {
-    if (_isFrozen) return;
-    setState(() { _isFrozen = true; _gameSpeed = 0.22; });
-    _freezeTimer?.cancel();
-    _freezeTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (mounted) setState(() { _isFrozen = false; _gameSpeed = 1.0; });
-    });
   }
 
   void _gameOver() async {
-    _gameTimer?.cancel(); _freezeTimer?.cancel(); _ringCtrl.stop();
-    await _saveHS();
+    _timer?.cancel();
     int coins = await earnCoins(_score, _combo);
-    await _audio.play(AssetSource('sounds/quench.wav'));
-    _gamesPlayed++;
-    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
-
+    if (!mounted) return;
     showDialog(
-      context: context, barrierDismissible: false,
+      context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         backgroundColor: Colors.grey.shade900,
-        title: const Text('VELOCIDAD MÁXIMA',
-            style: TextStyle(color: Colors.orangeAccent, fontSize: 28)),
-        content: Text(
-          'Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙',
-          style: const TextStyle(color: Colors.white70, fontSize: 16)),
+        title: const Text('FUERA DE SINCRONÍA', style: TextStyle(color: Colors.orangeAccent)),
+        content: Text('Puntaje: $_score\nMonedas: +$coins'),
         actions: [
-          if (_canRevive && _rewardedAd != null)
-            TextButton(
-              onPressed: () { Navigator.pop(context); _revive(); },
-              child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
-          TextButton(
-            onPressed: () { Navigator.pop(context); _restart(); },
-            child: const Text('REINTENTAR', style: TextStyle(color: Colors.orange))),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('MENÚ', style: TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
-    );
-  }
-
-  void _revive() {
-    _rewardedAd?.show(onUserEarnedReward: (_, __) {
-      _score *= 2;
-      setState(() { _temperature = -35; _combo = (_combo / 2).floor();
-        _isFrozen = true; _canRevive = false; });
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
-      });
-    });
-    _rewardedAd = null; _loadAds();
-  }
-
-  void _restart() {
-    setState(() {
-      _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
-      _balls.clear(); _particles.clear(); _lightning.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
-    });
-    _ringCtrl.repeat(); _startGame();
-  }
-
-  List<Color> get _gradient {
-    if (_temperature.abs() > 50) return [Colors.orangeAccent, Colors.redAccent];
-    return getSkinColors(widget.selectedSkin);
+    ).then((_) => Navigator.pop(context));
   }
 
   @override
   Widget build(BuildContext context) {
+    List<Color> colors = getSkinColors(widget.selectedSkin);
     return Scaffold(
-      backgroundColor: _isFrozen ? Colors.blueGrey.shade900 : Colors.black,
+      backgroundColor: Colors.black,
       body: GestureDetector(
-        onTapDown: _onTap,
-        child: Stack(children: [
-          Positioned(top: 50, left: 20,
-            child: Text('${_temperature.toStringAsFixed(1)} μK',
-              style: TextStyle(fontSize: 46, color: _gradient.first, fontWeight: FontWeight.bold))),
-          Positioned(top: 50, right: 20,
-            child: Text('$_score', style: const TextStyle(fontSize: 34, color: Colors.white))),
-          Positioned(top: 100, right: 20,
-            child: Text('×$_multiplier',
-              style: const TextStyle(fontSize: 38, color: Colors.purpleAccent))),
-          Center(
-            child: ScaleTransition(
-              scale: AlwaysStoppedAnimation(_coreScale),
-              child: RotationTransition(
-                turns: _ringCtrl,
+        onTapDown: (_) => _handleTap(),
+        child: Stack(
+          children: [
+            Positioned(top: 60, left: 20, child: Text('SCORE: $_score', style: const TextStyle(fontSize: 30, color: Colors.white))),
+            if (_isActive)
+              Positioned(
+                top: _targetY,
+                left: MediaQuery.of(context).size.width / 2 - 40,
                 child: Container(
-                  width: 215, height: 215,
+                  width: 80, height: 80,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: _gradient),
-                    boxShadow: [BoxShadow(
-                      color: _gradient.first.withOpacity(0.9),
-                      blurRadius: 70 + (_combo * 2).toDouble(), spreadRadius: 5)],
+                    gradient: RadialGradient(colors: colors),
+                    boxShadow: [BoxShadow(color: colors.first, blurRadius: 20)],
                   ),
-                  child: const Center(child: Text('ALTÍSIMA\nVELOCIDAD',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold))),
                 ),
               ),
-            ),
-          ),
-          ..._balls.map((b) => Positioned(left: b['x'], top: b['y'],
-            child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
-          ..._particles.map((p) => Positioned(left: p['x'], top: p['y'],
-            child: Opacity(opacity: p['alpha'],
-              child: Container(width: 9, height: 9,
-                decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle))))),
-          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'],
-            child: Opacity(opacity: l['alpha'],
-              child: Container(width: 2, height: 40, color: Colors.orangeAccent)))),
-          if (_isFrozen)
-            Container(color: Colors.cyan.withOpacity(0.13),
-              child: const Center(child: Text('FREEZE',
-                style: TextStyle(fontSize: 54, color: Colors.cyan, fontWeight: FontWeight.bold)))),
-        ]),
+          ],
+        ),
       ),
     );
   }
 
   @override
-  void dispose() {
-    _gameTimer?.cancel(); _freezeTimer?.cancel();
-    _ringCtrl.dispose(); _audio.dispose();
-    _rewardedAd?.dispose(); _interstitialAd?.dispose();
-    super.dispose();
-  }
+  void dispose() { _timer?.cancel(); _audio.dispose(); super.dispose(); }
 }
 
 // ══════════════════════════════════════════════════════════════
-// MODO 3: PRECISIÓN MÁXIMA
+// MODO 3: PRECISION MÁXIMA (CONTROL DE LAZO)
 // ══════════════════════════════════════════════════════════════
 class PrecisionScreen extends StatefulWidget {
   final String selectedSkin;
-  const PrecisionScreen({super.key, this.selectedSkin = 'cyan'});
+  const PrecisionScreen({super.key, required this.selectedSkin});
   @override State<PrecisionScreen> createState() => _PrecisionState();
 }
 
-class _PrecisionState extends State<PrecisionScreen>
-    with SingleTickerProviderStateMixin {
-
-  double _temperature = 0;
-  int _combo = 0, _score = 0, _multiplier = 1, _highScore = 0;
-  bool _isFrozen = false;
-  double _gameSpeed = 1.0, _coreScale = 1.0;
-  bool _canRevive = true;
-  int _gamesPlayed = 0;
-
-  Timer? _gameTimer, _freezeTimer;
+class _PrecisionState extends State<PrecisionScreen> {
+  double _currentVal = 50.0;
+  double _targetVal = 50.0;
+  int _points = 0;
+  Timer? _timer;
   final Random _rng = Random();
-  final AudioPlayer _audio = AudioPlayer();
-  late AnimationController _ringCtrl;
-
-  List<Map<String, dynamic>> _balls = [];
-  List<Map<String, dynamic>> _particles = [];
-  List<Map<String, dynamic>> _floatingScores = [];
-  List<Map<String, dynamic>> _lightning = [];
-
-  RewardedAd? _rewardedAd;
-  InterstitialAd? _interstitialAd;
 
   @override
   void initState() {
     super.initState();
-    _loadHS();
-    _loadAds();
-    _ringCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
-    _startGame();
-  }
-
-  Future<void> _loadHS() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() => _highScore = p.getInt('precision_highscore') ?? 0);
-  }
-
-  Future<void> _saveHS() async {
-    if (_score <= _highScore) return;
-    final p = await SharedPreferences.getInstance();
-    await p.setInt('precision_highscore', _score);
-    setState(() => _highScore = _score);
-  }
-
-  void _loadAds() {
-    RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => _rewardedAd = ad,
-        onAdFailedToLoad: (_) => _rewardedAd = null,
-      ),
-    );
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712',
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
-        onAdFailedToLoad: (_) => _interstitialAd = null,
-      ),
-    );
-  }
-
-  void _startGame() {
-    _gameTimer?.cancel();
-    _gameTimer = Timer.periodic(const Duration(milliseconds: 45), (_) {
-      if (_isFrozen) return;
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (t) {
       setState(() {
-        double diff = 1.0 + log(_score + 1) / 5;
-        _temperature += (_rng.nextDouble() * 0.9 * diff * _gameSpeed) + (_combo * 0.06);
-
-        if (_rng.nextDouble() < 0.065 * diff) {
-          _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
-            'speed': 3.2 + _rng.nextDouble() * 3.0 * diff, 'hit': false});
+        _currentVal += (_rng.nextDouble() - 0.5) * 4;
+        if ((_currentVal - _targetVal).abs() < 5) {
+          _points++;
+          if (t.tick % 40 == 0) _targetVal = _rng.nextDouble() * 80 + 10;
         }
-        if (_balls.length > 25) _balls.removeAt(0);
-
-        for (var b in _balls) {
-          b['y'] += b['speed'];
-          if (b['y'] > 340 && !b['hit']) { _temperature += 10.0; b['hit'] = true; }
-        }
-        _balls.removeWhere((b) => b['y'] > 620);
-
-        for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.038; }
-        _particles.removeWhere((p) => p['alpha'] <= 0);
-        if (_particles.length > 80) _particles.removeAt(0);
-
-        for (var f in _floatingScores) { f['y'] -= 2.2; f['alpha'] -= 0.028; }
-        _floatingScores.removeWhere((f) => f['alpha'] <= 0);
-
-        if (_rng.nextDouble() < 0.06) {
-          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
-        }
-        for (var l in _lightning) { l['alpha'] -= 0.07; }
-        _lightning.removeWhere((l) => l['alpha'] <= 0);
-
-        _temperature = _temperature.clamp(-120.0, 120.0);
-        if (_temperature.abs() > 100) _gameOver();
       });
+      if (_currentVal < 0 || _currentVal > 100) _gameOver();
     });
   }
 
-  void _onTap(TapDownDetails d) async {
-    HapticFeedback.mediumImpact();
-    double best = 0;
-    for (var b in _balls) {
-      if (b['hit']) continue;
-      double dist = (b['y'] - 340).abs();
-      if (dist < 92) best = max(best, (92 - dist) / 92);
-    }
-    double cooling = 14 + best * 32;
-    setState(() {
-      _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
-      if (best > 0.82) {
-        HapticFeedback.heavyImpact(); _combo++;
-        int pts = (280 + _rng.nextInt(140)) * _multiplier;
-        _score += pts;
-        _floatingScores.add({'text': '+$pts', 'x': 110 + _rng.nextDouble() * 100,
-          'y': 320.0, 'alpha': 1.0, 'color': Colors.cyanAccent});
-        _spawnParticles(28);
-        _multiplier = (_multiplier + 1).clamp(1, 12);
-      } else if (best > 0.55) {
-        _combo++;
-        int pts = (110 + _rng.nextInt(80)) * _multiplier;
-        _score += pts;
-        _floatingScores.add({'text': '+$pts', 'x': 110 + _rng.nextDouble() * 100,
-          'y': 320.0, 'alpha': 1.0, 'color': Colors.white});
-        _spawnParticles(14);
-        _multiplier = (_multiplier + 1).clamp(1, 12);
-      } else {
-        _combo = (_combo - 3).clamp(0, 9999); _multiplier = 1;
-      }
-      _coreScale = 1.45;
-      if (_combo >= 10 && _combo % 5 == 0) _freeze();
-    });
-    Future.delayed(const Duration(milliseconds: 110), () {
-      if (mounted) setState(() => _coreScale = 1.0);
-    });
-    await _audio.play(AssetSource('sounds/tap.wav'));
+  void _gameOver() {
+    _timer?.cancel();
+    Navigator.pop(context);
   }
 
-  void _spawnParticles(int n) {
-    for (int i = 0; i < n; i++) {
-      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0,
-        'speed': 4.0 + _rng.nextDouble() * 4.0, 'alpha': 1.0});
-    }
-  }
-
-  void _freeze() {
-    if (_isFrozen) return;
-    setState(() { _isFrozen = true; _gameSpeed = 0.18; _multiplier = 10; });
-    _freezeTimer?.cancel();
-    _freezeTimer = Timer(const Duration(milliseconds: 2200), () {
-      if (mounted) setState(() { _isFrozen = false; _gameSpeed = 1.0; _multiplier = 1; });
-    });
-  }
-
-  void _gameOver() async {
-    _gameTimer?.cancel(); _freezeTimer?.cancel(); _ringCtrl.stop();
-    await _saveHS();
-    int coins = await earnCoins(_score, _combo);
-    await _audio.play(AssetSource('sounds/quench.wav'));
-    _gamesPlayed++;
-    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
-
-    showDialog(
-      context: context, barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text('PRECISIÓN MÁXIMA',
-            style: TextStyle(color: Colors.cyanAccent, fontSize: 28)),
-        content: Text(
-          'Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙',
-          style: const TextStyle(color: Colors.white70, fontSize: 16)),
-        actions: [
-          if (_canRevive && _rewardedAd != null)
-            TextButton(
-              onPressed: () { Navigator.pop(context); _revive(); },
-              child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
-          TextButton(
-            onPressed: () { Navigator.pop(context); _restart(); },
-            child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('MENÚ', style: TextStyle(color: Colors.white54))),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('PRECISIÓN: $_points', style: const TextStyle(fontSize: 32, color: Colors.purpleAccent)),
+          const SizedBox(height: 50),
+          Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(width: 300, height: 20, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10))),
+                Positioned(left: _targetVal * 3, child: Container(width: 30, height: 30, decoration: BoxDecoration(color: Colors.green.withOpacity(0.5), shape: BoxShape.circle))),
+                Positioned(left: _currentVal * 3, child: Container(width: 20, height: 20, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
+              ],
+            ),
+          ),
+          Slider(
+            value: _currentVal.clamp(0, 100),
+            min: 0, max: 100,
+            onChanged: (v) => setState(() => _currentVal = v),
+          ),
         ],
       ),
     );
   }
 
-  void _revive() {
-    _rewardedAd?.show(onUserEarnedReward: (_, __) {
-      _score *= 2;
-      setState(() { _temperature = -25; _combo = (_combo / 2).floor();
-        _multiplier = 1; _isFrozen = true; _canRevive = false; });
-      Future.delayed(const Duration(milliseconds: 900), () {
-        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
-      });
-    });
-    _rewardedAd = null; _loadAds();
-  }
-
-  void _restart() {
-    setState(() {
-      _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
-      _balls.clear(); _particles.clear(); _floatingScores.clear(); _lightning.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
-    });
-    _ringCtrl.repeat(); _startGame();
-  }
-
-  List<Color> get _gradient =>
-    _isFrozen ? [Colors.lightBlueAccent, Colors.cyan] : getSkinColors(widget.selectedSkin);
-
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _isFrozen ? Colors.blueGrey.shade900 : Colors.black,
-      body: GestureDetector(
-        onTapDown: _onTap,
-        child: Stack(children: [
-          Positioned(top: 50, left: 20,
-            child: Text('${_temperature.toStringAsFixed(1)} μK',
-              style: TextStyle(fontSize: 46, color: _gradient.first, fontWeight: FontWeight.bold))),
-          Positioned(top: 50, right: 20,
-            child: Text('$_score', style: const TextStyle(fontSize: 34, color: Colors.white))),
-          Positioned(top: 100, right: 20,
-            child: Text('×$_multiplier',
-              style: const TextStyle(fontSize: 44, color: Colors.purpleAccent))),
-          Center(
-            child: ScaleTransition(
-              scale: AlwaysStoppedAnimation(_coreScale),
-              child: RotationTransition(
-                turns: _ringCtrl,
-                child: Container(
-                  width: 215, height: 215,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: _gradient),
-                    boxShadow: [BoxShadow(
-                      color: _gradient.first.withOpacity(0.9),
-                      blurRadius: 70 + (_combo * 2).toDouble(), spreadRadius: 5)],
-                  ),
-                  child: const Center(child: Text('PRECISIÓN',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
-                ),
-              ),
-            ),
-          ),
-          ..._balls.map((b) => Positioned(left: b['x'], top: b['y'],
-            child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
-          ..._particles.map((p) => Positioned(left: p['x'], top: p['y'],
-            child: Opacity(opacity: p['alpha'],
-              child: Container(width: 9, height: 9,
-                decoration: const BoxDecoration(color: Colors.cyan, shape: BoxShape.circle))))),
-          ..._floatingScores.map((f) => Positioned(
-            left: f['x'], top: f['y'],
-            child: Opacity(opacity: f['alpha'],
-              child: Text(f['text'],
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: f['color']))))),
-          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'],
-            child: Opacity(opacity: l['alpha'],
-              child: Container(width: 2, height: 40, color: Colors.blueAccent)))),
-          if (_isFrozen)
-            Container(color: Colors.cyan.withOpacity(0.18),
-              child: const Center(child: Text('FREEZE\nDESATA EL CAOS',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 42, color: Colors.cyanAccent, fontWeight: FontWeight.bold)))),
-        ]),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _gameTimer?.cancel(); _freezeTimer?.cancel();
-    _ringCtrl.dispose(); _audio.dispose();
-    _rewardedAd?.dispose(); _interstitialAd?.dispose();
-    super.dispose();
-  }
+  void dispose() { _timer?.cancel(); super.dispose(); }
 }
 
 // ══════════════════════════════════════════════════════════════
-// PANTALLA DE SKINS
+// PANTALLA DE SKINS (TIENDA Y SELECCIÓN)
 // ══════════════════════════════════════════════════════════════
 class SkinsScreen extends StatefulWidget {
   const SkinsScreen({super.key});
@@ -1123,46 +729,45 @@ class SkinsScreen extends StatefulWidget {
 class _SkinsScreenState extends State<SkinsScreen> {
   int _cryoCoins = 0;
   String _selectedSkin = 'cyan';
+  final Map<String, bool> _unlocked = {};
 
-  final Map<String, Map<String, dynamic>> _skins = {
-    'cyan':     {'price': 0,    'desc': 'Clásico fresco'},
-    'gold':     {'price': 500,  'desc': 'Oro eterno'},
-    'electric': {'price': 1200, 'desc': 'Rayos eléctricos'},
-    'plasma':   {'price': 800,  'desc': 'Plasma ardiente'},
-    'void':     {'price': 2000, 'desc': 'Vacío estelar'},
+  final Map<String, Map<String, dynamic>> _skinData = {
+    'cyan':     {'price': 0,    'desc': 'ESTÁNDAR CRIOGÉNICO'},
+    'gold':     {'price': 1000, 'desc': 'EDICIÓN PLATINO'},
+    'electric': {'price': 2500, 'desc': 'FLUJO DE ELECTRONES'},
+    'plasma':   {'price': 5000, 'desc': 'ESTADO CUÁNTICO'},
+    'void':     {'price': 10000,'desc': 'VACÍO ABSOLUTO'},
   };
 
   @override
-  void initState() { super.initState(); _loadData(); }
+  void initState() {
+    super.initState();
+    _loadSkins();
+  }
 
-  Future<void> _loadData() async {
+  Future<void> _loadSkins() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _cryoCoins   = p.getInt('cryo_coins') ?? 0;
+      _cryoCoins = p.getInt('cryo_coins') ?? 0;
       _selectedSkin = p.getString('selected_skin') ?? 'cyan';
+      for (var key in _skinData.keys) {
+        _unlocked[key] = key == 'cyan' ? true : (p.getBool('skin_$key') ?? false);
+      }
     });
   }
 
-  Future<void> _buyOrSelect(String skin) async {
+  void _handleSkin(String key) async {
     final p = await SharedPreferences.getInstance();
-    int price = _skins[skin]!['price'] as int;
-    bool unlocked = price == 0 || (p.getBool('unlocked_$skin') ?? false);
-
-    if (!unlocked && _cryoCoins >= price) {
-      _cryoCoins -= price;
+    if (_unlocked[key] == true) {
+      await p.setString('selected_skin', key);
+      setState(() => _selectedSkin = key);
+    } else if (_cryoCoins >= _skinData[key]!['price']) {
+      setState(() {
+        _cryoCoins -= _skinData[key]!['price'] as int;
+        _unlocked[key] = true;
+      });
       await p.setInt('cryo_coins', _cryoCoins);
-      await p.setBool('unlocked_$skin', true);
-      unlocked = true;
-    }
-
-    if (unlocked) {
-      await p.setString('selected_skin', skin);
-      setState(() => _selectedSkin = skin);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('¡$skin activado! 🔥')));
-    } else {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Necesitas ${price - _cryoCoins} CryoCoins más')));
+      await p.setBool('skin_$key', true);
     }
   }
 
@@ -1170,52 +775,260 @@ class _SkinsScreenState extends State<SkinsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(title: const Text('Skins del Núcleo'), backgroundColor: Colors.cyan.shade900),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.monetization_on, color: Colors.amber, size: 30),
-            const SizedBox(width: 8),
-            Text('$_cryoCoins CryoCoins',
-              style: const TextStyle(fontSize: 26, color: Colors.amber, fontWeight: FontWeight.bold)),
-          ]),
-        ),
-        Expanded(
-          child: ListView(children: _skins.keys.map((skin) {
-            bool isSelected = _selectedSkin == skin;
-            int price = _skins[skin]!['price'] as int;
-            List<Color> colors = getSkinColors(skin);
+      appBar: AppBar(title: const Text('SELECTOR DE NÚCLEO'), backgroundColor: Colors.black),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.monetization_on, color: Colors.amber),
+                const SizedBox(width: 10),
+                Text('$_cryoCoins', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(20),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15),
+              itemCount: _skinData.length,
+              itemBuilder: (context, index) {
+                String key = _skinData.keys.elementAt(index);
+                bool isLocked = !(_unlocked[key] ?? false);
+                return GestureDetector(
+                  onTap: () => _handleSkin(key),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _selectedSkin == key ? Colors.cyan : Colors.transparent, width: 3),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(width: 50, height: 50, decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: getSkinColors(key)))),
+                        const SizedBox(height: 10),
+                        Text(key.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(isLocked ? '\$${_skinData[key]!['price']}' : 'DESBLOQUEADO', style: TextStyle(color: isLocked ? Colors.amber : Colors.green, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+// ══════════════════════════════════════════════════════════════
+// MODO 3: PRECISION MÁXIMA - LÓGICA DE CONTROL DETALLADA
+// ══════════════════════════════════════════════════════════════
+class PrecisionScreen extends StatefulWidget {
+  final String selectedSkin;
+  const PrecisionScreen({super.key, required this.selectedSkin});
+  @override State<PrecisionScreen> createState() => _PrecisionState();
+}
 
-            return Card(
-              color: Colors.grey.shade900,
-              margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(12),
-                leading: Container(
-                  width: 56, height: 56,
+class _PrecisionState extends State<PrecisionScreen> {
+  // Variables de estado del Lazo de Control Criogénico
+  double _currentVal = 50.0;
+  double _targetVal = 50.0;
+  double _errorInertia = 0.0;
+  int _points = 0;
+  int _multiplier = 1;
+  bool _isStable = true;
+  
+  Timer? _timer;
+  Timer? _targetTimer;
+  final Random _rng = Random();
+  final AudioPlayer _audio = AudioPlayer();
+
+  @override
+  void initState() {
+    super.initState();
+    _startControlLoop();
+    _startTargetDrift();
+  }
+
+  // Simulación de la deriva térmica del sensor
+  void _startTargetDrift() {
+    _targetTimer = Timer.periodic(const Duration(seconds: 3), (t) {
+      if (!mounted) return;
+      setState(() {
+        _targetVal = 15.0 + _rng.nextDouble() * 70.0; // Rango de operación nominal
+      });
+    });
+  }
+
+  void _startControlLoop() {
+    _timer = Timer.periodic(const Duration(milliseconds: 16), (t) { // 60fps Loop
+      if (!mounted) return;
+      setState(() {
+        // Simulación de ruido térmico y fluctuación de presión
+        double noise = (_rng.nextDouble() - 0.5) * 1.8;
+        _currentVal += noise + _errorInertia;
+        
+        // El error acumulado genera inestabilidad (Simulando el Quench parcial)
+        double diff = (_currentVal - _targetVal).abs();
+        
+        if (diff < 6.5) {
+          _isStable = true;
+          _points += 1 * _multiplier;
+          if (_points % 500 == 0) _multiplier++;
+        } else {
+          _isStable = false;
+          _multiplier = 1;
+          // Inercia de error: si te alejas, el sistema tiende a descontrolarse
+          _errorInertia += (_currentVal > _targetVal ? 0.05 : -0.05);
+        }
+
+        // Límites de seguridad del módulo
+        if (_currentVal < 0 || _currentVal > 100) {
+          _gameOver();
+        }
+      });
+    });
+  }
+
+  void _adjustControl(double delta) {
+    setState(() {
+      _currentVal += delta;
+      // La intervención manual reduce la inercia de error (Compensación de Latencia)
+      _errorInertia *= 0.8; 
+    });
+    HapticFeedback.selectionClick();
+  }
+
+  void _gameOver() async {
+    _timer?.cancel();
+    _targetTimer?.cancel();
+    int earned = await earnCoins(_points, _multiplier);
+    
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black,
+        title: const Text("PÉRDIDA DE VACÍO", style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+        content: Text("Puntos de Precisión: $_points\nMultiplicador Máx: x$_multiplier\nCryoCoins: +$earned"),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+            child: const Text("VOLVER AL PANEL", style: TextStyle(color: Colors.cyan)),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Indicador de estabilidad visual
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            decoration: BoxDecoration(
+              boxShadow: [
+                BoxShadow(
+                  color: _isStable ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.2),
+                  blurRadius: 100, spreadRadius: 50
+                )
+              ]
+            ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text("STABILITY CONTROL", style: TextStyle(fontSize: 18, letterSpacing: 4, color: Colors.white.withOpacity(0.5))),
+              const SizedBox(height: 10),
+              Text("$_points", style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 40),
+              // Representación del Lazo de Control
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Container(
+                  height: 120,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: colors),
-                    boxShadow: [BoxShadow(color: colors.first.withOpacity(0.7), blurRadius: 16)],
+                    border: Border.all(color: Colors.white24),
+                    borderRadius: BorderRadius.circular(15)
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Línea de Objetivo (Target)
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 500),
+                        left: (MediaQuery.of(context).size.width - 80) * (_targetVal / 100),
+                        child: Container(width: 4, height: 80, color: Colors.cyan.withOpacity(0.5)),
+                      ),
+                      // Cursor de Usuario (Current)
+                      Positioned(
+                        left: (MediaQuery.of(context).size.width - 80) * (_currentVal / 100),
+                        child: Container(
+                          width: 20, height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isStable ? Colors.greenAccent : Colors.redAccent,
+                            boxShadow: [BoxShadow(color: _isStable ? Colors.green : Colors.red, blurRadius: 15)]
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                title: Text(skin.toUpperCase(),
-                  style: TextStyle(color: colors.first, fontSize: 20, fontWeight: FontWeight.bold)),
-                subtitle: Text(_skins[skin]!['desc'],
-                  style: const TextStyle(color: Colors.white70)),
-                trailing: isSelected
-                  ? const Icon(Icons.check_circle, color: Colors.greenAccent, size: 28)
-                  : Text(price == 0 ? 'GRATIS' : '$price 🪙',
-                      style: TextStyle(
-                        color: price == 0 ? Colors.greenAccent : Colors.amber,
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-                onTap: () => _buyOrSelect(skin),
               ),
-            );
-          }).toList()),
+              const SizedBox(height: 60),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _ControlBtn(icon: Icons.arrow_back_ios, onHold: () => _adjustControl(-1.5)),
+                  _ControlBtn(icon: Icons.arrow_forward_ios, onHold: () => _adjustControl(1.5)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text("AJUSTE MICROMÉTRICO", style: TextStyle(color: Colors.white38, fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _targetTimer?.cancel();
+    super.dispose();
+  }
+}
+
+class _ControlBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onHold;
+  const _ControlBtn({required this.icon, required this.onHold});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPressStart: (_) => Timer.periodic(const Duration(milliseconds: 50), (t) => onHold()),
+      onTap: onHold,
+      child: Container(
+        padding: const EdgeInsets.all(25),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white10)
         ),
-      ]),
+        child: Icon(icon, color: Colors.white, size: 30),
+      ),
     );
   }
 }
