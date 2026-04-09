@@ -26,11 +26,11 @@ class PhoenixCoreApp extends StatelessWidget {
 
 List<Color> getSkinColors(String skin) {
   switch (skin) {
-    case 'gold': return [Colors.amber, Colors.orange];
+    case 'gold':     return [Colors.amber, Colors.orange];
     case 'electric': return [Colors.blueAccent, Colors.lightBlue];
-    case 'plasma': return [Colors.orange, Colors.redAccent];
-    case 'void': return [Colors.grey, Colors.black];
-    default: return [Colors.cyan, Colors.blue];
+    case 'plasma':   return [Colors.orange, Colors.redAccent];
+    case 'void':     return [Colors.grey, Colors.black];
+    default:         return [Colors.cyan, Colors.blueAccent];
   }
 }
 
@@ -55,10 +55,16 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _cryoCoins = prefs.getInt('cryo_coins') ?? 0;
-      _highScore = prefs.getInt('cryo_highscore') ?? 0;
+      _cryoCoins   = prefs.getInt('cryo_coins') ?? 0;
+      _highScore   = prefs.getInt('cryo_highscore') ?? 0;
       _selectedSkin = prefs.getString('selected_skin') ?? 'cyan';
     });
+  }
+
+  @override
+  void dispose() {
+    _glowAnim.dispose();
+    super.dispose();
   }
 
   void _goMode(Widget screen) {
@@ -87,23 +93,23 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(children: [
-                        const Icon(Icons.monetization_on, color: Colors.amber, size: 28),
-                        const SizedBox(width: 8),
-                        Text('$_cryoCoins', style: const TextStyle(fontSize: 24, color: Colors.amber, fontWeight: FontWeight.bold)),
+                        const Icon(Icons.monetization_on, color: Colors.amber, size: 26),
+                        const SizedBox(width: 6),
+                        Text('$_cryoCoins', style: const TextStyle(fontSize: 22, color: Colors.amber, fontWeight: FontWeight.bold)),
                       ]),
                       Text('HIGH: $_highScore', style: const TextStyle(fontSize: 18, color: Colors.white70)),
                     ],
                   ),
                 ),
                 const Spacer(),
-                const Text('PHOENIX CORE', style: TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: Colors.white)),
-                const Text('CRYO BALANCE', style: TextStyle(fontSize: 22, color: Colors.cyan)),
-                const SizedBox(height: 40),
+                const Text('PHOENIX CORE', style: TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.cyan, blurRadius: 20)])),
+                const Text('CRYO BALANCE', style: TextStyle(fontSize: 22, color: Colors.cyan, letterSpacing: 3)),
+                const SizedBox(height: 36),
                 SizedBox(
                   height: 360,
                   child: PageView(
@@ -115,7 +121,7 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
                     ],
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 28),
                 ElevatedButton.icon(
                   onPressed: () => _goMode(const SkinsScreen()),
                   icon: const Icon(Icons.palette, color: Colors.black),
@@ -136,6 +142,7 @@ class _ModeCard extends StatelessWidget {
   final String title, subtitle, score;
   final Color color;
   final VoidCallback onTap;
+
   const _ModeCard({required this.title, required this.subtitle, required this.score, required this.color, required this.onTap});
 
   @override
@@ -146,8 +153,8 @@ class _ModeCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [color.withOpacity(0.8), color.withOpacity(0.3), Colors.black]),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.6), blurRadius: 25)],
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [color.withOpacity(0.75), color.withOpacity(0.25), Colors.black]),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 24, spreadRadius: 2)],
         ),
         child: Stack(
           children: [
@@ -156,14 +163,14 @@ class _ModeCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const SizedBox(height: 12),
-                  Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: Colors.white70)),
-                  const SizedBox(height: 20),
-                  Text(score, style: TextStyle(fontSize: 32, color: color, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                  const SizedBox(height: 18),
+                  Text(score, style: TextStyle(fontSize: 30, color: color, fontWeight: FontWeight.bold, shadows: [Shadow(color: color, blurRadius: 12)])),
                 ],
               ),
             ),
-            const Positioned(bottom: 20, right: 20, child: Text('JUGAR ▶', style: TextStyle(fontSize: 16, color: Colors.white70))),
+            Positioned(bottom: 18, right: 20, child: Text('JUGAR ▶', style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.bold))),
           ],
         ),
       ),
@@ -176,8 +183,8 @@ Future<int> earnCoins(int score, int combo) async {
   int earned = (score \~/ 2) + (combo * 10);
   if (combo >= 8) earned += 50;
   if (score > 5000) earned += 100;
-  int total = (prefs.getInt('cryo_coins') ?? 0) + earned;
-  await prefs.setInt('cryo_coins', total);
+  int current = (prefs.getInt('cryo_coins') ?? 0) + earned;
+  await prefs.setInt('cryo_coins', current);
   return earned;
 }
 
@@ -245,6 +252,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
         if (_rng.nextDouble() < 0.09 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0, 'speed': 4.5 + _rng.nextDouble() * 4.0 * diff, 'hit': false});
         }
+        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
           b['y'] += b['speed'];
@@ -254,6 +262,13 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
 
         for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.04; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
+        if (_particles.length > 80) _particles.removeAt(0);
+
+        if (_rng.nextDouble() < 0.08) {
+          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
+        }
+        for (var l in _lightning) { l['alpha'] -= 0.08; }
+        _lightning.removeWhere((l) => l['alpha'] <= 0);
 
         _temperature = _temperature.clamp(-120.0, 120.0);
         if (_temperature.abs() > 100) _gameOver();
@@ -273,20 +288,25 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
     setState(() {
       _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
       if (best > 0.80) {
-        HapticFeedback.heavyImpact();
-        _combo++;
-        _score += 32 * _combo;
+        HapticFeedback.heavyImpact(); _combo++; _score += 32 * _combo; _spawnParticles(20);
       } else if (best > 0.50) {
-        _combo++;
-        _score += 16 * _combo;
+        _combo++; _score += 16 * _combo; _spawnParticles(10);
       } else {
         _combo = (_combo - 2).clamp(0, 9999);
       }
       _coreScale = 1.35;
       if (_combo >= 8 && _combo % 4 == 0) _freeze();
     });
-    Future.delayed(const Duration(milliseconds: 100), () => mounted ? setState(() => _coreScale = 1.0) : null);
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) setState(() => _coreScale = 1.0);
+    });
     await _audio.play(AssetSource('sounds/tap.wav'));
+  }
+
+  void _spawnParticles(int n) {
+    for (int i = 0; i < n; i++) {
+      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0, 'speed': 3.8 + _rng.nextDouble() * 3.8, 'alpha': 1.0});
+    }
   }
 
   void _freeze() {
@@ -303,6 +323,8 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
     await _saveHS();
     int coins = await earnCoins(_score, _combo);
     await _audio.play(AssetSource('sounds/quench.wav'));
+    _gamesPlayed++;
+    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
 
     showDialog(
       context: context, barrierDismissible: false,
@@ -311,11 +333,39 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
         title: const Text('QUENCH DETECTADO', style: TextStyle(color: Colors.redAccent, fontSize: 28)),
         content: Text('Score: $_score\nHigh: $_highScore\nCombo: $_combo\n\n+$coins CryoCoins 🪙', style: const TextStyle(color: Colors.white70, fontSize: 16)),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('MENÚ')),
-          TextButton(onPressed: () { Navigator.pop(context); }, child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
+          if (_canRevive && _rewardedAd != null)
+            TextButton(onPressed: () { Navigator.pop(context); _revive(); }, child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
+          TextButton(onPressed: () { Navigator.pop(context); _restart(); }, child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('MENÚ', style: TextStyle(color: Colors.white54))),
         ],
       ),
     );
+  }
+
+  void _revive() {
+    _rewardedAd?.show(onUserEarnedReward: (_, __) {
+      _score *= 2;
+      setState(() { _temperature = -30; _combo = (_combo / 2).floor(); _isFrozen = true; _canRevive = false; });
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
+      });
+    });
+    _rewardedAd = null; _loadAds();
+  }
+
+  void _restart() {
+    setState(() {
+      _temperature = 0; _combo = 0; _score = 0;
+      _balls.clear(); _particles.clear(); _lightning.clear();
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
+    });
+    _ringCtrl.repeat(); _startGame();
+  }
+
+  List<Color> get _gradient {
+    if (_temperature.abs() > 70) return [Colors.redAccent, Colors.deepOrange];
+    if (_temperature.abs() > 40) return [Colors.orange, Colors.amber];
+    return getSkinColors(widget.selectedSkin);
   }
 
   @override
@@ -325,7 +375,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
       body: GestureDetector(
         onTapDown: _onTap,
         child: Stack(children: [
-          Positioned(top: 50, left: 20, child: Text('${_temperature.toStringAsFixed(1)} μK', style: TextStyle(fontSize: 48, color: Colors.cyan, fontWeight: FontWeight.bold))),
+          Positioned(top: 50, left: 20, child: Text('${_temperature.toStringAsFixed(1)} μK', style: TextStyle(fontSize: 48, color: _gradient.first, fontWeight: FontWeight.bold))),
           Positioned(top: 50, right: 20, child: Text('$_score', style: const TextStyle(fontSize: 36, color: Colors.white))),
           Positioned(top: 100, right: 20, child: Text('×$_combo', style: TextStyle(fontSize: 36, color: _combo >= 8 ? Colors.purpleAccent : Colors.cyan))),
           Center(
@@ -337,8 +387,8 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
                   width: 215, height: 215,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: getSkinColors(widget.selectedSkin)),
-                    boxShadow: [BoxShadow(color: Colors.cyan.withOpacity(0.9), blurRadius: 70)],
+                    gradient: RadialGradient(colors: _gradient),
+                    boxShadow: [BoxShadow(color: _gradient.first.withOpacity(0.9), blurRadius: 70 + (_combo * 2).toDouble(), spreadRadius: 5)],
                   ),
                   child: const Center(child: Text('PHOENIX\nCORE', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
                 ),
@@ -347,6 +397,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
           ),
           ..._balls.map((b) => Positioned(left: b['x'], top: b['y'], child: Container(width: 44, height: 44, decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
           ..._particles.map((p) => Positioned(left: p['x'], top: p['y'], child: Opacity(opacity: p['alpha'], child: Container(width: 9, height: 9, decoration: const BoxDecoration(color: Colors.cyan, shape: BoxShape.circle))))),
+          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'], child: Opacity(opacity: l['alpha'], child: Container(width: 2, height: 40, color: Colors.blueAccent)))),
           if (_isFrozen) Container(color: Colors.cyan.withOpacity(0.13), child: const Center(child: Text('FREEZE', style: TextStyle(fontSize: 54, color: Colors.cyan, fontWeight: FontWeight.bold)))),
         ]),
       ),
@@ -362,6 +413,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen> with SingleTickerProvid
   }
 }
 
+// ===================== ALTA VELOCIDAD =====================
 class HighSpeedScreen extends StatefulWidget {
   final String selectedSkin;
   const HighSpeedScreen({super.key, this.selectedSkin = 'cyan'});
@@ -425,6 +477,7 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
         if (_rng.nextDouble() < 0.14 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0, 'speed': 6.5 + _rng.nextDouble() * 6.0 * diff, 'hit': false});
         }
+        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
           b['y'] += b['speed'];
@@ -434,6 +487,13 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
 
         for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.045; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
+        if (_particles.length > 80) _particles.removeAt(0);
+
+        if (_rng.nextDouble() < 0.10) {
+          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
+        }
+        for (var l in _lightning) { l['alpha'] -= 0.08; }
+        _lightning.removeWhere((l) => l['alpha'] <= 0);
 
         _multiplier = 1 + (_combo \~/ 4);
         _temperature = _temperature.clamp(-120.0, 120.0);
@@ -454,12 +514,9 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
     setState(() {
       _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
       if (best > 0.75) {
-        HapticFeedback.heavyImpact();
-        _combo++;
-        _score += (28 * _combo) * _multiplier;
+        HapticFeedback.heavyImpact(); _combo++; _score += (28 * _combo) * _multiplier; _spawnParticles(22);
       } else if (best > 0.45) {
-        _combo++;
-        _score += (14 * _combo) * _multiplier;
+        _combo++; _score += (14 * _combo) * _multiplier; _spawnParticles(12);
       } else {
         _combo = (_combo - 3).clamp(0, 9999);
       }
@@ -468,6 +525,12 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
     });
     Future.delayed(const Duration(milliseconds: 90), () => mounted ? setState(() => _coreScale = 1.0) : null);
     await _audio.play(AssetSource('sounds/tap.wav'));
+  }
+
+  void _spawnParticles(int n) {
+    for (int i = 0; i < n; i++) {
+      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0, 'speed': 4.5 + _rng.nextDouble() * 4.5, 'alpha': 1.0});
+    }
   }
 
   void _freeze() {
@@ -484,6 +547,8 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
     await _saveHS();
     int coins = await earnCoins(_score, _combo);
     await _audio.play(AssetSource('sounds/quench.wav'));
+    _gamesPlayed++;
+    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
 
     showDialog(
       context: context, barrierDismissible: false,
@@ -492,11 +557,38 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
         title: const Text('VELOCIDAD MÁXIMA', style: TextStyle(color: Colors.orangeAccent, fontSize: 28)),
         content: Text('Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙', style: const TextStyle(color: Colors.white70, fontSize: 16)),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('MENÚ')),
-          TextButton(onPressed: () { Navigator.pop(context); }, child: const Text('REINTENTAR', style: TextStyle(color: Colors.orange))),
+          if (_canRevive && _rewardedAd != null)
+            TextButton(onPressed: () { Navigator.pop(context); _revive(); }, child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
+          TextButton(onPressed: () { Navigator.pop(context); _restart(); }, child: const Text('REINTENTAR', style: TextStyle(color: Colors.orange))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('MENÚ', style: TextStyle(color: Colors.white54))),
         ],
       ),
     );
+  }
+
+  void _revive() {
+    _rewardedAd?.show(onUserEarnedReward: (_, __) {
+      _score *= 2;
+      setState(() { _temperature = -35; _combo = (_combo / 2).floor(); _isFrozen = true; _canRevive = false; });
+      Future.delayed(const Duration(milliseconds: 700), () {
+        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
+      });
+    });
+    _rewardedAd = null; _loadAds();
+  }
+
+  void _restart() {
+    setState(() {
+      _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
+      _balls.clear(); _particles.clear(); _lightning.clear();
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
+    });
+    _ringCtrl.repeat(); _startGame();
+  }
+
+  List<Color> get _gradient {
+    if (_temperature.abs() > 50) return [Colors.orangeAccent, Colors.redAccent];
+    return getSkinColors(widget.selectedSkin);
   }
 
   @override
@@ -506,7 +598,7 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
       body: GestureDetector(
         onTapDown: _onTap,
         child: Stack(children: [
-          Positioned(top: 50, left: 20, child: Text('${_temperature.toStringAsFixed(1)} μK', style: TextStyle(fontSize: 46, color: Colors.orangeAccent, fontWeight: FontWeight.bold))),
+          Positioned(top: 50, left: 20, child: Text('${_temperature.toStringAsFixed(1)} μK', style: TextStyle(fontSize: 46, color: _gradient.first, fontWeight: FontWeight.bold))),
           Positioned(top: 50, right: 20, child: Text('$_score', style: const TextStyle(fontSize: 34, color: Colors.white))),
           Positioned(top: 100, right: 20, child: Text('×$_multiplier', style: const TextStyle(fontSize: 38, color: Colors.purpleAccent))),
           Center(
@@ -518,8 +610,8 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
                   width: 215, height: 215,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: getSkinColors(widget.selectedSkin)),
-                    boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.9), blurRadius: 70)],
+                    gradient: RadialGradient(colors: _gradient),
+                    boxShadow: [BoxShadow(color: _gradient.first.withOpacity(0.9), blurRadius: 70 + (_combo * 2).toDouble(), spreadRadius: 5)],
                   ),
                   child: const Center(child: Text('ALTÍSIMA\nVELOCIDAD', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold))),
                 ),
@@ -528,6 +620,7 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
           ),
           ..._balls.map((b) => Positioned(left: b['x'], top: b['y'], child: Container(width: 44, height: 44, decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
           ..._particles.map((p) => Positioned(left: p['x'], top: p['y'], child: Opacity(opacity: p['alpha'], child: Container(width: 9, height: 9, decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle))))),
+          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'], child: Opacity(opacity: l['alpha'], child: Container(width: 2, height: 40, color: Colors.orangeAccent)))),
           if (_isFrozen) Container(color: Colors.cyan.withOpacity(0.13), child: const Center(child: Text('FREEZE', style: TextStyle(fontSize: 54, color: Colors.cyan, fontWeight: FontWeight.bold)))),
         ]),
       ),
@@ -543,6 +636,7 @@ class _HighSpeedState extends State<HighSpeedScreen> with SingleTickerProviderSt
   }
 }
 
+// ===================== PRECISIÓN MÁXIMA =====================
 class PrecisionScreen extends StatefulWidget {
   final String selectedSkin;
   const PrecisionScreen({super.key, this.selectedSkin = 'cyan'});
@@ -607,6 +701,7 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
         if (_rng.nextDouble() < 0.065 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0, 'speed': 3.2 + _rng.nextDouble() * 3.0 * diff, 'hit': false});
         }
+        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
           b['y'] += b['speed'];
@@ -616,9 +711,16 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
 
         for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.038; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
+        if (_particles.length > 80) _particles.removeAt(0);
 
         for (var f in _floatingScores) { f['y'] -= 2.2; f['alpha'] -= 0.028; }
         _floatingScores.removeWhere((f) => f['alpha'] <= 0);
+
+        if (_rng.nextDouble() < 0.06) {
+          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
+        }
+        for (var l in _lightning) { l['alpha'] -= 0.07; }
+        _lightning.removeWhere((l) => l['alpha'] <= 0);
 
         _temperature = _temperature.clamp(-120.0, 120.0);
         if (_temperature.abs() > 100) _gameOver();
@@ -638,27 +740,33 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
     setState(() {
       _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
       if (best > 0.82) {
-        HapticFeedback.heavyImpact();
-        _combo++;
+        HapticFeedback.heavyImpact(); _combo++;
         int pts = (280 + _rng.nextInt(140)) * _multiplier;
         _score += pts;
         _floatingScores.add({'text': '+$pts', 'x': 110 + _rng.nextDouble() * 100, 'y': 320.0, 'alpha': 1.0, 'color': Colors.cyanAccent});
+        _spawnParticles(28);
         _multiplier = (_multiplier + 1).clamp(1, 12);
       } else if (best > 0.55) {
         _combo++;
         int pts = (110 + _rng.nextInt(80)) * _multiplier;
         _score += pts;
         _floatingScores.add({'text': '+$pts', 'x': 110 + _rng.nextDouble() * 100, 'y': 320.0, 'alpha': 1.0, 'color': Colors.white});
+        _spawnParticles(14);
         _multiplier = (_multiplier + 1).clamp(1, 12);
       } else {
-        _combo = (_combo - 3).clamp(0, 9999);
-        _multiplier = 1;
+        _combo = (_combo - 3).clamp(0, 9999); _multiplier = 1;
       }
       _coreScale = 1.45;
       if (_combo >= 10 && _combo % 5 == 0) _freeze();
     });
     Future.delayed(const Duration(milliseconds: 110), () => mounted ? setState(() => _coreScale = 1.0) : null);
     await _audio.play(AssetSource('sounds/tap.wav'));
+  }
+
+  void _spawnParticles(int n) {
+    for (int i = 0; i < n; i++) {
+      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0, 'speed': 4.0 + _rng.nextDouble() * 4.0, 'alpha': 1.0});
+    }
   }
 
   void _freeze() {
@@ -675,6 +783,8 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
     await _saveHS();
     int coins = await earnCoins(_score, _combo);
     await _audio.play(AssetSource('sounds/quench.wav'));
+    _gamesPlayed++;
+    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
 
     showDialog(
       context: context, barrierDismissible: false,
@@ -683,12 +793,36 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
         title: const Text('PRECISIÓN MÁXIMA', style: TextStyle(color: Colors.cyanAccent, fontSize: 28)),
         content: Text('Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙', style: const TextStyle(color: Colors.white70, fontSize: 16)),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('MENÚ')),
-          TextButton(onPressed: () { Navigator.pop(context); }, child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
+          if (_canRevive && _rewardedAd != null)
+            TextButton(onPressed: () { Navigator.pop(context); _revive(); }, child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
+          TextButton(onPressed: () { Navigator.pop(context); _restart(); }, child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('MENÚ', style: TextStyle(color: Colors.white54))),
         ],
       ),
     );
   }
+
+  void _revive() {
+    _rewardedAd?.show(onUserEarnedReward: (_, __) {
+      _score *= 2;
+      setState(() { _temperature = -25; _combo = (_combo / 2).floor(); _multiplier = 1; _isFrozen = true; _canRevive = false; });
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
+      });
+    });
+    _rewardedAd = null; _loadAds();
+  }
+
+  void _restart() {
+    setState(() {
+      _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
+      _balls.clear(); _particles.clear(); _floatingScores.clear(); _lightning.clear();
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
+    });
+    _ringCtrl.repeat(); _startGame();
+  }
+
+  List<Color> get _gradient => _isFrozen ? [Colors.lightBlueAccent, Colors.cyan] : getSkinColors(widget.selectedSkin);
 
   @override
   Widget build(BuildContext context) {
@@ -697,7 +831,7 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
       body: GestureDetector(
         onTapDown: _onTap,
         child: Stack(children: [
-          Positioned(top: 50, left: 20, child: Text('${_temperature.toStringAsFixed(1)} μK', style: TextStyle(fontSize: 46, color: Colors.cyan, fontWeight: FontWeight.bold))),
+          Positioned(top: 50, left: 20, child: Text('${_temperature.toStringAsFixed(1)} μK', style: TextStyle(fontSize: 46, color: _gradient.first, fontWeight: FontWeight.bold))),
           Positioned(top: 50, right: 20, child: Text('$_score', style: const TextStyle(fontSize: 34, color: Colors.white))),
           Positioned(top: 100, right: 20, child: Text('×$_multiplier', style: const TextStyle(fontSize: 44, color: Colors.purpleAccent))),
           Center(
@@ -709,8 +843,8 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
                   width: 215, height: 215,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: getSkinColors(widget.selectedSkin)),
-                    boxShadow: [BoxShadow(color: Colors.cyan.withOpacity(0.9), blurRadius: 70)],
+                    gradient: RadialGradient(colors: _gradient),
+                    boxShadow: [BoxShadow(color: _gradient.first.withOpacity(0.9), blurRadius: 70 + (_combo * 2).toDouble(), spreadRadius: 5)],
                   ),
                   child: const Center(child: Text('PRECISIÓN', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
                 ),
@@ -720,6 +854,7 @@ class _PrecisionState extends State<PrecisionScreen> with SingleTickerProviderSt
           ..._balls.map((b) => Positioned(left: b['x'], top: b['y'], child: Container(width: 44, height: 44, decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
           ..._particles.map((p) => Positioned(left: p['x'], top: p['y'], child: Opacity(opacity: p['alpha'], child: Container(width: 9, height: 9, decoration: const BoxDecoration(color: Colors.cyan, shape: BoxShape.circle))))),
           ..._floatingScores.map((f) => Positioned(left: f['x'], top: f['y'], child: Opacity(opacity: f['alpha'], child: Text(f['text'], style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: f['color']))))),
+          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'], child: Opacity(opacity: l['alpha'], child: Container(width: 2, height: 40, color: Colors.blueAccent)))),
           if (_isFrozen) Container(color: Colors.cyan.withOpacity(0.18), child: const Center(child: Text('FREEZE\nDESATA EL CAOS', textAlign: TextAlign.center, style: TextStyle(fontSize: 42, color: Colors.cyanAccent, fontWeight: FontWeight.bold)))),
         ]),
       ),
@@ -753,15 +888,12 @@ class _SkinsScreenState extends State<SkinsScreen> {
   };
 
   @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
+  void initState() { super.initState(); _loadData(); }
 
   Future<void> _loadData() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _cryoCoins = p.getInt('cryo_coins') ?? 0;
+      _cryoCoins   = p.getInt('cryo_coins') ?? 0;
       _selectedSkin = p.getString('selected_skin') ?? 'cyan';
     });
   }
@@ -814,7 +946,11 @@ class _SkinsScreenState extends State<SkinsScreen> {
                 contentPadding: const EdgeInsets.all(12),
                 leading: Container(
                   width: 56, height: 56,
-                  decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: colors), boxShadow: [BoxShadow(color: colors.first.withOpacity(0.7), blurRadius: 16)]),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: colors),
+                    boxShadow: [BoxShadow(color: colors.first.withOpacity(0.7), blurRadius: 16)],
+                  ),
                 ),
                 title: Text(skin.toUpperCase(), style: TextStyle(color: colors.first, fontSize: 20, fontWeight: FontWeight.bold)),
                 subtitle: Text(_skins[skin]!['desc'], style: const TextStyle(color: Colors.white70)),
