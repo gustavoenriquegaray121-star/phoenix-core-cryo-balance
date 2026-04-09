@@ -10,11 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Instalar ImageMagick
+        run: sudo apt-get install -y imagemagick
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
+          channel: 'stable'
+
+      - name: Crear iconos
+        run: |
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          convert -size 48x48 radial-gradient:cyan-black android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          convert -size 72x72 radial-gradient:cyan-black android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          convert -size 96x96 radial-gradient:cyan-black android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          convert -size 144x144 radial-gradient:cyan-black android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          convert -size 192x192 radial-gradient:cyan-black android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
       - run: flutter pub get
+
       - run: flutter build apk --release
+
       - uses: actions/upload-artifact@v4
         with:
           name: PhoenixCore-APK
