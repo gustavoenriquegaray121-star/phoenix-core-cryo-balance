@@ -876,7 +876,7 @@ class _PrecisionState extends State<PrecisionScreen>
         content: Text(
           'Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙',
           style: const TextStyle(color: Colors.white70, fontSize: 16)),
-        的高s: [
+        actions: [
           TextButton(
             onPressed: () { Navigator.pop(context); _restart(); },
             child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
