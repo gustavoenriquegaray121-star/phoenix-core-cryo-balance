@@ -139,23 +139,23 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
                     children: [
                       _ModeCard(
                         title: '¿EVITAR EL\nQUENCH?',
-                        subtitle: 'Mantén el equilibrio\no sufre el desastre',
+                        subtitle: 'Mitigación directa de\ninestabilidad térmica',
                         color: Colors.cyan,
-                        score: '58,000 ×14',
+                        score: 'ACTIVE',
                         onTap: () => _goMode(CryoBalanceScreen(selectedSkin: _selectedSkin)),
                       ),
                       _ModeCard(
                         title: 'ALTÍSIMA\nVELOCIDAD',
-                        subtitle: 'Tapa en el\nmomento perfecto',
+                        subtitle: 'Protocolo de respuesta\nsub-90ns',
                         color: Colors.orangeAccent,
-                        score: '26,450 ×4',
+                        score: 'BOOST',
                         onTap: () => _goMode(HighSpeedScreen(selectedSkin: _selectedSkin)),
                       ),
                       _ModeCard(
                         title: 'PRECISIÓN\nMÁXIMA',
-                        subtitle: 'Desata el caos\nen FREEZE',
+                        subtitle: 'Control predictivo\nde fase',
                         color: Colors.purpleAccent,
-                        score: '119.3 μK ×10',
+                        score: 'ULTRA',
                         onTap: () => _goMode(PrecisionScreen(selectedSkin: _selectedSkin)),
                       ),
                     ],
@@ -182,9 +182,6 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// TARJETA DE MODO
-// ══════════════════════════════════════════════════════════════
 class _ModeCard extends StatelessWidget {
   final String title, subtitle, score;
   final Color color;
@@ -240,9 +237,6 @@ class _ModeCard extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// LÓGICA DE MONEDAS
-// ══════════════════════════════════════════════════════════════
 Future<int> earnCoins(int score, int combo) async {
   final prefs = await SharedPreferences.getInstance();
   int earned = (score ~/ 2) + (combo * 10);
@@ -269,7 +263,6 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
   int _combo = 0, _score = 0, _highScore = 0;
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
-  bool _canRevive = true;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -305,24 +298,25 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
       if (_isFrozen) return;
       setState(() {
         double diff = 1.0 + log(_score + 1) / 5;
-
-        _temperature += (_rng.nextDouble() * 0.9 * diff * _gameSpeed) + (_combo * 0.06);
+        _temperature += (_rng.nextDouble() * 0.9 * diff * _gameSpeed) + (_combo * 0.05);
 
         if (_rng.nextDouble() < 0.09 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
             'speed': 4.5 + _rng.nextDouble() * 4.0 * diff, 'hit': false});
         }
-        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
-          b['y'] += b['speed'];
-          if (b['y'] > 340 && !b['hit']) { _temperature += 10.0; b['hit'] = true; }
+          b['y'] += b['speed'] * _gameSpeed;
+          if (b['y'] > 340 && !b['hit']) { 
+            _temperature += 15.0; 
+            b['hit'] = true; 
+            HapticFeedback.vibrate();
+          }
         }
-        _balls.removeWhere((b) => b['y'] > 620);
+        _balls.removeWhere((b) => b['y'] > 700);
 
-        for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.04; }
+        for (var p in _particles) { p['x'] += p['vx']; p['y'] += p['vy']; p['alpha'] -= 0.04; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
-        if (_particles.length > 80) _particles.removeAt(0);
 
         if (_rng.nextDouble() < 0.08) {
           _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
@@ -336,36 +330,50 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     });
   }
 
-  void _onTap(TapDownDetails d) {
-    HapticFeedback.mediumImpact();
-    double best = 0;
-    for (var b in _balls) {
-      if (b['hit']) continue;
-      double dist = (b['y'] - 340).abs();
-      if (dist < 88) best = max(best, (88 - dist) / 88);
-    }
-    double cooling = 12 + best * 26;
+  void _onTapDown(TapDownDetails d) {
+    final tapPos = d.localPosition;
+    bool hitBall = false;
+
     setState(() {
-      _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
-      if (best > 0.80) {
-        HapticFeedback.heavyImpact(); _combo++; _score += 32 * _combo; _spawnParticles(20);
-      } else if (best > 0.50) {
-        _combo++; _score += 16 * _combo; _spawnParticles(10);
-      } else {
-        _combo = (_combo - 2).clamp(0, 9999);
+      for (int i = _balls.length - 1; i >= 0; i--) {
+        var b = _balls[i];
+        double dx = (tapPos.dx - b['x'] - 22).abs();
+        double dy = (tapPos.dy - b['y'] - 22).abs();
+
+        if (dx < 40 && dy < 40 && !b['hit']) {
+          _balls.removeAt(i);
+          _spawnExplosion(tapPos.dx, tapPos.dy);
+          _combo++;
+          _score += 50 * _combo;
+          _temperature = (_temperature - 15).clamp(-120.0, 120.0);
+          HapticFeedback.mediumImpact();
+          hitBall = true;
+          break; 
+        }
       }
-      _coreScale = 1.35;
-      if (_combo >= 8 && _combo % 4 == 0) _freeze();
+
+      if (!hitBall) {
+        _combo = (_combo - 1).clamp(0, 999);
+        _temperature = (_temperature + 5).clamp(-120.0, 120.0);
+      } else {
+        if (_combo >= 8 && _combo % 4 == 0) _freeze();
+      }
+      _coreScale = 1.2;
     });
+
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) setState(() => _coreScale = 1.0);
     });
   }
 
-  void _spawnParticles(int n) {
-    for (int i = 0; i < n; i++) {
-      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0,
-        'speed': 3.8 + _rng.nextDouble() * 3.8, 'alpha': 1.0});
+  void _spawnExplosion(double x, double y) {
+    for (int i = 0; i < 15; i++) {
+      _particles.add({
+        'x': x, 'y': y,
+        'vx': (_rng.nextDouble() - 0.5) * 10,
+        'vy': (_rng.nextDouble() - 0.5) * 10,
+        'alpha': 1.0
+      });
     }
   }
 
@@ -409,7 +417,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     setState(() {
       _temperature = 0; _combo = 0; _score = 0;
       _balls.clear(); _particles.clear(); _lightning.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0;
     });
     _ringCtrl.repeat(); _startGame();
   }
@@ -425,7 +433,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     return Scaffold(
       backgroundColor: _isFrozen ? Colors.blueGrey.shade900 : Colors.black,
       body: GestureDetector(
-        onTapDown: _onTap,
+        onTapDown: _onTapDown,
         child: Stack(children: [
           Positioned(top: 50, left: 20,
             child: Text('${_temperature.toStringAsFixed(1)} μK',
@@ -458,14 +466,15 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
           ),
           ..._balls.map((b) => Positioned(left: b['x'], top: b['y'],
             child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
+              decoration: BoxDecoration(
+                color: b['hit'] ? Colors.red.withOpacity(0.3) : Colors.redAccent, 
+                shape: BoxShape.circle,
+                boxShadow: [if(!b['hit']) const BoxShadow(color: Colors.red, blurRadius: 10)]
+              )))),
           ..._particles.map((p) => Positioned(left: p['x'], top: p['y'],
             child: Opacity(opacity: p['alpha'],
-              child: Container(width: 9, height: 9,
-                decoration: const BoxDecoration(color: Colors.cyan, shape: BoxShape.circle))))),
-          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'],
-            child: Opacity(opacity: l['alpha'],
-              child: Container(width: 2, height: 40, color: Colors.blueAccent)))),
+              child: Container(width: 6, height: 6,
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))))),
           if (_isFrozen)
             Container(color: Colors.cyan.withOpacity(0.13),
               child: const Center(child: Text('FREEZE',
@@ -499,7 +508,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
   int _combo = 0, _score = 0, _multiplier = 1, _highScore = 0;
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
-  bool _canRevive = true;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -507,7 +515,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
 
   List<Map<String, dynamic>> _balls = [];
   List<Map<String, dynamic>> _particles = [];
-  List<Map<String, dynamic>> _lightning = [];
 
   @override
   void initState() {
@@ -535,67 +542,73 @@ class _HighSpeedState extends State<HighSpeedScreen>
       if (_isFrozen) return;
       setState(() {
         double diff = 1.0 + log(_score + 1) / 3;
-        _temperature += (_rng.nextDouble() * 1.8 * diff * _gameSpeed) + (_combo * 0.12);
+        _temperature += (_rng.nextDouble() * 1.8 * diff * _gameSpeed) + (_combo * 0.1);
 
         if (_rng.nextDouble() < 0.14 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
-            'speed': 6.5 + _rng.nextDouble() * 6.0 * diff, 'hit': false});
+            'speed': 7.5 + _rng.nextDouble() * 7.0 * diff, 'hit': false});
         }
-        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
-          b['y'] += b['speed'];
-          if (b['y'] > 340 && !b['hit']) { _temperature += 10.0; b['hit'] = true; }
+          b['y'] += b['speed'] * _gameSpeed;
+          if (b['y'] > 340 && !b['hit']) { _temperature += 20.0; b['hit'] = true; HapticFeedback.vibrate(); }
         }
-        _balls.removeWhere((b) => b['y'] > 620);
+        _balls.removeWhere((b) => b['y'] > 700);
 
-        for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.045; }
+        for (var p in _particles) { p['x'] += p['vx']; p['y'] += p['vy']; p['alpha'] -= 0.05; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
-        if (_particles.length > 80) _particles.removeAt(0);
 
-        if (_rng.nextDouble() < 0.10) {
-          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
-        }
-        for (var l in _lightning) { l['alpha'] -= 0.08; }
-        _lightning.removeWhere((l) => l['alpha'] <= 0);
-
-        _multiplier = 1 + (_combo ~/ 4);
+        _multiplier = 1 + (_combo ~/ 5);
         _temperature = _temperature.clamp(-120.0, 120.0);
         if (_temperature.abs() > 100) _gameOver();
       });
     });
   }
 
-  void _onTap(TapDownDetails d) {
-    HapticFeedback.mediumImpact();
-    double best = 0;
-    for (var b in _balls) {
-      if (b['hit']) continue;
-      double dist = (b['y'] - 340).abs();
-      if (dist < 88) best = max(best, (88 - dist) / 88);
-    }
-    double cooling = 10 + best * 22;
+  void _onTapDown(TapDownDetails d) {
+    final tapPos = d.localPosition;
+    bool hitBall = false;
+
     setState(() {
-      _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
-      if (best > 0.75) {
-        HapticFeedback.heavyImpact(); _combo++; _score += (28 * _combo) * _multiplier; _spawnParticles(22);
-      } else if (best > 0.45) {
-        _combo++; _score += (14 * _combo) * _multiplier; _spawnParticles(12);
-      } else {
-        _combo = (_combo - 3).clamp(0, 9999);
+      for (int i = _balls.length - 1; i >= 0; i--) {
+        var b = _balls[i];
+        double dx = (tapPos.dx - b['x'] - 22).abs();
+        double dy = (tapPos.dy - b['y'] - 22).abs();
+
+        if (dx < 50 && dy < 50 && !b['hit']) {
+          _balls.removeAt(i);
+          _spawnExplosion(tapPos.dx, tapPos.dy);
+          _combo++;
+          _score += (100 * _combo) * _multiplier;
+          _temperature = (_temperature - 20).clamp(-120.0, 120.0);
+          HapticFeedback.heavyImpact();
+          hitBall = true;
+          break;
+        }
       }
-      _coreScale = 1.4;
-      if (_combo >= 6 && _combo % 3 == 0) _freeze();
+
+      if (!hitBall) {
+        _combo = 0;
+        _temperature += 10;
+      } else {
+        if (_combo >= 6 && _combo % 3 == 0) _freeze();
+      }
+      _coreScale = 1.3;
     });
+
     Future.delayed(const Duration(milliseconds: 90), () {
       if (mounted) setState(() => _coreScale = 1.0);
     });
   }
 
-  void _spawnParticles(int n) {
-    for (int i = 0; i < n; i++) {
-      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0,
-        'speed': 4.5 + _rng.nextDouble() * 4.5, 'alpha': 1.0});
+  void _spawnExplosion(double x, double y) {
+    for (int i = 0; i < 20; i++) {
+      _particles.add({
+        'x': x, 'y': y,
+        'vx': (_rng.nextDouble() - 0.5) * 15,
+        'vy': (_rng.nextDouble() - 0.5) * 15,
+        'alpha': 1.0
+      });
     }
   }
 
@@ -638,8 +651,8 @@ class _HighSpeedState extends State<HighSpeedScreen>
   void _restart() {
     setState(() {
       _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
-      _balls.clear(); _particles.clear(); _lightning.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
+      _balls.clear(); _particles.clear();
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0;
     });
     _ringCtrl.repeat(); _startGame();
   }
@@ -654,7 +667,7 @@ class _HighSpeedState extends State<HighSpeedScreen>
     return Scaffold(
       backgroundColor: _isFrozen ? Colors.blueGrey.shade900 : Colors.black,
       body: GestureDetector(
-        onTapDown: _onTap,
+        onTapDown: _onTapDown,
         child: Stack(children: [
           Positioned(top: 50, left: 20,
             child: Text('${_temperature.toStringAsFixed(1)} μK',
@@ -678,7 +691,7 @@ class _HighSpeedState extends State<HighSpeedScreen>
                       color: _gradient.first.withOpacity(0.9),
                       blurRadius: 70 + (_combo * 2).toDouble(), spreadRadius: 5)],
                   ),
-                  child: const Center(child: Text('ALTÍSIMA\nVELOCIDAD',
+                  child: const Center(child: Text('ALTA\nVELOCIDAD',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold))),
                 ),
@@ -687,14 +700,15 @@ class _HighSpeedState extends State<HighSpeedScreen>
           ),
           ..._balls.map((b) => Positioned(left: b['x'], top: b['y'],
             child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
+              decoration: BoxDecoration(
+                color: b['hit'] ? Colors.red.withOpacity(0.2) : Colors.redAccent, 
+                shape: BoxShape.circle,
+                boxShadow: [if(!b['hit']) const BoxShadow(color: Colors.orange, blurRadius: 15)]
+              )))),
           ..._particles.map((p) => Positioned(left: p['x'], top: p['y'],
             child: Opacity(opacity: p['alpha'],
-              child: Container(width: 9, height: 9,
-                decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle))))),
-          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'],
-            child: Opacity(opacity: l['alpha'],
-              child: Container(width: 2, height: 40, color: Colors.orangeAccent)))),
+              child: Container(width: 7, height: 7,
+                decoration: const BoxDecoration(color: Colors.orangeAccent, shape: BoxShape.circle))))),
           if (_isFrozen)
             Container(color: Colors.cyan.withOpacity(0.13),
               child: const Center(child: Text('FREEZE',
@@ -728,7 +742,6 @@ class _PrecisionState extends State<PrecisionScreen>
   int _combo = 0, _score = 0, _multiplier = 1, _highScore = 0;
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
-  bool _canRevive = true;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -737,7 +750,6 @@ class _PrecisionState extends State<PrecisionScreen>
   List<Map<String, dynamic>> _balls = [];
   List<Map<String, dynamic>> _particles = [];
   List<Map<String, dynamic>> _floatingScores = [];
-  List<Map<String, dynamic>> _lightning = [];
 
   @override
   void initState() {
@@ -765,32 +777,24 @@ class _PrecisionState extends State<PrecisionScreen>
       if (_isFrozen) return;
       setState(() {
         double diff = 1.0 + log(_score + 1) / 5;
-        _temperature += (_rng.nextDouble() * 0.9 * diff * _gameSpeed) + (_combo * 0.06);
+        _temperature += (_rng.nextDouble() * 0.9 * diff * _gameSpeed) + (_combo * 0.04);
 
         if (_rng.nextDouble() < 0.065 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
-            'speed': 3.2 + _rng.nextDouble() * 3.0 * diff, 'hit': false});
+            'speed': 3.5 + _rng.nextDouble() * 3.5 * diff, 'hit': false});
         }
-        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
-          b['y'] += b['speed'];
-          if (b['y'] > 340 && !b['hit']) { _temperature += 10.0; b['hit'] = true; }
+          b['y'] += b['speed'] * _gameSpeed;
+          if (b['y'] > 340 && !b['hit']) { _temperature += 25.0; b['hit'] = true; HapticFeedback.vibrate(); }
         }
-        _balls.removeWhere((b) => b['y'] > 620);
+        _balls.removeWhere((b) => b['y'] > 700);
 
-        for (var p in _particles) { p['y'] -= p['speed']; p['alpha'] -= 0.038; }
+        for (var p in _particles) { p['x'] += p['vx']; p['y'] += p['vy']; p['alpha'] -= 0.04; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
-        if (_particles.length > 80) _particles.removeAt(0);
 
-        for (var f in _floatingScores) { f['y'] -= 2.2; f['alpha'] -= 0.028; }
+        for (var f in _floatingScores) { f['y'] -= 2.2; f['alpha'] -= 0.03; }
         _floatingScores.removeWhere((f) => f['alpha'] <= 0);
-
-        if (_rng.nextDouble() < 0.06) {
-          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
-        }
-        for (var l in _lightning) { l['alpha'] -= 0.07; }
-        _lightning.removeWhere((l) => l['alpha'] <= 0);
 
         _temperature = _temperature.clamp(-120.0, 120.0);
         if (_temperature.abs() > 100) _gameOver();
@@ -798,57 +802,62 @@ class _PrecisionState extends State<PrecisionScreen>
     });
   }
 
-  void _onTap(TapDownDetails d) {
-    HapticFeedback.mediumImpact();
-    double best = 0;
-    for (var b in _balls) {
-      if (b['hit']) continue;
-      double dist = (b['y'] - 340).abs();
-      if (dist < 92) best = max(best, (92 - dist) / 92);
-    }
-    double cooling = 14 + best * 32;
+  void _onTapDown(TapDownDetails d) {
+    final tapPos = d.localPosition;
+    bool hitBall = false;
+
     setState(() {
-      _temperature = (_temperature - cooling).clamp(-120.0, 120.0);
-      if (best > 0.82) {
-        HapticFeedback.heavyImpact(); _combo++;
-        int pts = (280 + _rng.nextInt(140)) * _multiplier;
-        _score += pts;
-        _floatingScores.add({'text': '+$pts', 'x': 110 + _rng.nextDouble() * 100,
-          'y': 320.0, 'alpha': 1.0, 'color': Colors.cyanAccent});
-        _spawnParticles(28);
-        _multiplier = (_multiplier + 1).clamp(1, 12);
-      } else if (best > 0.55) {
-        _combo++;
-        int pts = (110 + _rng.nextInt(80)) * _multiplier;
-        _score += pts;
-        _floatingScores.add({'text': '+$pts', 'x': 110 + _rng.nextDouble() * 100,
-          'y': 320.0, 'alpha': 1.0, 'color': Colors.white});
-        _spawnParticles(14);
-        _multiplier = (_multiplier + 1).clamp(1, 12);
-      } else {
-        _combo = (_combo - 3).clamp(0, 9999); _multiplier = 1;
+      for (int i = _balls.length - 1; i >= 0; i--) {
+        var b = _balls[i];
+        double dx = (tapPos.dx - b['x'] - 22).abs();
+        double dy = (tapPos.dy - b['y'] - 22).abs();
+
+        if (dx < 45 && dy < 45 && !b['hit']) {
+          _balls.removeAt(i);
+          _spawnExplosion(tapPos.dx, tapPos.dy);
+          _combo++;
+          int pts = (300 + _rng.nextInt(200)) * _multiplier;
+          _score += pts;
+          _floatingScores.add({'text': '+$pts', 'x': tapPos.dx, 'y': tapPos.dy, 'alpha': 1.0});
+          _temperature = (_temperature - 25).clamp(-120.0, 120.0);
+          HapticFeedback.heavyImpact();
+          hitBall = true;
+          break;
+        }
       }
-      _coreScale = 1.45;
-      if (_combo >= 10 && _combo % 5 == 0) _freeze();
+
+      if (!hitBall) {
+        _multiplier = 1;
+        _combo = 0;
+      } else {
+        _multiplier = (_multiplier + 1).clamp(1, 15);
+        if (_combo >= 10 && _combo % 5 == 0) _freeze();
+      }
+      _coreScale = 1.4;
     });
+
     Future.delayed(const Duration(milliseconds: 110), () {
       if (mounted) setState(() => _coreScale = 1.0);
     });
   }
 
-  void _spawnParticles(int n) {
-    for (int i = 0; i < n; i++) {
-      _particles.add({'x': 130 + _rng.nextDouble() * 110 - 55, 'y': 340.0,
-        'speed': 4.0 + _rng.nextDouble() * 4.0, 'alpha': 1.0});
+  void _spawnExplosion(double x, double y) {
+    for (int i = 0; i < 25; i++) {
+      _particles.add({
+        'x': x, 'y': y,
+        'vx': (_rng.nextDouble() - 0.5) * 12,
+        'vy': (_rng.nextDouble() - 0.5) * 12,
+        'alpha': 1.0
+      });
     }
   }
 
   void _freeze() {
     if (_isFrozen) return;
-    setState(() { _isFrozen = true; _gameSpeed = 0.18; _multiplier = 10; });
+    setState(() { _isFrozen = true; _gameSpeed = 0.18; });
     _freezeTimer?.cancel();
     _freezeTimer = Timer(const Duration(milliseconds: 2200), () {
-      if (mounted) setState(() { _isFrozen = false; _gameSpeed = 1.0; _multiplier = 1; });
+      if (mounted) setState(() { _isFrozen = false; _gameSpeed = 1.0; });
     });
   }
 
@@ -867,7 +876,7 @@ class _PrecisionState extends State<PrecisionScreen>
         content: Text(
           'Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙',
           style: const TextStyle(color: Colors.white70, fontSize: 16)),
-        actions: [
+        的高s: [
           TextButton(
             onPressed: () { Navigator.pop(context); _restart(); },
             child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
@@ -882,8 +891,8 @@ class _PrecisionState extends State<PrecisionScreen>
   void _restart() {
     setState(() {
       _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
-      _balls.clear(); _particles.clear(); _floatingScores.clear(); _lightning.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
+      _balls.clear(); _particles.clear(); _floatingScores.clear();
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0;
     });
     _ringCtrl.repeat(); _startGame();
   }
@@ -896,7 +905,7 @@ class _PrecisionState extends State<PrecisionScreen>
     return Scaffold(
       backgroundColor: _isFrozen ? Colors.blueGrey.shade900 : Colors.black,
       body: GestureDetector(
-        onTapDown: _onTap,
+        onTapDown: _onTapDown,
         child: Stack(children: [
           Positioned(top: 50, left: 20,
             child: Text('${_temperature.toStringAsFixed(1)} μK',
@@ -929,22 +938,23 @@ class _PrecisionState extends State<PrecisionScreen>
           ),
           ..._balls.map((b) => Positioned(left: b['x'], top: b['y'],
             child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)))),
+              decoration: BoxDecoration(
+                color: b['hit'] ? Colors.red.withOpacity(0.1) : Colors.redAccent, 
+                shape: BoxShape.circle,
+                boxShadow: [if(!b['hit']) const BoxShadow(color: Colors.cyanAccent, blurRadius: 12)]
+              )))),
           ..._particles.map((p) => Positioned(left: p['x'], top: p['y'],
             child: Opacity(opacity: p['alpha'],
-              child: Container(width: 9, height: 9,
-                decoration: const BoxDecoration(color: Colors.cyan, shape: BoxShape.circle))))),
+              child: Container(width: 5, height: 5,
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))))),
           ..._floatingScores.map((f) => Positioned(
             left: f['x'], top: f['y'],
             child: Opacity(opacity: f['alpha'],
               child: Text(f['text'],
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: f['color']))))),
-          ..._lightning.map((l) => Positioned(left: l['x'], top: l['y'],
-            child: Opacity(opacity: l['alpha'],
-              child: Container(width: 2, height: 40, color: Colors.blueAccent)))),
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.cyanAccent))))),
           if (_isFrozen)
             Container(color: Colors.cyan.withOpacity(0.18),
-              child: const Center(child: Text('FREEZE\nDESATA EL CAOS',
+              child: const Center(child: Text('FREEZE\nCONTROL PREDICTIVO',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 42, color: Colors.cyanAccent, fontWeight: FontWeight.bold)))),
         ]),
