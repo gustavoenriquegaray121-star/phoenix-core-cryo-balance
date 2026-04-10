@@ -182,6 +182,9 @@ class _MainMenuState extends State<MainMenu> with SingleTickerProviderStateMixin
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// TARJETA DE MODO
+// ══════════════════════════════════════════════════════════════
 class _ModeCard extends StatelessWidget {
   final String title, subtitle, score;
   final Color color;
@@ -237,6 +240,9 @@ class _ModeCard extends StatelessWidget {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// LÓGICA DE MONEDAS
+// ══════════════════════════════════════════════════════════════
 Future<int> earnCoins(int score, int combo) async {
   final prefs = await SharedPreferences.getInstance();
   int earned = (score ~/ 2) + (combo * 10);
@@ -263,6 +269,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
   int _combo = 0, _score = 0, _highScore = 0;
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
+  bool _canRevive = true;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -298,22 +305,20 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
       if (_isFrozen) return;
       setState(() {
         double diff = 1.0 + log(_score + 1) / 5;
+
         _temperature += (_rng.nextDouble() * 0.9 * diff * _gameSpeed) + (_combo * 0.05);
 
         if (_rng.nextDouble() < 0.09 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
             'speed': 4.5 + _rng.nextDouble() * 4.0 * diff, 'hit': false});
         }
+        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
-          b['y'] += b['speed'] * _gameSpeed;
-          if (b['y'] > 340 && !b['hit']) { 
-            _temperature += 15.0; 
-            b['hit'] = true; 
-            HapticFeedback.vibrate();
-          }
+          b['y'] += b['speed'];
+          if (b['y'] > 340 && !b['hit']) { _temperature += 15.0; b['hit'] = true; HapticFeedback.vibrate(); }
         }
-        _balls.removeWhere((b) => b['y'] > 700);
+        _balls.removeWhere((b) => b['y'] > 620);
 
         for (var p in _particles) { p['x'] += p['vx']; p['y'] += p['vy']; p['alpha'] -= 0.04; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
@@ -417,7 +422,7 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     setState(() {
       _temperature = 0; _combo = 0; _score = 0;
       _balls.clear(); _particles.clear(); _lightning.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0;
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
     });
     _ringCtrl.repeat(); _startGame();
   }
@@ -508,6 +513,7 @@ class _HighSpeedState extends State<HighSpeedScreen>
   int _combo = 0, _score = 0, _multiplier = 1, _highScore = 0;
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
+  bool _canRevive = true;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -515,6 +521,7 @@ class _HighSpeedState extends State<HighSpeedScreen>
 
   List<Map<String, dynamic>> _balls = [];
   List<Map<String, dynamic>> _particles = [];
+  List<Map<String, dynamic>> _lightning = [];
 
   @override
   void initState() {
@@ -546,18 +553,20 @@ class _HighSpeedState extends State<HighSpeedScreen>
 
         if (_rng.nextDouble() < 0.14 * diff) {
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
-            'speed': 7.5 + _rng.nextDouble() * 7.0 * diff, 'hit': false});
+            'speed': 6.5 + _rng.nextDouble() * 6.0 * diff, 'hit': false});
         }
+        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
-          b['y'] += b['speed'] * _gameSpeed;
+          b['y'] += b['speed'];
           if (b['y'] > 340 && !b['hit']) { _temperature += 20.0; b['hit'] = true; HapticFeedback.vibrate(); }
         }
-        _balls.removeWhere((b) => b['y'] > 700);
+        _balls.removeWhere((b) => b['y'] > 620);
 
         for (var p in _particles) { p['x'] += p['vx']; p['y'] += p['vy']; p['alpha'] -= 0.05; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
 
+        if (_multiplier != 1 + (_combo ~/ 5)) HapticFeedback.mediumImpact();
         _multiplier = 1 + (_combo ~/ 5);
         _temperature = _temperature.clamp(-120.0, 120.0);
         if (_temperature.abs() > 100) _gameOver();
@@ -651,8 +660,8 @@ class _HighSpeedState extends State<HighSpeedScreen>
   void _restart() {
     setState(() {
       _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
-      _balls.clear(); _particles.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0;
+      _balls.clear(); _particles.clear(); _lightning.clear();
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
     });
     _ringCtrl.repeat(); _startGame();
   }
@@ -742,6 +751,7 @@ class _PrecisionState extends State<PrecisionScreen>
   int _combo = 0, _score = 0, _multiplier = 1, _highScore = 0;
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
+  bool _canRevive = true;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -750,6 +760,7 @@ class _PrecisionState extends State<PrecisionScreen>
   List<Map<String, dynamic>> _balls = [];
   List<Map<String, dynamic>> _particles = [];
   List<Map<String, dynamic>> _floatingScores = [];
+  List<Map<String, dynamic>> _lightning = [];
 
   @override
   void initState() {
@@ -783,18 +794,25 @@ class _PrecisionState extends State<PrecisionScreen>
           _balls.add({'x': _rng.nextDouble() * 280 + 40, 'y': -60.0,
             'speed': 3.5 + _rng.nextDouble() * 3.5 * diff, 'hit': false});
         }
+        if (_balls.length > 25) _balls.removeAt(0);
 
         for (var b in _balls) {
-          b['y'] += b['speed'] * _gameSpeed;
+          b['y'] += b['speed'];
           if (b['y'] > 340 && !b['hit']) { _temperature += 25.0; b['hit'] = true; HapticFeedback.vibrate(); }
         }
-        _balls.removeWhere((b) => b['y'] > 700);
+        _balls.removeWhere((b) => b['y'] > 620);
 
         for (var p in _particles) { p['x'] += p['vx']; p['y'] += p['vy']; p['alpha'] -= 0.04; }
         _particles.removeWhere((p) => p['alpha'] <= 0);
 
         for (var f in _floatingScores) { f['y'] -= 2.2; f['alpha'] -= 0.03; }
         _floatingScores.removeWhere((f) => f['alpha'] <= 0);
+
+        if (_rng.nextDouble() < 0.06) {
+          _lightning.add({'x': _rng.nextDouble() * 300, 'y': _rng.nextDouble() * 600, 'alpha': 1.0});
+        }
+        for (var l in _lightning) { l['alpha'] -= 0.07; }
+        _lightning.removeWhere((l) => l['alpha'] <= 0);
 
         _temperature = _temperature.clamp(-120.0, 120.0);
         if (_temperature.abs() > 100) _gameOver();
@@ -891,8 +909,8 @@ class _PrecisionState extends State<PrecisionScreen>
   void _restart() {
     setState(() {
       _temperature = 0; _combo = 0; _score = 0; _multiplier = 1;
-      _balls.clear(); _particles.clear(); _floatingScores.clear();
-      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0;
+      _balls.clear(); _particles.clear(); _floatingScores.clear(); _lightning.clear();
+      _isFrozen = false; _gameSpeed = 1.0; _coreScale = 1.0; _canRevive = true;
     });
     _ringCtrl.repeat(); _startGame();
   }
