@@ -10,9 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
   shared_preferences: ^2.2.2
+  audioplayers: ^5.2.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/tap.wav
+    - assets/sounds/quench.wav
   fonts:
     - family: VT323
       fonts:
