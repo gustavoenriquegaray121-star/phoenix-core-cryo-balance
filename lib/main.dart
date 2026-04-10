@@ -3,11 +3,9 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize();
   runApp(const PhoenixCoreApp());
 }
 
@@ -272,7 +270,6 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
   bool _canRevive = true;
-  int _gamesPlayed = 0;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -282,14 +279,10 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
   List<Map<String, dynamic>> _particles = [];
   List<Map<String, dynamic>> _lightning = [];
 
-  RewardedAd? _rewardedAd;
-  InterstitialAd? _interstitialAd;
-
   @override
   void initState() {
     super.initState();
     _loadHS();
-    _loadAds();
     _ringCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat();
     _startGame();
   }
@@ -304,25 +297,6 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     final p = await SharedPreferences.getInstance();
     await p.setInt('cryo_highscore', _score);
     setState(() => _highScore = _score);
-  }
-
-  void _loadAds() {
-    RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => _rewardedAd = ad,
-        onAdFailedToLoad: (_) => _rewardedAd = null,
-      ),
-    );
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712',
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
-        onAdFailedToLoad: (_) => _interstitialAd = null,
-      ),
-    );
   }
 
   void _startGame() {
@@ -408,8 +382,6 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
     _gameTimer?.cancel(); _freezeTimer?.cancel(); _ringCtrl.stop();
     await _saveHS();
     int coins = await earnCoins(_score, _combo);
-    _gamesPlayed++;
-    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
     if (!mounted) return;
 
     showDialog(
@@ -422,10 +394,6 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
           'Score: $_score\nHigh: $_highScore\nCombo: $_combo\n\n+$coins CryoCoins 🪙',
           style: const TextStyle(color: Colors.white70, fontSize: 16)),
         actions: [
-          if (_canRevive && _rewardedAd != null)
-            TextButton(
-              onPressed: () { Navigator.pop(context); _revive(); },
-              child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
           TextButton(
             onPressed: () { Navigator.pop(context); _restart(); },
             child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
@@ -435,18 +403,6 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
         ],
       ),
     );
-  }
-
-  void _revive() {
-    _rewardedAd?.show(onUserEarnedReward: (_, __) {
-      _score *= 2;
-      setState(() { _temperature = -30; _combo = (_combo / 2).floor();
-        _isFrozen = true; _canRevive = false; });
-      Future.delayed(const Duration(milliseconds: 800), () {
-        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
-      });
-    });
-    _rewardedAd = null; _loadAds();
   }
 
   void _restart() {
@@ -523,7 +479,6 @@ class _CryoBalanceState extends State<CryoBalanceScreen>
   void dispose() {
     _gameTimer?.cancel(); _freezeTimer?.cancel();
     _ringCtrl.dispose();
-    _rewardedAd?.dispose(); _interstitialAd?.dispose();
     super.dispose();
   }
 }
@@ -545,7 +500,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
   bool _canRevive = true;
-  int _gamesPlayed = 0;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -555,14 +509,10 @@ class _HighSpeedState extends State<HighSpeedScreen>
   List<Map<String, dynamic>> _particles = [];
   List<Map<String, dynamic>> _lightning = [];
 
-  RewardedAd? _rewardedAd;
-  InterstitialAd? _interstitialAd;
-
   @override
   void initState() {
     super.initState();
     _loadHS();
-    _loadAds();
     _ringCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
     _startGame();
   }
@@ -577,25 +527,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
     final p = await SharedPreferences.getInstance();
     await p.setInt('highspeed_highscore', _score);
     setState(() => _highScore = _score);
-  }
-
-  void _loadAds() {
-    RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => _rewardedAd = ad,
-        onAdFailedToLoad: (_) => _rewardedAd = null,
-      ),
-    );
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712',
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
-        onAdFailedToLoad: (_) => _interstitialAd = null,
-      ),
-    );
   }
 
   void _startGame() {
@@ -681,8 +612,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
     _gameTimer?.cancel(); _freezeTimer?.cancel(); _ringCtrl.stop();
     await _saveHS();
     int coins = await earnCoins(_score, _combo);
-    _gamesPlayed++;
-    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
     if (!mounted) return;
 
     showDialog(
@@ -695,10 +624,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
           'Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙',
           style: const TextStyle(color: Colors.white70, fontSize: 16)),
         actions: [
-          if (_canRevive && _rewardedAd != null)
-            TextButton(
-              onPressed: () { Navigator.pop(context); _revive(); },
-              child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
           TextButton(
             onPressed: () { Navigator.pop(context); _restart(); },
             child: const Text('REINTENTAR', style: TextStyle(color: Colors.orange))),
@@ -708,18 +633,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
         ],
       ),
     );
-  }
-
-  void _revive() {
-    _rewardedAd?.show(onUserEarnedReward: (_, __) {
-      _score *= 2;
-      setState(() { _temperature = -35; _combo = (_combo / 2).floor();
-        _isFrozen = true; _canRevive = false; });
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
-      });
-    });
-    _rewardedAd = null; _loadAds();
   }
 
   void _restart() {
@@ -795,7 +708,6 @@ class _HighSpeedState extends State<HighSpeedScreen>
   void dispose() {
     _gameTimer?.cancel(); _freezeTimer?.cancel();
     _ringCtrl.dispose();
-    _rewardedAd?.dispose(); _interstitialAd?.dispose();
     super.dispose();
   }
 }
@@ -817,7 +729,6 @@ class _PrecisionState extends State<PrecisionScreen>
   bool _isFrozen = false;
   double _gameSpeed = 1.0, _coreScale = 1.0;
   bool _canRevive = true;
-  int _gamesPlayed = 0;
 
   Timer? _gameTimer, _freezeTimer;
   final Random _rng = Random();
@@ -828,14 +739,10 @@ class _PrecisionState extends State<PrecisionScreen>
   List<Map<String, dynamic>> _floatingScores = [];
   List<Map<String, dynamic>> _lightning = [];
 
-  RewardedAd? _rewardedAd;
-  InterstitialAd? _interstitialAd;
-
   @override
   void initState() {
     super.initState();
     _loadHS();
-    _loadAds();
     _ringCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
     _startGame();
   }
@@ -850,25 +757,6 @@ class _PrecisionState extends State<PrecisionScreen>
     final p = await SharedPreferences.getInstance();
     await p.setInt('precision_highscore', _score);
     setState(() => _highScore = _score);
-  }
-
-  void _loadAds() {
-    RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => _rewardedAd = ad,
-        onAdFailedToLoad: (_) => _rewardedAd = null,
-      ),
-    );
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712',
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
-        onAdFailedToLoad: (_) => _interstitialAd = null,
-      ),
-    );
   }
 
   void _startGame() {
@@ -968,8 +856,6 @@ class _PrecisionState extends State<PrecisionScreen>
     _gameTimer?.cancel(); _freezeTimer?.cancel(); _ringCtrl.stop();
     await _saveHS();
     int coins = await earnCoins(_score, _combo);
-    _gamesPlayed++;
-    if (_gamesPlayed % 3 == 0) { _interstitialAd?.show(); _loadAds(); }
     if (!mounted) return;
 
     showDialog(
@@ -982,10 +868,6 @@ class _PrecisionState extends State<PrecisionScreen>
           'Score: $_score\nHigh: $_highScore\nCombo: $_combo\n×$_multiplier\n\n+$coins CryoCoins 🪙',
           style: const TextStyle(color: Colors.white70, fontSize: 16)),
         actions: [
-          if (_canRevive && _rewardedAd != null)
-            TextButton(
-              onPressed: () { Navigator.pop(context); _revive(); },
-              child: const Text('VER ANUNCIO → x2 SCORE', style: TextStyle(color: Colors.greenAccent))),
           TextButton(
             onPressed: () { Navigator.pop(context); _restart(); },
             child: const Text('REINTENTAR', style: TextStyle(color: Colors.cyan))),
@@ -995,18 +877,6 @@ class _PrecisionState extends State<PrecisionScreen>
         ],
       ),
     );
-  }
-
-  void _revive() {
-    _rewardedAd?.show(onUserEarnedReward: (_, __) {
-      _score *= 2;
-      setState(() { _temperature = -25; _combo = (_combo / 2).floor();
-        _multiplier = 1; _isFrozen = true; _canRevive = false; });
-      Future.delayed(const Duration(milliseconds: 900), () {
-        if (mounted) { setState(() => _isFrozen = false); _startGame(); }
-      });
-    });
-    _rewardedAd = null; _loadAds();
   }
 
   void _restart() {
@@ -1086,7 +956,6 @@ class _PrecisionState extends State<PrecisionScreen>
   void dispose() {
     _gameTimer?.cancel(); _freezeTimer?.cancel();
     _ringCtrl.dispose();
-    _rewardedAd?.dispose(); _interstitialAd?.dispose();
     super.dispose();
   }
 }
