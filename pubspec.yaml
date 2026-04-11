@@ -14,9 +14,12 @@ dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
     - assets/sounds/tap.wav
     - assets/sounds/quench.wav
+    - assets/images/    # <--- ESTA ES LA LÍNEA NUEVA QUE AGREGUÉ
+
   fonts:
     - family: VT323
       fonts:
