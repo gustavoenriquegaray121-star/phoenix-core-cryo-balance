@@ -262,20 +262,34 @@ class PhaseEngine {
 }
 
 // ══════════════════════════════════════════════════════════
-//  RESOURCE SYSTEM
+//  RESOURCE SYSTEM (CORREGIDO: CALENTAMIENTO POR MOVIMIENTO)
 // ══════════════════════════════════════════════════════════
 class ResourceSystem {
   double energy=100, heat=0, entropy=0;
 
-  void update(double dt, PlayerBuild b) {
-    heat   = (heat   - 8*b.cooling*dt).clamp(0,100);
+  void update(double dt, PlayerBuild b, bool isMoving) {
+    // El enfriamiento base se ve afectado por la eficiencia criogénica
+    double coolingRate = 8 * b.cooling;
+    
+    // Penalización térmica por movimiento (esfuerzo de motores)
+    if (isMoving) {
+      heat += 6.5 * dt; 
+    }
+
+    heat = (heat - coolingRate * dt).clamp(0,100);
     energy = (energy + 4*dt).clamp(0,b.maxEnergy);
     entropy = (entropy + 0.3*dt).clamp(0,100);
+    
     if (heat>85) energy -= 15*dt;
   }
+
   void applyShoot(PlayerBuild b) {
-    energy -= 2.5; heat += 4/b.cooling; entropy += 0.4;
+    energy -= 2.5; 
+    // Disparar genera calor inversamente proporcional al cooling
+    heat += 4.5 / b.cooling; 
+    entropy += 0.4;
   }
+
   bool   get overheating => heat>80;
   double get heatFrac    => heat/100;
   double get energyFrac  => (energy/100).clamp(0,1);
@@ -621,7 +635,9 @@ class _GameScreenState extends State<GameScreen>
     if (_corePulse<0) _pulseDir=1;
 
     _phase.update(dt, onDecision: _triggerDecision, onBoss: _triggerBoss);
-    _res.update(dt, _player.build);
+    
+    // CORREGIDO: Pasar _touching para penalización de calor por movimiento
+    _res.update(dt, _player.build, _touching);
     _player.energy=_res.energy; _player.heat=_res.heat;
 
     if (_res.heatFrac>=0.8 && !_alarmOn) { 
