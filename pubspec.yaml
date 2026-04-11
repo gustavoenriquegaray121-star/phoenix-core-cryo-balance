@@ -18,7 +18,7 @@ flutter:
   assets:
     - assets/sounds/tap.wav
     - assets/sounds/quench.wav
-    - assets/images/    # <--- ESTA ES LA LÍNEA NUEVA QUE AGREGUÉ
+    - assets/images/
 
   fonts:
     - family: VT323
