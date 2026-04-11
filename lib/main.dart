@@ -108,19 +108,14 @@ const _scenes = [
 ];
 
 // ══════════════════════════════════════════════════════════
-//  AUDIO MANAGER (CORREGIDO)
+//  AUDIO MANAGER
 // ══════════════════════════════════════════════════════════
 class AudioManager {
-  // Jugadores para SFX (Efectos cortos como láser y explosiones)
   final AudioPlayer _sfxPlayer = AudioPlayer();
-  // Jugadores para BGM (Música ambiente y jefes)
   final AudioPlayer _bgmPlayer = AudioPlayer();
-  // Jugador para la alarma (Quench)
   final AudioPlayer _alarmPlayer = AudioPlayer();
-
   bool _alarmOn = false;
 
-  // Método para la música de fondo
   Future<void> playBGM(String asset, {bool loop = true}) async {
     try {
       await _bgmPlayer.stop();
@@ -129,7 +124,6 @@ class AudioManager {
     } catch (_) {}
   }
 
-  // Disparos (Láser o Láser Triple)
   Future<void> playLaser(bool triple) async {
     try {
       final source = triple ? 'sounds/laser_triple.mp3' : 'sounds/laser.mp3';
@@ -137,7 +131,6 @@ class AudioManager {
     } catch (_) {}
   }
 
-  // Explosiones (Enemigo o Jefe)
   Future<void> playExplosion(bool isBoss) async {
     try {
       final source = isBoss ? 'sounds/explosion_jefe.mp3' : 'sounds/explosion.mp3';
@@ -145,7 +138,6 @@ class AudioManager {
     } catch (_) {}
   }
 
-  // Alarma de Quench (Usa quench.wav)
   Future<void> startAlarm() async {
     if (_alarmOn) return;
     _alarmOn = true;
@@ -160,7 +152,6 @@ class AudioManager {
     try { await _alarmPlayer.stop(); } catch (_) {}
   }
 
-  // Sonido final de Quench (Explosión criogénica)
   Future<void> playQuenchFinal() async {
     try {
       await _sfxPlayer.play(AssetSource('sounds/quench.wav'), volume: 1.0);
@@ -590,10 +581,7 @@ class _GameScreenState extends State<GameScreen>
       _sw=sz.width; _sh=sz.height;
       _player = Player(_sw/2);
       _res.energy = _player.build.maxEnergy;
-      
-      // Iniciar música ambiente al empezar
       _audio.playBGM('sounds/musica_ambiente.mp3');
-      
       _ticker = createTicker(_tick)..start();
     });
   }
@@ -616,7 +604,7 @@ class _GameScreenState extends State<GameScreen>
       if (_frostT>=1.0) {
         _frosting=false; _quenching=true;
         _audio.stopAlarm(); 
-        _audio.playQuenchFinal(); // Sonido explosión final
+        _audio.playQuenchFinal();
         _spawnQuenchExplosion();
       }
       setState((){}); return;
@@ -638,7 +626,7 @@ class _GameScreenState extends State<GameScreen>
 
     if (_res.heatFrac>=0.8 && !_alarmOn) { 
       _alarmOn=true; 
-      _audio.startAlarm(); // Inicia quench.wav en bucle
+      _audio.startAlarm();
     } else if (_res.heatFrac<0.75 && _alarmOn) { 
       _alarmOn=false; 
       _audio.stopAlarm(); 
@@ -702,8 +690,6 @@ class _GameScreenState extends State<GameScreen>
 
   void _fireLaser() {
     _res.applyShoot(_player.build);
-    
-    // CORRECCIÓN: Usar sonidos reales de láser
     bool isTriple = _player.build.fireRate > 1.8;
     _audio.playLaser(isTriple);
 
@@ -853,7 +839,7 @@ class _GameScreenState extends State<GameScreen>
       if (e.y>_sh*0.86) {
         e.dead=true;
         _spawnBurst(e.x,e.y,cFire,10);
-        _audio.playExplosion(false); // Explosión normal
+        _audio.playExplosion(false);
         if (!_player.shieldActive) {
           _coreTemp+=kCoreHeatPerEnemyPass;
           _addFloat(_sw/2,_sh*0.84,'NÚCLEO HIT',cDanger);
@@ -889,7 +875,7 @@ class _GameScreenState extends State<GameScreen>
           } else {
             _res.energy-=10; _coreTemp+=kCoreHeatPerHit*0.5;
             _spawnBurst(px,py,cDanger,6); _addFloat(px,py-20,'-10',cDanger);
-            _audio.playExplosion(false); // Sonido de impacto recibido
+            _audio.playExplosion(false);
           }
         }
         final nx=_sw/2, ny=_sh*0.87;
@@ -905,7 +891,7 @@ class _GameScreenState extends State<GameScreen>
             if (e.hp<=0) {
               e.dead=true; _score+=_eScore(e.kind);
               _spawnBurst(e.x,e.y,_eColor(e.kind),16);
-              _audio.playExplosion(false); // Sonido explosión enemigo
+              _audio.playExplosion(false);
               _addFloat(e.x,e.y-10,'+${_eScore(e.kind)}',cGold);
             }
             break;
@@ -919,10 +905,10 @@ class _GameScreenState extends State<GameScreen>
               bo.dead=true; _bossAlive=false; _score+=500;
               _spawnBurst(bo.x,bo.y,cGold,30);
               _spawnBurst(bo.x-30,bo.y+20,cFire,20);
-              _audio.playExplosion(true); // Explosión Jefe
+              _audio.playExplosion(true);
               _addFloat(bo.x,bo.y,'+500 BOSS!',cGold);
               _phase.endBoss(); 
-              _audio.playBGM('sounds/musica_ambiente.mp3'); // Vuelve música ambiente
+              _audio.playBGM('sounds/musica_ambiente.mp3');
               _ai.analyze(_player.build);
             }
           }
@@ -947,7 +933,7 @@ class _GameScreenState extends State<GameScreen>
     _boss=Enemy(x:_sw/2, y:_sh*0.18,
         hp:80+_phase.cycleCount*20.0, vx:90, kind:EnemyKind.frigate);
     _bossAlive=true;
-    _audio.playBGM('sounds/musica_jefe.mp3'); // Cambia a música de jefe
+    _audio.playBGM('sounds/musica_jefe.mp3');
   }
   void _beginFrost() {
     if (_frosting||_quenching) return;
