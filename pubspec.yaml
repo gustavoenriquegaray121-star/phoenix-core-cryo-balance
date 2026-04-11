@@ -16,8 +16,13 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/sounds/tap.wav
     - assets/sounds/quench.wav
+    - assets/sounds/laser.mp3
+    - assets/sounds/laser_triple.mp3
+    - assets/sounds/explosion.mp3
+    - assets/sounds/explosion_jefe.mp3
+    - assets/sounds/musica_ambiente.mp3
+    - assets/sounds/musica_jefe.mp3
     - assets/images/cafe1.jpg
     - assets/images/hangar1.jpg
     - assets/images/ship_close.jpg
