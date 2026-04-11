@@ -1500,7 +1500,7 @@ class GamePainter extends CustomPainter {
           Offset(cx+cos(a)*(pulse+22),cy+sin(a)*(pulse+22)),rng);
     }
     _drawArcBar(canvas,cx,cy,pulse+32,coreTemp,tempC);
-    _txt(canvas,'NÚCLEO CUÁNTICO', offset(cx,cy+pulse+22),tempC.withOpacity(0.8)),
+    _txt(canvas,'NÚCLEO CUÁNTICO', Offset(cx,cy+pulse+22),tempC.withOpacity(0.8)),
   }
 
   void _drawArcBar(Canvas canvas,double cx,double cy,double r,double frac,Color c) {
@@ -1736,7 +1736,7 @@ class GamePainter extends CustomPainter {
         Paint()..color=Colors.white24);
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR-14,bw*frac,6),const Radius.circular(3)),
         Paint()..color=Color.lerp(cDanger,cWarlord,frac)!);
-    _txt(canvas,'FROZEN WARLORD  ${(frac*100).toInt()}%',offset(b.x,b.y-kBossR-26),cWarlord,
+    _txt(canvas,'FROZEN WARLORD  ${(frac*100).toInt()}%',Offset(b.x,b.y-kBossR-26),cWarlord,
   }
 
   void _drawBullets(Canvas canvas) {
