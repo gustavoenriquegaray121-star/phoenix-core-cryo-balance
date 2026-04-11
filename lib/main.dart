@@ -48,7 +48,7 @@ class IntroScene {
   final String speaker;
   final String speakerColor;
   final String dialogue;
-  final String imageAsset; // e.g. 'assets/images/cafe1.jpg'
+  final String imageAsset;
   const IntroScene({
     required this.location, required this.speaker,
     required this.speakerColor, required this.dialogue,
@@ -108,56 +108,75 @@ const _scenes = [
 ];
 
 // ══════════════════════════════════════════════════════════
-//  AUDIO MANAGER
+//  AUDIO MANAGER (CORREGIDO)
 // ══════════════════════════════════════════════════════════
 class AudioManager {
-  final _pool  = List.generate(4, (_) => AudioPlayer());
-  int   _poolI = 0;
-  final _alarm = AudioPlayer();
-  final _boom  = AudioPlayer();
-  bool  _alarmOn = false;
+  // Jugadores para SFX (Efectos cortos como láser y explosiones)
+  final AudioPlayer _sfxPlayer = AudioPlayer();
+  // Jugadores para BGM (Música ambiente y jefes)
+  final AudioPlayer _bgmPlayer = AudioPlayer();
+  // Jugador para la alarma (Quench)
+  final AudioPlayer _alarmPlayer = AudioPlayer();
 
-  // Rapid fire: reuse pool to avoid gaps
-  Future<void> playLaser() async {
+  bool _alarmOn = false;
+
+  // Método para la música de fondo
+  Future<void> playBGM(String asset, {bool loop = true}) async {
     try {
-      final p = _pool[_poolI % _pool.length];
-      _poolI++;
-      await p.stop();
-      // Use quench.wav pitched differently for laser feel
-      // Real laser sound should be laser.wav — we use tap.wav at low volume for now
-      await p.play(AssetSource('sounds/tap.wav'), volume: 0.25);
+      await _bgmPlayer.stop();
+      if (loop) await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+      await _bgmPlayer.play(AssetSource(asset), volume: 0.45);
     } catch (_) {}
   }
 
-  Future<void> playExplosion() async {
+  // Disparos (Láser o Láser Triple)
+  Future<void> playLaser(bool triple) async {
     try {
-      final p = AudioPlayer();
-      await p.play(AssetSource('sounds/tap.wav'), volume: 0.6);
-      p.onPlayerComplete.listen((_) => p.dispose());
+      final source = triple ? 'sounds/laser_triple.mp3' : 'sounds/laser.mp3';
+      await _sfxPlayer.play(AssetSource(source), volume: 0.3);
     } catch (_) {}
   }
 
+  // Explosiones (Enemigo o Jefe)
+  Future<void> playExplosion(bool isBoss) async {
+    try {
+      final source = isBoss ? 'sounds/explosion_jefe.mp3' : 'sounds/explosion.mp3';
+      await _sfxPlayer.play(AssetSource(source), volume: 0.6);
+    } catch (_) {}
+  }
+
+  // Alarma de Quench (Usa quench.wav)
   Future<void> startAlarm() async {
     if (_alarmOn) return;
     _alarmOn = true;
     try {
-      await _alarm.setReleaseMode(ReleaseMode.loop);
-      await _alarm.play(AssetSource('sounds/quench.wav'), volume: 0.5);
+      await _alarmPlayer.setReleaseMode(ReleaseMode.loop);
+      await _alarmPlayer.play(AssetSource('sounds/quench.wav'), volume: 0.4);
     } catch (_) {}
   }
 
   Future<void> stopAlarm() async {
     _alarmOn = false;
-    try { await _alarm.stop(); } catch (_) {}
+    try { await _alarmPlayer.stop(); } catch (_) {}
   }
 
-  Future<void> playQuench() async {
-    try { await _boom.play(AssetSource('sounds/quench.wav'), volume: 1.0); } catch (_) {}
+  // Sonido final de Quench (Explosión criogénica)
+  Future<void> playQuenchFinal() async {
+    try {
+      await _sfxPlayer.play(AssetSource('sounds/quench.wav'), volume: 1.0);
+    } catch (_) {}
+  }
+
+  void stopAll() {
+    _bgmPlayer.stop();
+    _sfxPlayer.stop();
+    _alarmPlayer.stop();
   }
 
   void dispose() {
-    for (final p in _pool) p.dispose();
-    _alarm.dispose(); _boom.dispose();
+    _bgmPlayer.dispose();
+    _sfxPlayer.dispose();
+    _alarmPlayer.dispose();
   }
 }
 
@@ -195,8 +214,7 @@ class Enemy {
 class Bullet {
   double x, y, damage;
   bool isEnemy;
-  // For laser spread shots
-  double angle; // radians, 0 = straight up
+  double angle; 
   Bullet(this.x, this.y, this.damage, {this.isEnemy=false, this.angle=0});
 }
 
@@ -283,9 +301,7 @@ class AIAdapt {
     if (b.fireRate>1.5) swarmDensity = (swarmDensity+0.20).clamp(1,3);
     if (b.shieldEfficiency>1.3) counterFire=(counterFire+0.30).clamp(0.5,2);
   }
-  // Gradual spawn interval — starts slow, gets faster
   double spawnInterval(int cycle) => (2.5 - cycle*0.2).clamp(0.5, 2.5) / aggression;
-  // Gradual wave size
   int waveSize(int cycle) => (1 + (cycle * 0.4 + swarmDensity * 0.5)).floor().clamp(1,5);
 }
 
@@ -342,7 +358,7 @@ class _AppRootState extends State<AppRoot> {
 }
 
 // ══════════════════════════════════════════════════════════
-//  INTRO SCREEN — uses real images
+//  INTRO SCREEN
 // ══════════════════════════════════════════════════════════
 class IntroScreen extends StatefulWidget {
   final VoidCallback onDone;
@@ -414,11 +430,9 @@ class _IntroScreenState extends State<IntroScreen>
       body: GestureDetector(
         onTapDown: (_) => _next(),
         child: Column(children: [
-          // ── IMAGE AREA ──
           Expanded(
             flex: 55,
             child: Stack(children: [
-              // Real image
               Positioned.fill(
                 child: Image.asset(
                   scene.imageAsset,
@@ -431,7 +445,6 @@ class _IntroScreenState extends State<IntroScreen>
                   ),
                 ),
               ),
-              // Dark gradient at bottom of image
               Positioned(
                 bottom: 0, left: 0, right: 0, height: 80,
                 child: Container(
@@ -444,7 +457,6 @@ class _IntroScreenState extends State<IntroScreen>
                   ),
                 ),
               ),
-              // Location tag
               Positioned(
                 top: MediaQuery.of(context).padding.top + 10,
                 left: 12, right: 80,
@@ -460,7 +472,6 @@ class _IntroScreenState extends State<IntroScreen>
                           fontFamily: 'Orbitron', letterSpacing: 1.5)),
                 ),
               ),
-              // Scene counter
               Positioned(
                 top: MediaQuery.of(context).padding.top + 10,
                 right: 12,
@@ -470,8 +481,6 @@ class _IntroScreenState extends State<IntroScreen>
               ),
             ]),
           ),
-
-          // ── DIALOGUE BOX ──
           Container(
             constraints: BoxConstraints(minHeight: size.height * 0.32),
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
@@ -556,7 +565,7 @@ class _GameScreenState extends State<GameScreen>
   int    _score=0;
   double _coreTemp=0;
   double _shootTimer=0, _spawnTimer=0;
-  double _powerUpTimer=15.0; // first powerup after 15s
+  double _powerUpTimer=15.0; 
   bool   _touching=false;
   double _touchX=0;
 
@@ -581,6 +590,10 @@ class _GameScreenState extends State<GameScreen>
       _sw=sz.width; _sh=sz.height;
       _player = Player(_sw/2);
       _res.energy = _player.build.maxEnergy;
+      
+      // Iniciar música ambiente al empezar
+      _audio.playBGM('sounds/musica_ambiente.mp3');
+      
       _ticker = createTicker(_tick)..start();
     });
   }
@@ -602,7 +615,8 @@ class _GameScreenState extends State<GameScreen>
       _updateParticles(dt); _updateFloats(dt);
       if (_frostT>=1.0) {
         _frosting=false; _quenching=true;
-        _audio.stopAlarm(); _audio.playQuench();
+        _audio.stopAlarm(); 
+        _audio.playQuenchFinal(); // Sonido explosión final
         _spawnQuenchExplosion();
       }
       setState((){}); return;
@@ -622,9 +636,13 @@ class _GameScreenState extends State<GameScreen>
     _res.update(dt, _player.build);
     _player.energy=_res.energy; _player.heat=_res.heat;
 
-    // Alarm at 80% heat
-    if (_res.heatFrac>=0.8 && !_alarmOn) { _alarmOn=true; _audio.startAlarm(); }
-    else if (_res.heatFrac<0.75 && _alarmOn) { _alarmOn=false; _audio.stopAlarm(); }
+    if (_res.heatFrac>=0.8 && !_alarmOn) { 
+      _alarmOn=true; 
+      _audio.startAlarm(); // Inicia quench.wav en bucle
+    } else if (_res.heatFrac<0.75 && _alarmOn) { 
+      _alarmOn=false; 
+      _audio.stopAlarm(); 
+    }
 
     if (_player.shieldActive) {
       _player.shieldTimer-=dt;
@@ -636,7 +654,6 @@ class _GameScreenState extends State<GameScreen>
       _player.x  = _player.x.clamp(kPhoenixSize, _sw-kPhoenixSize);
     }
 
-    // Shoot — laser with dynamic color
     if (_touching && _res.energy>0 && !_res.overheating) {
       _shootTimer-=dt;
       if (_shootTimer<=0) {
@@ -645,7 +662,6 @@ class _GameScreenState extends State<GameScreen>
       }
     }
 
-    // Move bullets (with angle support for spread)
     for (final b in _bullets) {
       if (b.isEnemy) {
         b.y += 380*dt;
@@ -656,7 +672,6 @@ class _GameScreenState extends State<GameScreen>
     }
     _bullets.removeWhere((b) => b.y<-20 || b.y>_sh+20 || b.x<-20 || b.x>_sw+20);
 
-    // Power-up spawning — gradual (first at 15s, then every 20s)
     _powerUpTimer-=dt;
     if (_powerUpTimer<=0) {
       _powerUpTimer = 18.0 + _rng.nextDouble()*8;
@@ -664,7 +679,6 @@ class _GameScreenState extends State<GameScreen>
     }
     _updatePowerUps(dt);
 
-    // Enemy spawning — gradual
     if (_phase.phase==GamePhase.combat && !_bossAlive) {
       _spawnTimer-=dt;
       if (_spawnTimer<=0) {
@@ -686,29 +700,27 @@ class _GameScreenState extends State<GameScreen>
     setState((){});
   }
 
-  // ── LASER FIRE ──────────────────────────────────────────
   void _fireLaser() {
     _res.applyShoot(_player.build);
-    _audio.playLaser();
+    
+    // CORRECCIÓN: Usar sonidos reales de láser
+    bool isTriple = _player.build.fireRate > 1.8;
+    _audio.playLaser(isTriple);
+
     final py = _sh*0.72 - kPhoenixSize;
-    // Laser color changes with heat
     _bullets.add(Bullet(_player.x, py, _player.build.damage, angle: 0));
 
-    // Triple shot if fireRate high enough
-    if (_player.build.fireRate > 1.8) {
+    if (isTriple) {
       _bullets.add(Bullet(_player.x, py, _player.build.damage*0.7, angle: -0.12));
       _bullets.add(Bullet(_player.x, py, _player.build.damage*0.7, angle:  0.12));
     }
   }
 
-  // ── ENEMY SPAWN — gradual difficulty ───────────────────
   void _spawnEnemy() {
     final cycle = _phase.cycleCount;
-    // Unlock enemy types gradually
     EnemyKind k;
     final r = _rng.nextDouble();
     if (cycle == 0) {
-      // Only interceptors at start
       k = EnemyKind.interceptor;
     } else if (cycle == 1) {
       k = r < 0.6 ? EnemyKind.interceptor : EnemyKind.frigate;
@@ -733,10 +745,8 @@ class _GameScreenState extends State<GameScreen>
     ));
   }
 
-  // ── POWER-UP SPAWN — gradual ────────────────────────────
   void _spawnPowerUp() {
     final cycle = _phase.cycleCount;
-    // Which powerups are available at this cycle
     final available = <PowerUpKind>[PowerUpKind.energyBoost];
     if (cycle >= 1) available.add(PowerUpKind.rapidFire);
     if (cycle >= 1) available.add(PowerUpKind.shield);
@@ -756,7 +766,6 @@ class _GameScreenState extends State<GameScreen>
       p.y += 70*dt;
       p.animT += dt*3;
       if (!p.collected) {
-        // Check if player catches it
         final px = _player.x, py = _sh*0.72;
         if ((p.x-px).abs()<35 && (p.y-py).abs()<35) {
           p.collected = true;
@@ -844,7 +853,7 @@ class _GameScreenState extends State<GameScreen>
       if (e.y>_sh*0.86) {
         e.dead=true;
         _spawnBurst(e.x,e.y,cFire,10);
-        _audio.playExplosion();
+        _audio.playExplosion(false); // Explosión normal
         if (!_player.shieldActive) {
           _coreTemp+=kCoreHeatPerEnemyPass;
           _addFloat(_sw/2,_sh*0.84,'NÚCLEO HIT',cDanger);
@@ -880,6 +889,7 @@ class _GameScreenState extends State<GameScreen>
           } else {
             _res.energy-=10; _coreTemp+=kCoreHeatPerHit*0.5;
             _spawnBurst(px,py,cDanger,6); _addFloat(px,py-20,'-10',cDanger);
+            _audio.playExplosion(false); // Sonido de impacto recibido
           }
         }
         final nx=_sw/2, ny=_sh*0.87;
@@ -895,7 +905,7 @@ class _GameScreenState extends State<GameScreen>
             if (e.hp<=0) {
               e.dead=true; _score+=_eScore(e.kind);
               _spawnBurst(e.x,e.y,_eColor(e.kind),16);
-              _audio.playExplosion();
+              _audio.playExplosion(false); // Sonido explosión enemigo
               _addFloat(e.x,e.y-10,'+${_eScore(e.kind)}',cGold);
             }
             break;
@@ -909,9 +919,11 @@ class _GameScreenState extends State<GameScreen>
               bo.dead=true; _bossAlive=false; _score+=500;
               _spawnBurst(bo.x,bo.y,cGold,30);
               _spawnBurst(bo.x-30,bo.y+20,cFire,20);
-              _audio.playExplosion();
+              _audio.playExplosion(true); // Explosión Jefe
               _addFloat(bo.x,bo.y,'+500 BOSS!',cGold);
-              _phase.endBoss(); _ai.analyze(_player.build);
+              _phase.endBoss(); 
+              _audio.playBGM('sounds/musica_ambiente.mp3'); // Vuelve música ambiente
+              _ai.analyze(_player.build);
             }
           }
         }
@@ -935,6 +947,7 @@ class _GameScreenState extends State<GameScreen>
     _boss=Enemy(x:_sw/2, y:_sh*0.18,
         hp:80+_phase.cycleCount*20.0, vx:90, kind:EnemyKind.frigate);
     _bossAlive=true;
+    _audio.playBGM('sounds/musica_jefe.mp3'); // Cambia a música de jefe
   }
   void _beginFrost() {
     if (_frosting||_quenching) return;
@@ -1004,7 +1017,6 @@ class _GameScreenState extends State<GameScreen>
   @override
   Widget build(BuildContext context) {
     final sz=MediaQuery.of(context).size; _sw=sz.width; _sh=sz.height;
-    // Dynamic laser color based on heat
     final laserColor = Color.lerp(cIce, cDanger, _res.heatFrac)!;
 
     return Scaffold(
@@ -1146,21 +1158,16 @@ class GamePainter extends CustomPainter {
     path.lineTo(b.dx,b.dy); canvas.drawPath(path,p);
   }
 
-  // ── POWER-UPS ────────────────────────────────────────────
   void _drawPowerUps(Canvas canvas) {
     for (final p in powerUps) {
       if (p.collected) continue;
       final c   = _puColor(p.kind);
       final lbl = _puIcon(p.kind);
       final pulse = sin(p.animT)*0.15 + 1.0;
-
-      // Outer glow
       canvas.drawCircle(Offset(p.x, p.y), 22*pulse,
           Paint()..color=c.withOpacity(0.25)..maskFilter=const MaskFilter.blur(BlurStyle.normal,10));
-      // Ring
       canvas.drawCircle(Offset(p.x, p.y), 18*pulse,
           Paint()..color=c.withOpacity(0.7)..style=PaintingStyle.stroke..strokeWidth=2);
-      // Icon
       _txt(canvas, lbl, Offset(p.x, p.y), c, 16);
     }
   }
@@ -1174,7 +1181,6 @@ class GamePainter extends CustomPainter {
     PowerUpKind.shield=>'🛡',    PowerUpKind.coreArmor=>'❄',
     PowerUpKind.energyBoost=>'💚'};
 
-  // ── PHOENIX ───────────────────────────────────────────────
   void _drawPhoenix(Canvas canvas) {
     final px=player.x, py=sh*0.72;
     if (player.shieldActive) {
@@ -1226,7 +1232,6 @@ class GamePainter extends CustomPainter {
     }
   }
 
-  // ── ENEMIES ───────────────────────────────────────────────
   void _drawEnemies(Canvas canvas) {
     for (final e in enemies) {
       if (e.dead) continue;
@@ -1301,7 +1306,6 @@ class GamePainter extends CustomPainter {
     EnemyKind.interceptor=>cWarlord, EnemyKind.frigate=>const Color(0xFF00FF88),
     EnemyKind.parasite=>cShield,     EnemyKind.corrupter=>const Color(0xFFFF6600)};
 
-  // ── FROZEN WARLORD BOSS ───────────────────────────────────
   void _drawBoss(Canvas canvas,Enemy b){
     final frac=(b.hp/b.maxHp).clamp(0.0,1.0);
     final c=b.hitFlash>0?Color.lerp(cWarlord,Colors.white,b.hitFlash)!:cWarlord;
@@ -1335,24 +1339,19 @@ class GamePainter extends CustomPainter {
     _txt(canvas,'FROZEN WARLORD  ${(frac*100).toInt()}%',Offset(b.x,b.y-kBossR-26),cWarlord,10);
   }
 
-  // ── LASER BULLETS — dynamic color ────────────────────────
   void _drawBullets(Canvas canvas) {
     for (final b in bullets) {
       if (b.isEnemy) {
-        // Enemy plasma ball
         canvas.drawCircle(Offset(b.x,b.y),8,
             Paint()..color=cWarlord..maskFilter=const MaskFilter.blur(BlurStyle.normal,6));
         canvas.drawCircle(Offset(b.x,b.y),3,Paint()..color=cFrost);
       } else {
-        // Player LASER — long beam, dynamic color, glow
         final lc = laserColor;
-        // Outer glow
         canvas.drawRRect(
             RRect.fromRectAndRadius(
                 Rect.fromCenter(center:Offset(b.x,b.y),width:9,height:22),
                 const Radius.circular(4)),
             Paint()..color=lc.withOpacity(0.25)..maskFilter=const MaskFilter.blur(BlurStyle.normal,6));
-        // Main beam
         canvas.drawRRect(
             RRect.fromRectAndRadius(
                 Rect.fromCenter(center:Offset(b.x,b.y),width:3,height:20),
@@ -1361,7 +1360,6 @@ class GamePainter extends CustomPainter {
               begin:Alignment.topCenter,end:Alignment.bottomCenter,
               colors:[Colors.white,lc,lc.withOpacity(0.5)],
             ).createShader(Rect.fromCenter(center:Offset(b.x,b.y),width:3,height:20)));
-        // Bright tip
         canvas.drawCircle(Offset(b.x,b.y-9),2.5,
             Paint()..color=Colors.white.withOpacity(0.95));
       }
