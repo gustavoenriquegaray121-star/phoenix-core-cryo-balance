@@ -18,7 +18,12 @@ flutter:
   assets:
     - assets/sounds/tap.wav
     - assets/sounds/quench.wav
-    - assets/images/
+    - assets/images/cafe1.jpg
+    - assets/images/hangar1.jpg
+    - assets/images/ship_close.jpg
+    - assets/images/warlord.jpg
+    - assets/images/cockpit.jpg
+    - assets/images/battle.jpg
 
   fonts:
     - family: VT323
