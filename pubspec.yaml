@@ -16,19 +16,28 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/sounds/quench.wav
+    # Sounds
     - assets/sounds/laser.mp3
     - assets/sounds/laser_triple.mp3
     - assets/sounds/explosion.mp3
     - assets/sounds/explosion_jefe.mp3
     - assets/sounds/musica_ambiente.mp3
     - assets/sounds/musica_jefe.mp3
+    - assets/sounds/quench.wav
+    # Intro images
     - assets/images/cafe1.jpg
     - assets/images/hangar1.jpg
     - assets/images/ship_close.jpg
     - assets/images/warlord.jpg
     - assets/images/cockpit.jpg
     - assets/images/battle.jpg
+    # Sprite images
+    - assets/images/player.png
+    - assets/images/enemy1.png
+    - assets/images/enemy2.png
+    - assets/images/enemy3.png
+    - assets/images/enemy4.png
+    - assets/images/boss.png
 
   fonts:
     - family: VT323
