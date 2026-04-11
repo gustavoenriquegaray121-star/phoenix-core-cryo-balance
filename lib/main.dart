@@ -1500,7 +1500,7 @@ class GamePainter extends CustomPainter {
           Offset(cx+cos(a)*(pulse+22),cy+sin(a)*(pulse+22)),rng);
     }
     _drawArcBar(canvas,cx,cy,pulse+32,coreTemp,tempC);
-    _txt(canvas,'NÚCLEO CUÁNTICO', Offset(cx,cy+pulse+22),tempC.withOpacity(0.8) 9);
+    _txt(canvas,'NÚCLEO CUÁNTICO', Offset(cx,cy+pulse+22),tempC.withOpacity(0.8), 9);
   }
 
   void _drawArcBar(Canvas canvas,double cx,double cy,double r,double frac,Color c) {
