@@ -38,87 +38,72 @@ const double kCombatDuration       = 28.0;
 enum AppScreen  { intro, menu, playing, gameOver }
 enum GamePhase  { combat, decision, boss }
 enum EnemyKind  { interceptor, frigate, parasite, corrupter }
+enum PowerUpKind { rapidFire, tripleShot, shield, coreArmor, energyBoost }
 
 // ══════════════════════════════════════════════════════════
-//  INTRO SYSTEM
+//  INTRO SCENES
 // ══════════════════════════════════════════════════════════
 class IntroScene {
   final String location;
-  final String speaker;      // '' = no speaker box
-  final String speakerColor; // 'gold','ice','red','white'
+  final String speaker;
+  final String speakerColor;
   final String dialogue;
-  final IntroSceneType type;
+  final String imageAsset; // e.g. 'assets/images/cafe1.jpg'
   const IntroScene({
-    required this.location,
-    required this.speaker,
-    required this.speakerColor,
-    required this.dialogue,
-    required this.type,
+    required this.location, required this.speaker,
+    required this.speakerColor, required this.dialogue,
+    required this.imageAsset,
   });
 }
 
-enum IntroSceneType { cafeteria, hangar, enemySide, cockpit, battle }
-
-const _introScenes = [
+const _scenes = [
   IntroScene(
     location: 'CAFÉ ALTEA — BASE PHOENIX',
-    speaker: 'GENERAL G-G',
-    speakerColor: 'gold',
-    dialogue:
-        'Usuario. El Núcleo Cuántico debe llegar hoy al Cuadrante 7 de la Nebulosa de Orión.\nLa colonia Elysium se está quedando sin energía.\nSin ese núcleo… perdemos tres millones de personas en menos de 72 horas.',
-    type: IntroSceneType.cafeteria,
+    speaker: 'GENERAL G-G', speakerColor: 'gold',
+    dialogue: 'Usuario. El Núcleo Cuántico debe llegar hoy al Cuadrante 7 de la Nebulosa de Orión.\nLa colonia Elysium se está quedando sin energía.\nSin ese núcleo… perdemos tres millones de personas en menos de 72 horas.',
+    imageAsset: 'assets/images/cafe1.jpg',
   ),
   IntroScene(
     location: 'CAFÉ ALTEA — BASE PHOENIX',
-    speaker: 'USUARIO',
-    speakerColor: 'ice',
+    speaker: 'USUARIO', speakerColor: 'ice',
     dialogue: 'Entendido.\n¿Mi nave?',
-    type: IntroSceneType.cafeteria,
+    imageAsset: 'assets/images/cafe1.jpg',
   ),
   IntroScene(
     location: 'CAFÉ ALTEA — BASE PHOENIX',
-    speaker: 'GENERAL G-G',
-    speakerColor: 'gold',
+    speaker: 'GENERAL G-G', speakerColor: 'gold',
     dialogue: 'Ya casi terminan las reparaciones.\nVe al hangar.',
-    type: IntroSceneType.cafeteria,
+    imageAsset: 'assets/images/cafe1.jpg',
   ),
   IntroScene(
     location: 'DOCK 7A — PHOENIX PROJECT',
-    speaker: 'USUARIO',
-    speakerColor: 'ice',
-    dialogue:
-        'Núcleo asegurado.\nSistemas en línea.\nPhoenix Project… listo para volar.',
-    type: IntroSceneType.hangar,
+    speaker: 'USUARIO', speakerColor: 'ice',
+    dialogue: 'Núcleo asegurado.\nSistemas en línea.\nPhoenix Project… listo para volar.',
+    imageAsset: 'assets/images/hangar1.jpg',
+  ),
+  IntroScene(
+    location: 'DOCK 7A — CASCO DE LA NAVE',
+    speaker: '', speakerColor: 'white',
+    dialogue: '[ Pones la mano en el casco. El logo del Ave Fénix brilla bajo tus dedos. ]',
+    imageAsset: 'assets/images/ship_close.jpg',
   ),
   IntroScene(
     location: 'LADO ENEMIGO — UBICACIÓN DESCONOCIDA',
-    speaker: 'THE FROZEN WARLORD',
-    speakerColor: 'red',
-    dialogue:
-        'Phoenix Protocol…\npor eso perdí.\nAhora lo conozco.\nSé cómo bloquearlo.',
-    type: IntroSceneType.enemySide,
+    speaker: 'THE FROZEN WARLORD', speakerColor: 'red',
+    dialogue: 'Phoenix Protocol…\npor eso perdí.\nAhora lo conozco.\nSé cómo bloquearlo.',
+    imageAsset: 'assets/images/warlord.jpg',
   ),
   IntroScene(
     location: 'LADO ENEMIGO — UBICACIÓN DESCONOCIDA',
-    speaker: 'THE FROZEN WARLORD',
-    speakerColor: 'red',
-    dialogue:
-        'La próxima vez que nos encontremos…\nese pájaro no volverá a abrir sus alas.',
-    type: IntroSceneType.enemySide,
+    speaker: 'THE FROZEN WARLORD', speakerColor: 'red',
+    dialogue: 'La próxima vez que nos encontremos…\nese pájaro no volverá a abrir sus alas.',
+    imageAsset: 'assets/images/warlord.jpg',
   ),
   IntroScene(
     location: 'CABINA — NAVE PHOENIX',
-    speaker: 'USUARIO',
-    speakerColor: 'ice',
-    dialogue: '¿Qué carajos…?\nEs él…\nThe Frozen Warlord.\nPensé que lo había destruido.',
-    type: IntroSceneType.cockpit,
-  ),
-  IntroScene(
-    location: 'NEBULOSA DE ORIÓN — CUADRANTE 7',
-    speaker: 'USUARIO',
-    speakerColor: 'ice',
-    dialogue: 'Te vencí una vez…\nY te voy a vencer otra vez.',
-    type: IntroSceneType.battle,
+    speaker: 'USUARIO', speakerColor: 'ice',
+    dialogue: '¿Qué carajos…?\nEs él…\nThe Frozen Warlord.\nPensé que lo había destruido.\n\nTe vencí una vez…\nY te voy a vencer otra vez.',
+    imageAsset: 'assets/images/battle.jpg',
   ),
 ];
 
@@ -126,19 +111,28 @@ const _introScenes = [
 //  AUDIO MANAGER
 // ══════════════════════════════════════════════════════════
 class AudioManager {
-  final _shoot  = AudioPlayer();
-  final _alarm  = AudioPlayer();
-  final _boom   = AudioPlayer();
-  bool _alarmOn = false;
+  final _pool  = List.generate(4, (_) => AudioPlayer());
+  int   _poolI = 0;
+  final _alarm = AudioPlayer();
+  final _boom  = AudioPlayer();
+  bool  _alarmOn = false;
 
-  Future<void> playShoot() async {
-    try { await _shoot.stop(); await _shoot.play(AssetSource('sounds/tap.wav'), volume: 0.3); } catch (_) {}
+  // Rapid fire: reuse pool to avoid gaps
+  Future<void> playLaser() async {
+    try {
+      final p = _pool[_poolI % _pool.length];
+      _poolI++;
+      await p.stop();
+      // Use quench.wav pitched differently for laser feel
+      // Real laser sound should be laser.wav — we use tap.wav at low volume for now
+      await p.play(AssetSource('sounds/tap.wav'), volume: 0.25);
+    } catch (_) {}
   }
 
   Future<void> playExplosion() async {
     try {
       final p = AudioPlayer();
-      await p.play(AssetSource('sounds/tap.wav'), volume: 0.7);
+      await p.play(AssetSource('sounds/tap.wav'), volume: 0.6);
       p.onPlayerComplete.listen((_) => p.dispose());
     } catch (_) {}
   }
@@ -146,7 +140,10 @@ class AudioManager {
   Future<void> startAlarm() async {
     if (_alarmOn) return;
     _alarmOn = true;
-    try { await _alarm.setReleaseMode(ReleaseMode.loop); await _alarm.play(AssetSource('sounds/quench.wav'), volume: 0.5); } catch (_) {}
+    try {
+      await _alarm.setReleaseMode(ReleaseMode.loop);
+      await _alarm.play(AssetSource('sounds/quench.wav'), volume: 0.5);
+    } catch (_) {}
   }
 
   Future<void> stopAlarm() async {
@@ -158,7 +155,10 @@ class AudioManager {
     try { await _boom.play(AssetSource('sounds/quench.wav'), volume: 1.0); } catch (_) {}
   }
 
-  void dispose() { _shoot.dispose(); _alarm.dispose(); _boom.dispose(); }
+  void dispose() {
+    for (final p in _pool) p.dispose();
+    _alarm.dispose(); _boom.dispose();
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -195,7 +195,17 @@ class Enemy {
 class Bullet {
   double x, y, damage;
   bool isEnemy;
-  Bullet(this.x, this.y, this.damage, {this.isEnemy=false});
+  // For laser spread shots
+  double angle; // radians, 0 = straight up
+  Bullet(this.x, this.y, this.damage, {this.isEnemy=false, this.angle=0});
+}
+
+class PowerUp {
+  double x, y;
+  PowerUpKind kind;
+  bool collected=false;
+  double animT=0;
+  PowerUp(this.x, this.y, this.kind);
 }
 
 class FloatingText {
@@ -227,7 +237,8 @@ class PhaseEngine {
   GamePhase phase = GamePhase.combat;
   double timer=0; int cycleCount=0;
 
-  void update(double dt, {required VoidCallback onDecision, required VoidCallback onBoss}) {
+  void update(double dt,
+      {required VoidCallback onDecision, required VoidCallback onBoss}) {
     timer += dt;
     if (phase==GamePhase.combat && timer>=kCombatDuration) {
       cycleCount++; timer=0;
@@ -237,7 +248,8 @@ class PhaseEngine {
   }
   void endDecision() { phase=GamePhase.combat; timer=0; }
   void endBoss()     { phase=GamePhase.combat; timer=0; }
-  double get combatProgress => phase==GamePhase.combat ? (timer/kCombatDuration).clamp(0,1) : 1.0;
+  double get combatProgress =>
+      phase==GamePhase.combat ? (timer/kCombatDuration).clamp(0,1) : 1.0;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -252,7 +264,9 @@ class ResourceSystem {
     entropy = (entropy + 0.3*dt).clamp(0,100);
     if (heat>85) energy -= 15*dt;
   }
-  void applyShoot(PlayerBuild b) { energy-=2.5; heat+=4/b.cooling; entropy+=0.4; }
+  void applyShoot(PlayerBuild b) {
+    energy -= 2.5; heat += 4/b.cooling; entropy += 0.4;
+  }
   bool   get overheating => heat>80;
   double get heatFrac    => heat/100;
   double get energyFrac  => (energy/100).clamp(0,1);
@@ -265,12 +279,14 @@ class ResourceSystem {
 class AIAdapt {
   double aggression=1.0, swarmDensity=1.0, counterFire=0.5;
   void analyze(PlayerBuild b) {
-    if (b.damage>15)  aggression   = (aggression+0.15).clamp(1,3);
-    if (b.fireRate>1.5) swarmDensity=(swarmDensity+0.20).clamp(1,3);
+    if (b.damage>15)  aggression    = (aggression+0.15).clamp(1,3);
+    if (b.fireRate>1.5) swarmDensity = (swarmDensity+0.20).clamp(1,3);
     if (b.shieldEfficiency>1.3) counterFire=(counterFire+0.30).clamp(0.5,2);
   }
-  double get spawnInterval => (1.8/aggression).clamp(0.4,2.0);
-  int    get waveSize      => (2+swarmDensity).round();
+  // Gradual spawn interval — starts slow, gets faster
+  double spawnInterval(int cycle) => (2.5 - cycle*0.2).clamp(0.5, 2.5) / aggression;
+  // Gradual wave size
+  int waveSize(int cycle) => (1 + (cycle * 0.4 + swarmDensity * 0.5)).floor().clamp(1,5);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -326,7 +342,7 @@ class _AppRootState extends State<AppRoot> {
 }
 
 // ══════════════════════════════════════════════════════════
-//  INTRO SCREEN
+//  INTRO SCREEN — uses real images
 // ══════════════════════════════════════════════════════════
 class IntroScreen extends StatefulWidget {
   final VoidCallback onDone;
@@ -336,54 +352,44 @@ class IntroScreen extends StatefulWidget {
 
 class _IntroScreenState extends State<IntroScreen>
     with SingleTickerProviderStateMixin {
-  int _sceneIndex = 0;
-  int _charIndex  = 0;
+  int _idx = 0;
+  int _charIdx = 0;
+  String _displayed = '';
+  bool _full = false;
   late AnimationController _typeCtrl;
-  late String _currentText;
-  bool _fullShown = false;
 
   @override
   void initState() {
     super.initState();
-    _currentText = '';
     _typeCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 40));
-    _typeCtrl.addListener(_onTypeTick);
+        vsync: this, duration: const Duration(milliseconds: 35));
+    _typeCtrl.addListener(_onTick);
     _startScene();
   }
 
   void _startScene() {
-    _charIndex  = 0;
-    _currentText = '';
-    _fullShown  = false;
+    _charIdx = 0; _displayed = ''; _full = false;
     _typeCtrl.repeat();
   }
 
-  void _onTypeTick() {
-    final full = _introScenes[_sceneIndex].dialogue;
-    if (_charIndex < full.length) {
-      setState(() {
-        _charIndex++;
-        _currentText = full.substring(0, _charIndex);
-      });
+  void _onTick() {
+    final full = _scenes[_idx].dialogue;
+    if (_charIdx < full.length) {
+      setState(() { _charIdx++; _displayed = full.substring(0, _charIdx); });
     } else {
       _typeCtrl.stop();
-      setState(() => _fullShown = true);
+      setState(() => _full = true);
     }
   }
 
   void _next() {
-    if (!_fullShown) {
-      // Skip to full text
+    if (!_full) {
       _typeCtrl.stop();
-      setState(() {
-        _currentText = _introScenes[_sceneIndex].dialogue;
-        _fullShown = true;
-      });
+      setState(() { _displayed = _scenes[_idx].dialogue; _full = true; });
       return;
     }
-    if (_sceneIndex < _introScenes.length - 1) {
-      setState(() => _sceneIndex++);
+    if (_idx < _scenes.length-1) {
+      setState(() => _idx++);
       _startScene();
     } else {
       widget.onDone();
@@ -393,646 +399,129 @@ class _IntroScreenState extends State<IntroScreen>
   @override
   void dispose() { _typeCtrl.dispose(); super.dispose(); }
 
+  Color _spColor(String s) => switch(s) {
+    'gold' => cGold, 'ice' => cIce, 'red' => cDanger, _ => Colors.white,
+  };
+
   @override
   Widget build(BuildContext context) {
-    final scene  = _introScenes[_sceneIndex];
-    final size   = MediaQuery.of(context).size;
+    final scene = _scenes[_idx];
+    final sc = _spColor(scene.speakerColor);
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTapDown: (_) => _next(),
-        child: Stack(children: [
-          // Scene background painter
-          CustomPaint(
-            painter: _IntroBgPainter(scene: scene, size: size),
-            child: const SizedBox.expand(),
-          ),
-          // Location tag
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
-            left: 0, right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  border: Border.all(color: cGold.withOpacity(0.5)),
-                  borderRadius: BorderRadius.circular(4),
+        child: Column(children: [
+          // ── IMAGE AREA ──
+          Expanded(
+            flex: 55,
+            child: Stack(children: [
+              // Real image
+              Positioned.fill(
+                child: Image.asset(
+                  scene.imageAsset,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: const Color(0xFF050A14),
+                    child: const Center(
+                        child: Icon(Icons.image_not_supported,
+                            color: Colors.white24, size: 48)),
+                  ),
                 ),
-                child: Text(scene.location,
-                    style: const TextStyle(
-                        color: cGold, fontSize: 10,
-                        fontFamily: 'Orbitron', letterSpacing: 2)),
               ),
-            ),
+              // Dark gradient at bottom of image
+              Positioned(
+                bottom: 0, left: 0, right: 0, height: 80,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black.withOpacity(0.9)],
+                    ),
+                  ),
+                ),
+              ),
+              // Location tag
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 10,
+                left: 12, right: 80,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.75),
+                    border: Border.all(color: cGold.withOpacity(0.6)),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(scene.location,
+                      style: const TextStyle(color: cGold, fontSize: 9,
+                          fontFamily: 'Orbitron', letterSpacing: 1.5)),
+                ),
+              ),
+              // Scene counter
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 10,
+                right: 12,
+                child: Text('${_idx+1}/${_scenes.length}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 10,
+                        fontFamily: 'Orbitron')),
+              ),
+            ]),
           ),
-          // Dialogue box
-          Positioned(
-            bottom: 0, left: 0, right: 0,
-            child: _DialogueBox(
-              speaker: scene.speaker,
-              speakerColor: _speakerColor(scene.speakerColor),
-              text: _currentText,
-              fullShown: _fullShown,
-              isLast: _sceneIndex == _introScenes.length - 1,
+
+          // ── DIALOGUE BOX ──
+          Container(
+            constraints: BoxConstraints(minHeight: size.height * 0.32),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              border: Border(top: BorderSide(color: sc.withOpacity(0.5), width: 1.5)),
             ),
-          ),
-          // Scene counter
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
-            right: 16,
-            child: Text('${_sceneIndex+1}/${_introScenes.length}',
-                style: TextStyle(color: Colors.white38, fontSize: 10,
-                    fontFamily: 'Orbitron')),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (scene.speaker.isNotEmpty) ...[
+                  Row(children: [
+                    Container(width: 3, height: 14,
+                        decoration: BoxDecoration(color: sc,
+                            boxShadow: [BoxShadow(color: sc, blurRadius: 5)])),
+                    const SizedBox(width: 8),
+                    Text(scene.speaker, style: TextStyle(color: sc, fontSize: 11,
+                        fontFamily: 'Orbitron', fontWeight: FontWeight.bold,
+                        shadows: [Shadow(color: sc.withOpacity(0.6), blurRadius: 6)])),
+                  ]),
+                  const SizedBox(height: 10),
+                ],
+                Text(_displayed,
+                    style: const TextStyle(color: Colors.white, fontSize: 13,
+                        height: 1.55, fontFamily: 'Orbitron')),
+                const SizedBox(height: 14),
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  if (_full)
+                    Row(children: [
+                      Text(_idx==_scenes.length-1 ? 'INICIAR MISIÓN' : 'SIGUIENTE',
+                          style: TextStyle(color: sc, fontSize: 10,
+                              fontFamily: 'Orbitron', letterSpacing: 1.5)),
+                      const SizedBox(width: 6),
+                      Icon(_idx==_scenes.length-1
+                          ? Icons.rocket_launch : Icons.arrow_forward_ios,
+                          color: sc, size: 14),
+                    ])
+                  else
+                    Text('toca para continuar',
+                        style: const TextStyle(color: Colors.white24,
+                            fontSize: 9, fontFamily: 'Orbitron')),
+                ]),
+              ],
+            ),
           ),
         ]),
       ),
     );
   }
-
-  Color _speakerColor(String s) => switch (s) {
-    'gold'  => cGold,
-    'ice'   => cIce,
-    'red'   => cDanger,
-    _       => Colors.white,
-  };
-}
-
-class _DialogueBox extends StatelessWidget {
-  final String speaker, text;
-  final Color speakerColor;
-  final bool fullShown, isLast;
-  const _DialogueBox({required this.speaker, required this.speakerColor,
-      required this.text, required this.fullShown, required this.isLast});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(0),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0.85), Colors.black.withOpacity(0.97)],
-        ),
-        border: Border(top: BorderSide(color: speakerColor.withOpacity(0.6), width: 1.5)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (speaker.isNotEmpty) ...[
-          Row(children: [
-            Container(width: 3, height: 16,
-                decoration: BoxDecoration(color: speakerColor,
-                    boxShadow: [BoxShadow(color: speakerColor, blurRadius: 6)])),
-            const SizedBox(width: 8),
-            Text(speaker, style: TextStyle(color: speakerColor, fontSize: 12,
-                fontFamily: 'Orbitron', fontWeight: FontWeight.bold,
-                shadows: [Shadow(color: speakerColor.withOpacity(0.6), blurRadius: 8)])),
-          ]),
-          const SizedBox(height: 10),
-        ],
-        Text(text,
-            style: const TextStyle(color: Colors.white, fontSize: 14,
-                height: 1.6, fontFamily: 'Orbitron')),
-        const SizedBox(height: 14),
-        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          if (fullShown)
-            Row(children: [
-              Text(isLast ? 'INICIAR MISIÓN' : 'SIGUIENTE',
-                  style: TextStyle(color: speakerColor, fontSize: 10,
-                      fontFamily: 'Orbitron', letterSpacing: 1.5)),
-              const SizedBox(width: 6),
-              Icon(isLast ? Icons.rocket_launch : Icons.arrow_forward_ios,
-                  color: speakerColor, size: 14),
-            ])
-          else
-            Text('toca para continuar',
-                style: TextStyle(color: Colors.white24, fontSize: 9,
-                    fontFamily: 'Orbitron')),
-        ]),
-      ]),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════
-//  INTRO BACKGROUND PAINTER
-// ══════════════════════════════════════════════════════════
-class _IntroBgPainter extends CustomPainter {
-  final IntroScene scene;
-  final Size size;
-  const _IntroBgPainter({required this.scene, required this.size});
-
-  @override
-  void paint(Canvas canvas, Size sz) {
-    switch (scene.type) {
-      case IntroSceneType.cafeteria:   _drawCafeteria(canvas, sz);
-      case IntroSceneType.hangar:      _drawHangar(canvas, sz);
-      case IntroSceneType.enemySide:   _drawEnemySide(canvas, sz);
-      case IntroSceneType.cockpit:     _drawCockpit(canvas, sz);
-      case IntroSceneType.battle:      _drawBattle(canvas, sz);
-    }
-  }
-
-  void _drawCafeteria(Canvas canvas, Size sz) {
-    // Warm dark interior
-    canvas.drawRect(Rect.fromLTWH(0,0,sz.width,sz.height),
-        Paint()..shader = LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [const Color(0xFF0D0A05), const Color(0xFF1A1208), const Color(0xFF0A0800)],
-        ).createShader(Rect.fromLTWH(0,0,sz.width,sz.height)));
-
-    // Window to space (upper area)
-    final winRect = Rect.fromLTWH(sz.width*0.15, sz.height*0.05, sz.width*0.7, sz.height*0.32);
-    canvas.drawRRect(RRect.fromRectAndRadius(winRect, const Radius.circular(8)),
-        Paint()..shader = RadialGradient(
-          colors: [const Color(0xFF0A1525), const Color(0xFF050A14)],
-        ).createShader(winRect));
-    // Galaxy spiral in window
-    _drawGalaxy(canvas, Offset(sz.width*0.65, sz.height*0.15), 45);
-    // Window frame
-    canvas.drawRRect(RRect.fromRectAndRadius(winRect, const Radius.circular(8)),
-        Paint()..color = const Color(0xFF3A3020).withOpacity(0.8)
-          ..style = PaintingStyle.stroke..strokeWidth = 3);
-
-    // Table surface
-    canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(sz.width*0.1, sz.height*0.48, sz.width*0.8, sz.height*0.15),
-        const Radius.circular(4)),
-        Paint()..color = const Color(0xFF1A1208));
-
-    // Coffee cup silhouette
-    _drawCoffeeCup(canvas, Offset(sz.width*0.35, sz.height*0.52));
-
-    // CAFÉ ALTEA sign
-    _drawNeonSign(canvas, 'CAFÉ ALTEA', Offset(sz.width*0.28, sz.height*0.42),
-        const Color(0xFFFF8800));
-
-    // Atmospheric glow at bottom (dialogue area)
-    canvas.drawRect(Rect.fromLTWH(0, sz.height*0.6, sz.width, sz.height*0.4),
-        Paint()..shader = LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [Colors.transparent, Colors.black.withOpacity(0.9)],
-        ).createShader(Rect.fromLTWH(0, sz.height*0.6, sz.width, sz.height*0.4)));
-  }
-
-  void _drawHangar(Canvas canvas, Size sz) {
-    // Industrial dark hangar
-    canvas.drawRect(Rect.fromLTWH(0,0,sz.width,sz.height),
-        Paint()..color = const Color(0xFF080C10));
-
-    // Ceiling lights
-    for (int i = 0; i < 4; i++) {
-      final lx = sz.width * (0.15 + i * 0.23);
-      canvas.drawRect(Rect.fromLTWH(lx-15, 0, 30, 4),
-          Paint()..color = const Color(0xFFCCDDFF).withOpacity(0.7));
-      canvas.drawRect(Rect.fromLTWH(lx-30, 0, 60, 60),
-          Paint()..shader = RadialGradient(
-            center: Alignment.topCenter,
-            colors: [const Color(0xFF334466).withOpacity(0.5), Colors.transparent],
-          ).createShader(Rect.fromLTWH(lx-30, 0, 60, 60)));
-    }
-
-    // Floor markings
-    final fp = Paint()..color = const Color(0xFFFFCC00).withOpacity(0.4)
-      ..strokeWidth = 1.5..style = PaintingStyle.stroke;
-    canvas.drawRect(Rect.fromLTWH(sz.width*0.1, sz.height*0.55, sz.width*0.8, sz.height*0.2), fp);
-
-    // DOCK 7A text on floor
-    _drawText(canvas, 'DOCK 7A', Offset(sz.width*0.5, sz.height*0.72),
-        const Color(0xFFFFCC00).withOpacity(0.5), 18);
-    _drawText(canvas, 'PHOENIX PROJECT', Offset(sz.width*0.5, sz.height*0.78),
-        const Color(0xFFFFCC00).withOpacity(0.3), 11);
-
-    // Phoenix ship in hangar
-    _drawPhoenixShipLarge(canvas, Offset(sz.width*0.5, sz.height*0.42), sz.width*0.45);
-
-    // Sparks
-    final rng = Random(42);
-    for (int i = 0; i < 8; i++) {
-      final sx = sz.width*(0.3 + rng.nextDouble()*0.4);
-      final sy = sz.height*(0.35 + rng.nextDouble()*0.2);
-      canvas.drawCircle(Offset(sx, sy), 2+rng.nextDouble()*3,
-          Paint()..color = const Color(0xFFFFAA00).withOpacity(0.8)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
-    }
-
-    // Space visible through open hangar door
-    final doorRect = Rect.fromLTWH(sz.width*0.2, sz.height*0.02, sz.width*0.6, sz.height*0.28);
-    canvas.drawRect(doorRect, Paint()..color = const Color(0xFF020810));
-    _drawStarfield(canvas, doorRect, 40);
-    _drawGalaxy(canvas, Offset(sz.width*0.75, sz.height*0.12), 35);
-  }
-
-  void _drawEnemySide(Canvas canvas, Size sz) {
-    // Dark alien biomechanical environment
-    canvas.drawRect(Rect.fromLTWH(0,0,sz.width,sz.height),
-        Paint()..shader = LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [const Color(0xFF040810), const Color(0xFF000A14), const Color(0xFF000408)],
-        ).createShader(Rect.fromLTWH(0,0,sz.width,sz.height)));
-
-    // Alien tech background structures
-    _drawAlienStructures(canvas, sz);
-
-    // THE FROZEN WARLORD — central figure
-    _drawFrozenWarlord(canvas,
-        Offset(sz.width*0.5, sz.height*0.32), sz.height*0.28);
-
-    // Dark energy shields around him
-    for (int i = 3; i >= 1; i--) {
-      canvas.drawCircle(Offset(sz.width*0.5, sz.height*0.32),
-          sz.height*0.16 + i*12,
-          Paint()..color = cWarlord.withOpacity(0.04*i)
-            ..style = PaintingStyle.stroke..strokeWidth = 1);
-    }
-  }
-
-  void _drawCockpit(Canvas canvas, Size sz) {
-    // Dark cockpit interior
-    canvas.drawRect(Rect.fromLTWH(0,0,sz.width,sz.height),
-        Paint()..color = const Color(0xFF080A0C));
-
-    // Cockpit frame
-    _drawCockpitFrame(canvas, sz);
-
-    // Space through windshield
-    final windshield = Rect.fromLTWH(sz.width*0.08, sz.height*0.08, sz.width*0.84, sz.height*0.45);
-    canvas.drawRRect(RRect.fromRectAndRadius(windshield, const Radius.circular(12)),
-        Paint()..color = const Color(0xFF020810));
-    _drawStarfield(canvas, windshield, 60);
-
-    // Planet visible
-    canvas.drawCircle(Offset(sz.width*0.3, sz.height*0.28), 45,
-        Paint()..shader = RadialGradient(
-          colors: [const Color(0xFF2244AA), const Color(0xFF112233)],
-        ).createShader(Rect.fromCircle(
-            center: Offset(sz.width*0.3, sz.height*0.28), radius: 45)));
-
-    // Enemy fleet appearing
-    final rng = Random(7);
-    for (int i = 0; i < 5; i++) {
-      final ex = sz.width*(0.45 + rng.nextDouble()*0.45);
-      final ey = sz.height*(0.12 + rng.nextDouble()*0.28);
-      _drawAlienShipSmall(canvas, Offset(ex, ey), 12+rng.nextDouble()*8);
-    }
-
-    // HUD overlay on cockpit glass
-    _drawCockpitHUD(canvas, sz);
-  }
-
-  void _drawBattle(Canvas canvas, Size sz) {
-    // Space combat scene
-    canvas.drawRect(Rect.fromLTWH(0,0,sz.width,sz.height),
-        Paint()..color = const Color(0xFF010508));
-    _drawStarfield(canvas, Rect.fromLTWH(0,0,sz.width,sz.height), 80);
-
-    // Nebula
-    canvas.drawOval(
-        Rect.fromCenter(center: Offset(sz.width*0.6, sz.height*0.3),
-            width: sz.width*0.8, height: sz.height*0.4),
-        Paint()..color = const Color(0xFF330A44).withOpacity(0.3)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40));
-
-    // Phoenix ship (player) at bottom
-    _drawPhoenixShipLarge(canvas, Offset(sz.width*0.5, sz.height*0.6), sz.width*0.3);
-
-    // Warlord ship at top
-    _drawWarlordShipLarge(canvas, Offset(sz.width*0.5, sz.height*0.2), sz.width*0.28);
-
-    // Energy beams between them
-    final beamPaint = Paint()
-      ..color = cWarlord.withOpacity(0.5)
-      ..strokeWidth = 2
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawLine(Offset(sz.width*0.5, sz.height*0.35),
-        Offset(sz.width*0.5, sz.height*0.52), beamPaint);
-  }
-
-  // ── HELPER DRAWERS ──────────────────────────────────────
-  void _drawGalaxy(Canvas canvas, Offset center, double radius) {
-    canvas.drawCircle(center, radius,
-        Paint()..color = Colors.white.withOpacity(0.05)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius*0.8));
-    canvas.drawCircle(center, radius*0.4,
-        Paint()..color = const Color(0xFFCCDDFF).withOpacity(0.15)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius*0.3));
-    canvas.drawCircle(center, radius*0.1,
-        Paint()..color = Colors.white.withOpacity(0.6));
-  }
-
-  void _drawStarfield(Canvas canvas, Rect rect, int count) {
-    final rng = Random(rect.width.toInt());
-    final p = Paint()..color = Colors.white.withOpacity(0.6);
-    for (int i = 0; i < count; i++) {
-      canvas.drawCircle(
-          Offset(rect.left + rng.nextDouble()*rect.width,
-                 rect.top  + rng.nextDouble()*rect.height),
-          rng.nextDouble()*1.2, p);
-    }
-  }
-
-  void _drawCoffeeCup(Canvas canvas, Offset pos) {
-    final p = Paint()..color = const Color(0xFF3A2810);
-    canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromCenter(center: pos, width: 28, height: 32),
-        const Radius.circular(4)), p);
-    canvas.drawArc(Rect.fromCenter(center: Offset(pos.dx+18, pos.dy-2), width:14, height:18),
-        -0.5, pi, false,
-        Paint()..color = const Color(0xFF3A2810)..style=PaintingStyle.stroke..strokeWidth=2.5);
-    canvas.drawOval(Rect.fromCenter(center: pos.translate(0,-16), width:28, height:8),
-        Paint()..color = const Color(0xFF1A0C06));
-  }
-
-  void _drawNeonSign(Canvas canvas, String text, Offset pos, Color color) {
-    canvas.drawRect(
-        Rect.fromCenter(center: pos, width: 110, height: 26),
-        Paint()..color = Colors.black.withOpacity(0.7));
-    canvas.drawRect(
-        Rect.fromCenter(center: pos, width: 110, height: 26),
-        Paint()..color = color.withOpacity(0.5)..style=PaintingStyle.stroke..strokeWidth=1.5);
-    _drawText(canvas, text, pos, color, 10);
-  }
-
-  void _drawPhoenixShipLarge(Canvas canvas, Offset center, double width) {
-    final h = width * 1.2;
-    // Engine glow
-    canvas.drawCircle(Offset(center.dx, center.dy + h*0.3),
-        width*0.15, Paint()..color = cFire.withOpacity(0.4)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20));
-
-    // Body gradient
-    final bodyPaint = Paint()..shader = LinearGradient(
-      begin: Alignment.topCenter, end: Alignment.bottomCenter,
-      colors: [const Color(0xFF888888), const Color(0xFF444444)],
-    ).createShader(Rect.fromCenter(center: center, width: width, height: h));
-
-    final body = Path()
-      ..moveTo(center.dx, center.dy - h*0.45)
-      ..lineTo(center.dx + width*0.25, center.dy + h*0.1)
-      ..lineTo(center.dx + width*0.15, center.dy + h*0.35)
-      ..lineTo(center.dx, center.dy + h*0.25)
-      ..lineTo(center.dx - width*0.15, center.dy + h*0.35)
-      ..lineTo(center.dx - width*0.25, center.dy + h*0.1)
-      ..close();
-    canvas.drawPath(body, bodyPaint);
-
-    // Wings
-    final wingP = Paint()..color = const Color(0xFF555555);
-    final lw = Path()
-      ..moveTo(center.dx - width*0.2, center.dy)
-      ..lineTo(center.dx - width*0.5, center.dy + h*0.15)
-      ..lineTo(center.dx - width*0.4, center.dy + h*0.3)
-      ..lineTo(center.dx - width*0.15, center.dy + h*0.2)
-      ..close();
-    final rw = Path()
-      ..moveTo(center.dx + width*0.2, center.dy)
-      ..lineTo(center.dx + width*0.5, center.dy + h*0.15)
-      ..lineTo(center.dx + width*0.4, center.dy + h*0.3)
-      ..lineTo(center.dx + width*0.15, center.dy + h*0.2)
-      ..close();
-    canvas.drawPath(lw, wingP);
-    canvas.drawPath(rw, wingP);
-
-    // Phoenix emblem on hull
-    canvas.drawCircle(Offset(center.dx, center.dy),  width*0.12,
-        Paint()..color = cFire.withOpacity(0.8)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
-    canvas.drawCircle(Offset(center.dx, center.dy), width*0.06,
-        Paint()..color = Colors.white.withOpacity(0.9));
-
-    // G-G badge
-    _drawText(canvas, 'G-G', Offset(center.dx, center.dy + h*0.05),
-        cGold.withOpacity(0.7), 9);
-
-    // Engine flames
-    final flame = Paint()..shader = LinearGradient(
-      begin: Alignment.topCenter, end: Alignment.bottomCenter,
-      colors: [const Color(0xFFFFDD00), cFire, Colors.transparent],
-    ).createShader(Rect.fromLTWH(center.dx-8, center.dy+h*0.25, 16, 28));
-    final fp = Path()
-      ..moveTo(center.dx-8, center.dy+h*0.26)
-      ..lineTo(center.dx, center.dy+h*0.26+28)
-      ..lineTo(center.dx+8, center.dy+h*0.26);
-    canvas.drawPath(fp, flame);
-  }
-
-  void _drawFrozenWarlord(Canvas canvas, Offset center, double height) {
-    final w = height * 0.55;
-
-    // Body glow (ice aura)
-    canvas.drawCircle(center, height*0.55,
-        Paint()..color = cWarlord.withOpacity(0.12)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30));
-
-    // Legs
-    final legP = Paint()..color = const Color(0xFF1A3A5A);
-    canvas.drawRect(Rect.fromLTWH(center.dx-w*0.22, center.dy+height*0.28, w*0.18, height*0.35), legP);
-    canvas.drawRect(Rect.fromLTWH(center.dx+w*0.04, center.dy+height*0.28, w*0.18, height*0.35), legP);
-
-    // Torso
-    final torsoPath = Path()
-      ..moveTo(center.dx-w*0.3, center.dy+height*0.28)
-      ..lineTo(center.dx-w*0.25, center.dy-height*0.05)
-      ..lineTo(center.dx, center.dy-height*0.1)
-      ..lineTo(center.dx+w*0.25, center.dy-height*0.05)
-      ..lineTo(center.dx+w*0.3, center.dy+height*0.28)
-      ..close();
-    canvas.drawPath(torsoPath,
-        Paint()..shader = LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [const Color(0xFF2255AA), const Color(0xFF112244)],
-        ).createShader(Rect.fromCenter(center: center, width: w, height: height)));
-
-    // Arms
-    canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(center.dx-w*0.5, center.dy-height*0.02, w*0.18, height*0.3),
-        const Radius.circular(4)),
-        Paint()..color = const Color(0xFF1A3A5A));
-    canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(center.dx+w*0.32, center.dy-height*0.02, w*0.18, height*0.3),
-        const Radius.circular(4)),
-        Paint()..color = const Color(0xFF1A3A5A));
-
-    // Head with crown spikes
-    canvas.drawCircle(Offset(center.dx, center.dy-height*0.18), w*0.22,
-        Paint()..color = const Color(0xFF1A3055));
-    // Crown spikes
-    for (int i = -2; i <= 2; i++) {
-      final sx = center.dx + i*w*0.08;
-      final baseY = center.dy - height*0.35;
-      final tipY  = baseY - height*0.06 - i.abs()*height*0.02;
-      canvas.drawLine(Offset(sx-w*0.03, baseY), Offset(sx, tipY),
-          Paint()..color = cWarlord.withOpacity(0.9)..strokeWidth=2.5);
-      canvas.drawLine(Offset(sx+w*0.03, baseY), Offset(sx, tipY),
-          Paint()..color = cWarlord.withOpacity(0.9)..strokeWidth=2.5);
-    }
-
-    // Eyes glow
-    canvas.drawCircle(Offset(center.dx-w*0.07, center.dy-height*0.19), 4,
-        Paint()..color = cWarlord
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
-    canvas.drawCircle(Offset(center.dx+w*0.07, center.dy-height*0.19), 4,
-        Paint()..color = cWarlord
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
-
-    // Ice crystal details on armor
-    final cp = Paint()..color = cFrost.withOpacity(0.4)
-      ..style = PaintingStyle.stroke..strokeWidth = 1;
-    for (int i = 0; i < 5; i++) {
-      final cx2 = center.dx + (Random(i*3).nextDouble()-0.5)*w*0.4;
-      final cy2 = center.dy + Random(i*3+1).nextDouble()*height*0.2;
-      canvas.drawLine(Offset(cx2-5, cy2), Offset(cx2+5, cy2), cp);
-      canvas.drawLine(Offset(cx2, cy2-5), Offset(cx2, cy2+5), cp);
-    }
-
-    // Data tablet in hand
-    canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(center.dx+w*0.1, center.dy+height*0.08, w*0.28, height*0.18),
-        const Radius.circular(3)),
-        Paint()..color = const Color(0xFF0A1A2A));
-    canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(center.dx+w*0.1, center.dy+height*0.08, w*0.28, height*0.18),
-        const Radius.circular(3)),
-        Paint()..color = cWarlord.withOpacity(0.4)
-          ..style=PaintingStyle.stroke..strokeWidth=1);
-  }
-
-  void _drawAlienStructures(Canvas canvas, Size sz) {
-    // Organic alien architecture in background
-    final p = Paint()..color = const Color(0xFF0A1A20).withOpacity(0.8);
-    // Curved ribs
-    for (int i = 0; i < 5; i++) {
-      final x = sz.width*(0.1+i*0.2);
-      canvas.drawPath(
-          Path()
-            ..moveTo(x, 0)
-            ..quadraticBezierTo(x+30, sz.height*0.3, x-10, sz.height*0.65),
-          Paint()..color = const Color(0xFF0D1E28)
-            ..style=PaintingStyle.stroke..strokeWidth=8);
-    }
-    // Alien ship in background
-    _drawAlienShipSmall(canvas, Offset(sz.width*0.75, sz.height*0.25), 50);
-    _drawAlienShipSmall(canvas, Offset(sz.width*0.2,  sz.height*0.28), 35);
-    // Floor glow
-    canvas.drawRect(Rect.fromLTWH(0, sz.height*0.6, sz.width, sz.height*0.08),
-        Paint()..color = cWarlord.withOpacity(0.08)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20));
-    // GGALTEA logo on floor
-    _drawText(canvas, 'GGALTEA', Offset(sz.width*0.5, sz.height*0.66),
-        cWarlord.withOpacity(0.3), 12);
-  }
-
-  void _drawAlienShipSmall(Canvas canvas, Offset center, double size) {
-    // Organic crescent alien ship
-    final p = Paint()..color = const Color(0xFF1A2A40);
-    canvas.drawOval(Rect.fromCenter(center: center, width: size*1.6, height: size*0.7), p);
-    canvas.drawCircle(center, size*0.28,
-        Paint()..color = cWarlord.withOpacity(0.6)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
-    canvas.drawOval(Rect.fromCenter(center: center, width: size*1.6, height: size*0.7),
-        Paint()..color = cWarlord.withOpacity(0.3)
-          ..style=PaintingStyle.stroke..strokeWidth=1);
-    // Propulsors
-    canvas.drawCircle(Offset(center.dx-size*0.55, center.dy), size*0.18,
-        Paint()..color = const Color(0xFF6633AA).withOpacity(0.8)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
-    canvas.drawCircle(Offset(center.dx+size*0.55, center.dy), size*0.18,
-        Paint()..color = const Color(0xFF6633AA).withOpacity(0.8)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
-  }
-
-  void _drawWarlordShipLarge(Canvas canvas, Offset center, double width) {
-    final h = width*0.7;
-    canvas.drawOval(Rect.fromCenter(center: center, width: width*1.4, height: h),
-        Paint()..color = const Color(0xFF0D1A28));
-    canvas.drawCircle(center, width*0.22,
-        Paint()..color = cWarlord.withOpacity(0.7)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15));
-    canvas.drawOval(Rect.fromCenter(center: center, width: width*1.4, height: h),
-        Paint()..color = cWarlord.withOpacity(0.35)
-          ..style=PaintingStyle.stroke..strokeWidth=1.5);
-    // Spike array
-    for (int i = -3; i <= 3; i++) {
-      canvas.drawLine(
-          Offset(center.dx+i*width*0.16, center.dy-h*0.45),
-          Offset(center.dx+i*width*0.12, center.dy-h*0.7),
-          Paint()..color = cWarlord.withOpacity(0.5)..strokeWidth=2);
-    }
-  }
-
-  void _drawCockpitFrame(Canvas canvas, Size sz) {
-    final p = Paint()..color = const Color(0xFF1A1C20);
-    // Left strut
-    canvas.drawPath(Path()
-      ..moveTo(0, 0)..lineTo(sz.width*0.12, sz.height*0.08)
-      ..lineTo(sz.width*0.12, sz.height*0.55)..lineTo(0, sz.height*0.6)..close(), p);
-    // Right strut
-    canvas.drawPath(Path()
-      ..moveTo(sz.width, 0)..lineTo(sz.width*0.88, sz.height*0.08)
-      ..lineTo(sz.width*0.88, sz.height*0.55)..lineTo(sz.width, sz.height*0.6)..close(), p);
-    // Dashboard
-    canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, sz.height*0.55, sz.width, sz.height*0.2),
-        const Radius.circular(0)),
-        Paint()..color = const Color(0xFF141618));
-    // Dashboard screens
-    _drawDashScreen(canvas, Rect.fromLTWH(sz.width*0.05, sz.height*0.57, sz.width*0.28, sz.height*0.13),
-        'NAV CORE', cIce);
-    _drawDashScreen(canvas, Rect.fromLTWH(sz.width*0.67, sz.height*0.57, sz.width*0.28, sz.height*0.13),
-        'PHOENIX', cFire);
-  }
-
-  void _drawDashScreen(Canvas canvas, Rect rect, String label, Color c) {
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        Paint()..color = c.withOpacity(0.05));
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        Paint()..color = c.withOpacity(0.4)..style=PaintingStyle.stroke..strokeWidth=1);
-    _drawText(canvas, label, rect.center, c.withOpacity(0.7), 8);
-  }
-
-  void _drawCockpitHUD(Canvas canvas, Size sz) {
-    // Mission HUD
-    _drawHUDBox(canvas, Rect.fromLTWH(0, sz.height*0.08, sz.width*0.5, sz.height*0.1),
-        'MISSION: DELIVER CORE\nOBJ: ORION NEBULA Q7', cIce);
-    // Protocol status
-    _drawHUDBox(canvas, Rect.fromLTWH(sz.width*0.55, sz.height*0.08, sz.width*0.45, sz.height*0.1),
-        'PROTOCOL STATUS: ADAPTING\nENEMY ANALYSIS...', cDanger);
-    // Phoenix logo HUD
-    canvas.drawCircle(Offset(sz.width*0.78, sz.height*0.18), 18,
-        Paint()..color = cFire.withOpacity(0.2)
-          ..style=PaintingStyle.stroke..strokeWidth=1.5);
-    canvas.drawCircle(Offset(sz.width*0.78, sz.height*0.18), 8,
-        Paint()..color = cFire.withOpacity(0.7)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
-  }
-
-  void _drawHUDBox(Canvas canvas, Rect rect, String text, Color c) {
-    canvas.drawRect(rect, Paint()..color = Colors.black.withOpacity(0.6));
-    canvas.drawRect(rect, Paint()..color = c.withOpacity(0.3)
-      ..style=PaintingStyle.stroke..strokeWidth=0.8);
-    _drawText(canvas, text, Offset(rect.left+8, rect.center.dy),
-        c.withOpacity(0.8), 8, leftAlign: true);
-  }
-
-  void _drawText(Canvas canvas, String text, Offset pos, Color color, double size,
-      {bool leftAlign=false}) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: TextStyle(color: color, fontSize: size,
-          fontFamily: 'Orbitron', fontWeight: FontWeight.bold,
-          height: 1.4,
-          shadows: [Shadow(color: color.withOpacity(0.4), blurRadius: 6)])),
-      textAlign: leftAlign ? TextAlign.left : TextAlign.center,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: 300);
-    tp.paint(canvas, Offset(
-        leftAlign ? pos.dx : pos.dx - tp.width/2,
-        pos.dy - tp.height/2));
-  }
-
-  @override
-  bool shouldRepaint(covariant _IntroBgPainter old) =>
-      old.scene.type != scene.type;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1057,6 +546,7 @@ class _GameScreenState extends State<GameScreen>
 
   final _enemies   = <Enemy>[];
   final _bullets   = <Bullet>[];
+  final _powerUps  = <PowerUp>[];
   final _particles = <Particle>[];
   final _floats    = <FloatingText>[];
 
@@ -1066,6 +556,7 @@ class _GameScreenState extends State<GameScreen>
   int    _score=0;
   double _coreTemp=0;
   double _shootTimer=0, _spawnTimer=0;
+  double _powerUpTimer=15.0; // first powerup after 15s
   bool   _touching=false;
   double _touchX=0;
 
@@ -1114,7 +605,7 @@ class _GameScreenState extends State<GameScreen>
         _audio.stopAlarm(); _audio.playQuench();
         _spawnQuenchExplosion();
       }
-      setState((){ }); return;
+      setState((){}); return;
     }
     if (_quenching) {
       _quenchT+=dt; _updateParticles(dt);
@@ -1131,7 +622,7 @@ class _GameScreenState extends State<GameScreen>
     _res.update(dt, _player.build);
     _player.energy=_res.energy; _player.heat=_res.heat;
 
-    // Alarm
+    // Alarm at 80% heat
     if (_res.heatFrac>=0.8 && !_alarmOn) { _alarmOn=true; _audio.startAlarm(); }
     else if (_res.heatFrac<0.75 && _alarmOn) { _alarmOn=false; _audio.stopAlarm(); }
 
@@ -1145,17 +636,42 @@ class _GameScreenState extends State<GameScreen>
       _player.x  = _player.x.clamp(kPhoenixSize, _sw-kPhoenixSize);
     }
 
+    // Shoot — laser with dynamic color
     if (_touching && _res.energy>0 && !_res.overheating) {
       _shootTimer-=dt;
-      if (_shootTimer<=0) { _shootTimer=0.14/_player.build.fireRate; _fireBullet(); }
+      if (_shootTimer<=0) {
+        _shootTimer=0.14/_player.build.fireRate;
+        _fireLaser();
+      }
     }
 
-    for (final b in _bullets) b.y+=(b.isEnemy?380:-560)*dt;
-    _bullets.removeWhere((b)=>b.y<-10||b.y>_sh+10);
+    // Move bullets (with angle support for spread)
+    for (final b in _bullets) {
+      if (b.isEnemy) {
+        b.y += 380*dt;
+      } else {
+        b.x += sin(b.angle)*560*dt;
+        b.y -= cos(b.angle)*560*dt;
+      }
+    }
+    _bullets.removeWhere((b) => b.y<-20 || b.y>_sh+20 || b.x<-20 || b.x>_sw+20);
 
+    // Power-up spawning — gradual (first at 15s, then every 20s)
+    _powerUpTimer-=dt;
+    if (_powerUpTimer<=0) {
+      _powerUpTimer = 18.0 + _rng.nextDouble()*8;
+      _spawnPowerUp();
+    }
+    _updatePowerUps(dt);
+
+    // Enemy spawning — gradual
     if (_phase.phase==GamePhase.combat && !_bossAlive) {
       _spawnTimer-=dt;
-      if (_spawnTimer<=0) { _spawnTimer=_ai.spawnInterval; for(int i=0;i<_ai.waveSize;i++) _spawnEnemy(); }
+      if (_spawnTimer<=0) {
+        _spawnTimer = _ai.spawnInterval(_phase.cycleCount);
+        final count = _ai.waveSize(_phase.cycleCount);
+        for (int i=0; i<count; i++) _spawnEnemy();
+      }
     }
 
     _updateEnemies(dt);
@@ -1170,33 +686,123 @@ class _GameScreenState extends State<GameScreen>
     setState((){});
   }
 
-  void _fireBullet() {
+  // ── LASER FIRE ──────────────────────────────────────────
+  void _fireLaser() {
     _res.applyShoot(_player.build);
-    _audio.playShoot();
-    final py = _sh*0.72-kPhoenixSize;
-    _bullets.add(Bullet(_player.x, py, _player.build.damage));
-    if (_player.build.fireRate>1.8) {
-      _bullets.add(Bullet(_player.x-16, py, _player.build.damage*0.7));
-      _bullets.add(Bullet(_player.x+16, py, _player.build.damage*0.7));
+    _audio.playLaser();
+    final py = _sh*0.72 - kPhoenixSize;
+    // Laser color changes with heat
+    _bullets.add(Bullet(_player.x, py, _player.build.damage, angle: 0));
+
+    // Triple shot if fireRate high enough
+    if (_player.build.fireRate > 1.8) {
+      _bullets.add(Bullet(_player.x, py, _player.build.damage*0.7, angle: -0.12));
+      _bullets.add(Bullet(_player.x, py, _player.build.damage*0.7, angle:  0.12));
     }
   }
 
+  // ── ENEMY SPAWN — gradual difficulty ───────────────────
   void _spawnEnemy() {
-    final r = _rng.nextDouble();
+    final cycle = _phase.cycleCount;
+    // Unlock enemy types gradually
     EnemyKind k;
-    if      (r<0.40) k=EnemyKind.interceptor;
-    else if (r<0.65) k=EnemyKind.frigate;
-    else if (r<0.82) k=EnemyKind.parasite;
-    else             k=EnemyKind.corrupter;
+    final r = _rng.nextDouble();
+    if (cycle == 0) {
+      // Only interceptors at start
+      k = EnemyKind.interceptor;
+    } else if (cycle == 1) {
+      k = r < 0.6 ? EnemyKind.interceptor : EnemyKind.frigate;
+    } else if (cycle == 2) {
+      if      (r < 0.45) k = EnemyKind.interceptor;
+      else if (r < 0.75) k = EnemyKind.frigate;
+      else               k = EnemyKind.parasite;
+    } else {
+      if      (r < 0.35) k = EnemyKind.interceptor;
+      else if (r < 0.60) k = EnemyKind.frigate;
+      else if (r < 0.80) k = EnemyKind.parasite;
+      else               k = EnemyKind.corrupter;
+    }
 
-    final base = 15.0+_phase.cycleCount*5;
+    final base = 15.0 + cycle*5;
     final hp   = k==EnemyKind.parasite ? base*1.5 : k==EnemyKind.frigate ? base*0.8 : base;
     _enemies.add(Enemy(
       x: 20+_rng.nextDouble()*(_sw-40), y: -kEnemyR, hp: hp,
       vx: (_rng.nextBool()?1:-1)*(50+_rng.nextDouble()*60),
-      vy: 70+_phase.cycleCount*4.0, kind: k,
+      vy: 65 + cycle*4.0 + _rng.nextDouble()*15,
+      kind: k,
     ));
   }
+
+  // ── POWER-UP SPAWN — gradual ────────────────────────────
+  void _spawnPowerUp() {
+    final cycle = _phase.cycleCount;
+    // Which powerups are available at this cycle
+    final available = <PowerUpKind>[PowerUpKind.energyBoost];
+    if (cycle >= 1) available.add(PowerUpKind.rapidFire);
+    if (cycle >= 1) available.add(PowerUpKind.shield);
+    if (cycle >= 2) available.add(PowerUpKind.tripleShot);
+    if (cycle >= 3) available.add(PowerUpKind.coreArmor);
+
+    final kind = available[_rng.nextInt(available.length)];
+    _powerUps.add(PowerUp(
+      20 + _rng.nextDouble()*(_sw-40),
+      -30,
+      kind,
+    ));
+  }
+
+  void _updatePowerUps(double dt) {
+    for (final p in _powerUps) {
+      p.y += 70*dt;
+      p.animT += dt*3;
+      if (!p.collected) {
+        // Check if player catches it
+        final px = _player.x, py = _sh*0.72;
+        if ((p.x-px).abs()<35 && (p.y-py).abs()<35) {
+          p.collected = true;
+          _applyPowerUp(p.kind);
+          _spawnBurst(p.x, p.y, _powerUpColor(p.kind), 16);
+          _addFloat(p.x, p.y-10, _powerUpLabel(p.kind), _powerUpColor(p.kind));
+        }
+      }
+    }
+    _powerUps.removeWhere((p) => p.y > _sh+40 || p.collected);
+  }
+
+  void _applyPowerUp(PowerUpKind k) {
+    switch (k) {
+      case PowerUpKind.rapidFire:
+        _player.build.fireRate = (_player.build.fireRate * 1.4).clamp(1.0, 3.0);
+      case PowerUpKind.tripleShot:
+        _player.build.fireRate = (_player.build.fireRate * 1.2).clamp(1.0, 3.0);
+        _player.build.damage  *= 1.1;
+      case PowerUpKind.shield:
+        _player.shieldActive = true;
+        _player.shieldTimer = 12.0;
+      case PowerUpKind.coreArmor:
+        _coreTemp = (_coreTemp - 0.2).clamp(0, 1);
+        _player.build.modules.add('core_armor');
+      case PowerUpKind.energyBoost:
+        _res.energy = (_res.energy + 35).clamp(0, _player.build.maxEnergy);
+        _res.heat   = (_res.heat - 20).clamp(0, 100);
+    }
+  }
+
+  Color  _powerUpColor(PowerUpKind k) => switch(k) {
+    PowerUpKind.rapidFire   => cFire,
+    PowerUpKind.tripleShot  => cGold,
+    PowerUpKind.shield      => cShield,
+    PowerUpKind.coreArmor   => cIce,
+    PowerUpKind.energyBoost => const Color(0xFF00FF88),
+  };
+
+  String _powerUpLabel(PowerUpKind k) => switch(k) {
+    PowerUpKind.rapidFire   => '⚡ RAPID FIRE',
+    PowerUpKind.tripleShot  => '💥 TRIPLE SHOT',
+    PowerUpKind.shield      => '🛡 ESCUDO',
+    PowerUpKind.coreArmor   => '❄ CORE ARMOR',
+    PowerUpKind.energyBoost => '💚 ENERGÍA +35',
+  };
 
   void _updateEnemies(double dt) {
     for (final e in _enemies) {
@@ -1216,7 +822,7 @@ class _GameScreenState extends State<GameScreen>
           e.actionTimer+=dt;
           if (e.actionTimer>1.8/_ai.counterFire) {
             e.actionTimer=0;
-            _bullets.add(Bullet(e.x, e.y+kEnemyR, 8, isEnemy: true));
+            _bullets.add(Bullet(e.x, e.y+kEnemyR, 8, isEnemy:true));
           }
 
         case EnemyKind.parasite:
@@ -1288,7 +894,7 @@ class _GameScreenState extends State<GameScreen>
             rem.add(bul); e.hp-=bul.damage; e.hitFlash=1.0;
             if (e.hp<=0) {
               e.dead=true; _score+=_eScore(e.kind);
-              _spawnBurst(e.x,e.y,_eColor(e.kind),14);
+              _spawnBurst(e.x,e.y,_eColor(e.kind),16);
               _audio.playExplosion();
               _addFloat(e.x,e.y-10,'+${_eScore(e.kind)}',cGold);
             }
@@ -1318,22 +924,28 @@ class _GameScreenState extends State<GameScreen>
     EnemyKind.interceptor=>100, EnemyKind.frigate=>150,
     EnemyKind.parasite=>200,    EnemyKind.corrupter=>175};
   Color _eColor(EnemyKind k) => switch(k){
-    EnemyKind.interceptor=>cFire, EnemyKind.frigate=>const Color(0xFF00FF88),
-    EnemyKind.parasite=>cShield,  EnemyKind.corrupter=>const Color(0xFFFF8800)};
+    EnemyKind.interceptor=>cWarlord, EnemyKind.frigate=>const Color(0xFF00FF88),
+    EnemyKind.parasite=>cShield,     EnemyKind.corrupter=>const Color(0xFFFF6600)};
 
-  void _triggerDecision() { _ai.analyze(_player.build); _options=_buildOptions(); _showDecision=true; }
+  void _triggerDecision() {
+    _ai.analyze(_player.build); _options=_buildOptions(); _showDecision=true;
+  }
   void _triggerBoss() {
     _enemies.clear();
-    _boss=Enemy(x:_sw/2, y:_sh*0.18, hp:80+_phase.cycleCount*20.0, vx:90, kind:EnemyKind.frigate);
+    _boss=Enemy(x:_sw/2, y:_sh*0.18,
+        hp:80+_phase.cycleCount*20.0, vx:90, kind:EnemyKind.frigate);
     _bossAlive=true;
   }
-  void _beginFrost() { if(_frosting||_quenching) return; _frosting=true; _coreTemp=1.0; _audio.stopAlarm(); }
-
+  void _beginFrost() {
+    if (_frosting||_quenching) return;
+    _frosting=true; _coreTemp=1.0; _audio.stopAlarm();
+  }
   void _spawnQuenchExplosion() {
     for (int i=0;i<80;i++) {
       final a=_rng.nextDouble()*pi*2; final s=100+_rng.nextDouble()*320;
       _particles.add(Particle(x:_sw/2,y:_sh*0.87,vx:cos(a)*s,vy:sin(a)*s,
-          life:1.2+_rng.nextDouble(),color:_rng.nextBool()?cFire:cIce,size:5+_rng.nextDouble()*12));
+          life:1.2+_rng.nextDouble(),color:_rng.nextBool()?cFire:cIce,
+          size:5+_rng.nextDouble()*12));
     }
   }
   void _spawnFrostParticles() {
@@ -1344,6 +956,7 @@ class _GameScreenState extends State<GameScreen>
       vx:cos(a+pi)*40,  vy:sin(a+pi)*40,
       life:0.8+_rng.nextDouble()*0.6, color:cFrost, size:3+_rng.nextDouble()*6, isFrost:true));
   }
+
   void _selectUpgrade(UpgradeOption opt) {
     opt.apply(_player.build);
     _res.energy=(_res.energy+20).clamp(0,_player.build.maxEnergy);
@@ -1352,31 +965,35 @@ class _GameScreenState extends State<GameScreen>
 
   List<UpgradeOption> _buildOptions() {
     final all=[
-      UpgradeOption(title:'Plasma Overload',   description:'+40% daño',      emoji:'🔥',color:cFire,  apply:(b)=>b.damage*=1.4),
-      UpgradeOption(title:'Cryo Stabilizer',   description:'Enfriamiento +50%',emoji:'❄️',color:cIce, apply:(b)=>b.cooling*=1.5),
-      UpgradeOption(title:'Void Pulse',        description:'Cadencia +30%',   emoji:'⚡',color:cGold,  apply:(b)=>b.fireRate*=1.3),
-      UpgradeOption(title:'Energy Core Expand',description:'Energía máx +25', emoji:'💙',color:cIce,   apply:(b)=>b.maxEnergy+=25),
-      UpgradeOption(title:'Entropy Shield',    description:'Escudo activo',   emoji:'🛡️',color:cShield,apply:(b)=>b.shieldEfficiency+=0.4),
-      UpgradeOption(title:'Quantum Burst',     description:'Triple shot perm.',emoji:'💥',color:cFire, apply:(b)=>b.fireRate=(b.fireRate*1.2).clamp(0,2.5)),
-      UpgradeOption(title:'Core Armor',        description:'Blindaje núcleo', emoji:'🔮',color:cShield,apply:(b)=>b.modules.add('core_armor')),
-      UpgradeOption(title:'Phoenix Overdrive', description:'+20% todo • -cool',emoji:'🦅',color:cGold, apply:(b){b.damage*=1.2;b.fireRate*=1.2;b.cooling*=0.9;}),
+      UpgradeOption(title:'Plasma Overload',   description:'+40% daño de disparo', emoji:'🔥',color:cFire,  apply:(b)=>b.damage*=1.4),
+      UpgradeOption(title:'Cryo Stabilizer',   description:'Enfriamiento +50%',    emoji:'❄️',color:cIce,   apply:(b)=>b.cooling*=1.5),
+      UpgradeOption(title:'Void Pulse',        description:'Cadencia +30%',        emoji:'⚡',color:cGold,  apply:(b)=>b.fireRate*=1.3),
+      UpgradeOption(title:'Energy Core Expand',description:'Energía máxima +25',   emoji:'💙',color:cIce,   apply:(b)=>b.maxEnergy+=25),
+      UpgradeOption(title:'Entropy Shield',    description:'Escudo 12 segundos',   emoji:'🛡️',color:cShield,apply:(b){b.shieldEfficiency+=0.4;}),
+      UpgradeOption(title:'Quantum Burst',     description:'Triple shot permanente',emoji:'💥',color:cFire, apply:(b)=>b.fireRate=(b.fireRate*1.2).clamp(0,2.5)),
+      UpgradeOption(title:'Core Armor',        description:'Blindaje del núcleo',  emoji:'🔮',color:cShield,apply:(b)=>b.modules.add('core_armor')),
+      UpgradeOption(title:'Phoenix Overdrive', description:'+20% todo · -10% cool',emoji:'🦅',color:cGold, apply:(b){b.damage*=1.2;b.fireRate*=1.2;b.cooling*=0.9;}),
     ];
     all.shuffle(_rng); return all.take(3).toList();
   }
 
   void _spawnBurst(double x,double y,Color c,int n) {
     for(int i=0;i<n;i++){
-      final a=_rng.nextDouble()*pi*2; final s=40+_rng.nextDouble()*180;
+      final a=_rng.nextDouble()*pi*2; final s=40+_rng.nextDouble()*200;
       _particles.add(Particle(x:x,y:y,vx:cos(a)*s,vy:sin(a)*s,
-          life:0.3+_rng.nextDouble()*0.5,color:c,size:2+_rng.nextDouble()*5));
+          life:0.3+_rng.nextDouble()*0.55,color:c,size:2+_rng.nextDouble()*6));
     }
   }
-  void _addFloat(double x,double y,String t,Color c)=>_floats.add(FloatingText(x,y,t,c));
-  void _updateParticles(double dt) {
+  void _addFloat(double x,double y,String t,Color c)=>
+      _floats.add(FloatingText(x,y,t,c));
+  void _updateParticles(double dt){
     for(final p in _particles){p.x+=p.vx*dt;p.y+=p.vy*dt;if(!p.isFrost)p.vy+=40*dt;p.life-=dt;}
     _particles.removeWhere((p)=>p.life<=0);
   }
-  void _updateFloats(double dt){for(final f in _floats){f.y-=55*dt;f.life-=dt*1.5;}_floats.removeWhere((f)=>f.life<=0);}
+  void _updateFloats(double dt){
+    for(final f in _floats){f.y-=55*dt;f.life-=dt*1.5;}
+    _floats.removeWhere((f)=>f.life<=0);
+  }
 
   void _onPanStart(DragStartDetails d){_touching=true;_touchX=d.localPosition.dx;}
   void _onPanUpdate(DragUpdateDetails d){_touchX=d.localPosition.dx;}
@@ -1387,6 +1004,9 @@ class _GameScreenState extends State<GameScreen>
   @override
   Widget build(BuildContext context) {
     final sz=MediaQuery.of(context).size; _sw=sz.width; _sh=sz.height;
+    // Dynamic laser color based on heat
+    final laserColor = Color.lerp(cIce, cDanger, _res.heatFrac)!;
+
     return Scaffold(
       backgroundColor: cBg,
       body: Stack(children:[
@@ -1395,16 +1015,22 @@ class _GameScreenState extends State<GameScreen>
           onTapDown:_onTapDown,onTapUp:_onTapUp,
           child: CustomPaint(
             painter: GamePainter(
-              sw:_sw,sh:_sh,player:_player,enemies:_enemies,bullets:_bullets,
-              boss:_bossAlive?_boss:null,particles:_particles,floats:_floats,
-              score:_score,res:_res,phase:_phase,coreTemp:_coreTemp,
-              corePulse:_corePulse,frosting:_frosting,frostT:_frostT,
-              quenching:_quenching,quenchT:_quenchT,touching:_touching,
+              sw:_sw,sh:_sh,player:_player,
+              enemies:_enemies,bullets:_bullets,powerUps:_powerUps,
+              boss:_bossAlive?_boss:null,
+              particles:_particles,floats:_floats,
+              score:_score,res:_res,phase:_phase,
+              coreTemp:_coreTemp,corePulse:_corePulse,
+              laserColor:laserColor,
+              frosting:_frosting,frostT:_frostT,
+              quenching:_quenching,quenchT:_quenchT,
+              touching:_touching,
             ),
             child: const SizedBox.expand(),
           ),
         ),
-        if (_showDecision) _DecisionOverlay(options:_options,cycle:_phase.cycleCount,onSelect:_selectUpgrade),
+        if (_showDecision)
+          _DecisionOverlay(options:_options,cycle:_phase.cycleCount,onSelect:_selectUpgrade),
         if (_phase.phase==GamePhase.boss&&_bossAlive)
           Positioned(top:8,left:0,right:0,
             child:Center(child:_GlowText('⚠ FROZEN WARLORD ⚠',color:cWarlord,size:14))),
@@ -1414,14 +1040,16 @@ class _GameScreenState extends State<GameScreen>
 }
 
 // ══════════════════════════════════════════════════════════
-//  GAME PAINTER — LORE SPRITES
+//  GAME PAINTER
 // ══════════════════════════════════════════════════════════
 class GamePainter extends CustomPainter {
   final double sw,sh,coreTemp,corePulse,frostT,quenchT;
   final bool frosting,quenching,touching;
+  final Color laserColor;
   final Player player;
   final List<Enemy> enemies;
   final List<Bullet> bullets;
+  final List<PowerUp> powerUps;
   final Enemy? boss;
   final List<Particle> particles;
   final List<FloatingText> floats;
@@ -1431,10 +1059,11 @@ class GamePainter extends CustomPainter {
 
   const GamePainter({
     required this.sw,required this.sh,required this.player,
-    required this.enemies,required this.bullets,required this.boss,
-    required this.particles,required this.floats,required this.score,
-    required this.res,required this.phase,required this.coreTemp,
-    required this.corePulse,required this.frosting,required this.frostT,
+    required this.enemies,required this.bullets,required this.powerUps,
+    required this.boss,required this.particles,required this.floats,
+    required this.score,required this.res,required this.phase,
+    required this.coreTemp,required this.corePulse,required this.laserColor,
+    required this.frosting,required this.frostT,
     required this.quenching,required this.quenchT,required this.touching,
   });
 
@@ -1442,6 +1071,7 @@ class GamePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _bg(canvas);
     _drawNucleus(canvas);
+    _drawPowerUps(canvas);
     _drawEnemies(canvas);
     if (boss!=null) _drawBoss(canvas,boss!);
     _drawBullets(canvas);
@@ -1483,27 +1113,24 @@ class GamePainter extends CustomPainter {
         Paint()..shader=RadialGradient(colors:[
           Colors.white.withOpacity(0.95),tempC.withOpacity(0.85),tempC.withOpacity(0.2)
         ],stops:const[0.0,0.45,1.0]).createShader(Rect.fromCircle(center:Offset(cx,cy),radius:pulse)));
-    // Tech ring
     canvas.drawCircle(Offset(cx,cy),pulse+4,
         Paint()..color=tempC.withOpacity(0.35)..style=PaintingStyle.stroke..strokeWidth=0.8);
-    // Cross
     final lp=Paint()..color=tempC.withOpacity(0.2)..strokeWidth=0.7;
     canvas.drawLine(Offset(cx-pulse-10,cy),Offset(cx+pulse+10,cy),lp);
     canvas.drawLine(Offset(cx,cy-pulse-10),Offset(cx,cy+pulse+10),lp);
-    // Lightning spokes
     final rng=Random((corePulse*20).toInt());
     final blp=Paint()..color=tempC.withOpacity(0.6)..style=PaintingStyle.stroke..strokeWidth=1.2;
-    for(int i=0;i<8;i++) {
+    for(int i=0;i<8;i++){
       final a=i*pi/4+corePulse*pi*0.5;
       _bolt(canvas,blp,
           Offset(cx+cos(a)*pulse*0.5,cy+sin(a)*pulse*0.5),
           Offset(cx+cos(a)*(pulse+22),cy+sin(a)*(pulse+22)),rng);
     }
     _drawArcBar(canvas,cx,cy,pulse+32,coreTemp,tempC);
-    _txt(canvas,'NÚCLEO CUÁNTICO', Offset(cx,cy+pulse+22),tempC.withOpacity(0.8), 9);
+    _txt(canvas,'NÚCLEO CUÁNTICO',Offset(cx,cy+pulse+22),tempC.withOpacity(0.8),9);
   }
 
-  void _drawArcBar(Canvas canvas,double cx,double cy,double r,double frac,Color c) {
+  void _drawArcBar(Canvas canvas,double cx,double cy,double r,double frac,Color c){
     const st=-pi*0.75, sw2=pi*1.5;
     canvas.drawArc(Rect.fromCircle(center:Offset(cx,cy),radius:r),st,sw2,false,
         Paint()..color=Colors.white12..style=PaintingStyle.stroke..strokeWidth=4..strokeCap=StrokeCap.round);
@@ -1511,7 +1138,7 @@ class GamePainter extends CustomPainter {
         Paint()..color=c..style=PaintingStyle.stroke..strokeWidth=4..strokeCap=StrokeCap.round);
   }
 
-  void _bolt(Canvas canvas,Paint p,Offset a,Offset b,Random rng) {
+  void _bolt(Canvas canvas,Paint p,Offset a,Offset b,Random rng){
     final path=Path()..moveTo(a.dx,a.dy);
     for(int i=1;i<4;i++){final t=i/4;path.lineTo(
         a.dx+(b.dx-a.dx)*t+(rng.nextDouble()-0.5)*10,
@@ -1519,7 +1146,35 @@ class GamePainter extends CustomPainter {
     path.lineTo(b.dx,b.dy); canvas.drawPath(path,p);
   }
 
-  // ── PHOENIX SHIP (player) ───────────────────────────────
+  // ── POWER-UPS ────────────────────────────────────────────
+  void _drawPowerUps(Canvas canvas) {
+    for (final p in powerUps) {
+      if (p.collected) continue;
+      final c   = _puColor(p.kind);
+      final lbl = _puIcon(p.kind);
+      final pulse = sin(p.animT)*0.15 + 1.0;
+
+      // Outer glow
+      canvas.drawCircle(Offset(p.x, p.y), 22*pulse,
+          Paint()..color=c.withOpacity(0.25)..maskFilter=const MaskFilter.blur(BlurStyle.normal,10));
+      // Ring
+      canvas.drawCircle(Offset(p.x, p.y), 18*pulse,
+          Paint()..color=c.withOpacity(0.7)..style=PaintingStyle.stroke..strokeWidth=2);
+      // Icon
+      _txt(canvas, lbl, Offset(p.x, p.y), c, 16);
+    }
+  }
+
+  Color  _puColor(PowerUpKind k) => switch(k){
+    PowerUpKind.rapidFire=>cFire, PowerUpKind.tripleShot=>cGold,
+    PowerUpKind.shield=>cShield,  PowerUpKind.coreArmor=>cIce,
+    PowerUpKind.energyBoost=>const Color(0xFF00FF88)};
+  String _puIcon(PowerUpKind k) => switch(k){
+    PowerUpKind.rapidFire=>'⚡', PowerUpKind.tripleShot=>'💥',
+    PowerUpKind.shield=>'🛡',    PowerUpKind.coreArmor=>'❄',
+    PowerUpKind.energyBoost=>'💚'};
+
+  // ── PHOENIX ───────────────────────────────────────────────
   void _drawPhoenix(Canvas canvas) {
     final px=player.x, py=sh*0.72;
     if (player.shieldActive) {
@@ -1528,10 +1183,9 @@ class GamePainter extends CustomPainter {
       canvas.drawCircle(Offset(px,py),kPhoenixSize*1.7,
           Paint()..color=cShield.withOpacity(0.7)..style=PaintingStyle.stroke..strokeWidth=2);
     }
-    // Engine glow
     canvas.drawCircle(Offset(px,py+kPhoenixSize*0.55),kPhoenixSize*0.35,
-        Paint()..color=cFire.withOpacity(touching?0.85:0.3)..maskFilter=const MaskFilter.blur(BlurStyle.normal,12));
-    // Fuselage
+        Paint()..color=cFire.withOpacity(touching?0.85:0.3)
+          ..maskFilter=const MaskFilter.blur(BlurStyle.normal,12));
     final bodyP=Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
         colors:[const Color(0xFF999999),const Color(0xFF555555)])
         .createShader(Rect.fromCenter(center:Offset(px,py),width:kPhoenixSize*0.6,height:kPhoenixSize*1.8));
@@ -1539,35 +1193,28 @@ class GamePainter extends CustomPainter {
       ..moveTo(px,py-kPhoenixSize*0.85)
       ..lineTo(px+kPhoenixSize*0.22,py+kPhoenixSize*0.45)
       ..lineTo(px,py+kPhoenixSize*0.25)
-      ..lineTo(px-kPhoenixSize*0.22,py+kPhoenixSize*0.45)
-      ..close(), bodyP);
-    // Wings
-    final wingC=const Color(0xFF666666);
+      ..lineTo(px-kPhoenixSize*0.22,py+kPhoenixSize*0.45)..close(), bodyP);
+    final wc=const Color(0xFF666666);
     canvas.drawPath(Path()
       ..moveTo(px-kPhoenixSize*0.18,py)
       ..lineTo(px-kPhoenixSize*1.25,py+kPhoenixSize*0.1)
       ..lineTo(px-kPhoenixSize*0.9,py+kPhoenixSize*0.5)
       ..lineTo(px-kPhoenixSize*0.2,py+kPhoenixSize*0.35)..close(),
-        Paint()..color=wingC);
+        Paint()..color=wc);
     canvas.drawPath(Path()
       ..moveTo(px+kPhoenixSize*0.18,py)
       ..lineTo(px+kPhoenixSize*1.25,py+kPhoenixSize*0.1)
       ..lineTo(px+kPhoenixSize*0.9,py+kPhoenixSize*0.5)
       ..lineTo(px+kPhoenixSize*0.2,py+kPhoenixSize*0.35)..close(),
-        Paint()..color=wingC);
-    // Cockpit
+        Paint()..color=wc);
     canvas.drawCircle(Offset(px,py-kPhoenixSize*0.3),kPhoenixSize*0.18,
         Paint()..color=cIce.withOpacity(0.8)..maskFilter=const MaskFilter.blur(BlurStyle.normal,5));
-    // Phoenix emblem on hull
     canvas.drawCircle(Offset(px,py+kPhoenixSize*0.05),kPhoenixSize*0.12,
         Paint()..color=cFire.withOpacity(0.6)..maskFilter=const MaskFilter.blur(BlurStyle.normal,4));
-    // G-G badge
     _txt(canvas,'G·G',Offset(px,py+kPhoenixSize*0.05),cGold.withOpacity(0.8),7);
-    // Wing detail lines
     final wl=Paint()..color=Colors.white.withOpacity(0.2)..strokeWidth=0.7..style=PaintingStyle.stroke;
     canvas.drawLine(Offset(px-kPhoenixSize*0.15,py+2),Offset(px-kPhoenixSize*0.95,py+kPhoenixSize*0.25),wl);
     canvas.drawLine(Offset(px+kPhoenixSize*0.15,py+2),Offset(px+kPhoenixSize*0.95,py+kPhoenixSize*0.25),wl);
-    // Thrust flame
     if (touching) {
       canvas.drawPath(Path()
         ..moveTo(px-7,py+kPhoenixSize*0.42)
@@ -1579,13 +1226,12 @@ class GamePainter extends CustomPainter {
     }
   }
 
-  // ── ENEMY SHIPS (lore-based) ────────────────────────────
+  // ── ENEMIES ───────────────────────────────────────────────
   void _drawEnemies(Canvas canvas) {
     for (final e in enemies) {
       if (e.dead) continue;
       final base=_eColor(e.kind);
       final c=e.hitFlash>0?Color.lerp(base,Colors.white,e.hitFlash)!:base;
-      // Glow
       canvas.drawCircle(Offset(e.x,e.y),kEnemyR*1.5,
           Paint()..color=c.withOpacity(0.15)..maskFilter=const MaskFilter.blur(BlurStyle.normal,10));
       switch(e.kind){
@@ -1594,8 +1240,7 @@ class GamePainter extends CustomPainter {
         case EnemyKind.parasite:    _drawParasite(canvas,e,c);
         case EnemyKind.corrupter:   _drawCorrupter(canvas,e,c);
       }
-      // HP bar
-      if (e.maxHp>20) {
+      if (e.maxHp>20){
         final bw=kEnemyR*2; final frac=(e.hp/e.maxHp).clamp(0.0,1.0);
         canvas.drawRRect(RRect.fromRectAndRadius(
             Rect.fromLTWH(e.x-bw/2,e.y-kEnemyR-8,bw,3),const Radius.circular(2)),
@@ -1607,87 +1252,61 @@ class GamePainter extends CustomPainter {
     }
   }
 
-  // Interceptor — small crescent alien fighter (image 6 style)
-  void _drawInterceptor(Canvas canvas,Enemy e,Color c) {
-    final cx=e.x, cy=e.y, r=kEnemyR;
-    // Organic crescent body
-    canvas.drawOval(Rect.fromCenter(center:Offset(cx,cy),width:r*1.8,height:r*0.9),
+  void _drawInterceptor(Canvas canvas,Enemy e,Color c){
+    canvas.drawOval(Rect.fromCenter(center:Offset(e.x,e.y),width:kEnemyR*1.8,height:kEnemyR*0.9),
         Paint()..color=c.withOpacity(0.85));
-    // Core eye
-    canvas.drawCircle(Offset(cx,cy),r*0.28,
+    canvas.drawCircle(Offset(e.x,e.y),kEnemyR*0.28,
         Paint()..color=Colors.white.withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,4));
-    // Purple propulsors
-    canvas.drawCircle(Offset(cx-r*0.7,cy),r*0.2,
-        Paint()..color=const Color(0xFF8833FF).withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,5));
-    canvas.drawCircle(Offset(cx+r*0.7,cy),r*0.2,
-        Paint()..color=const Color(0xFF8833FF).withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,5));
+    for(final dx in [-kEnemyR*0.7,kEnemyR*0.7])
+      canvas.drawCircle(Offset(e.x+dx,e.y),kEnemyR*0.2,
+          Paint()..color=const Color(0xFF8833FF).withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,5));
   }
 
-  // Frigate — long sniper ship
-  void _drawFrigate(Canvas canvas,Enemy e,Color c) {
-    final cx=e.x, cy=e.y, r=kEnemyR;
-    // Elongated diamond body
+  void _drawFrigate(Canvas canvas,Enemy e,Color c){
     canvas.drawPath(Path()
-      ..moveTo(cx,cy-r*1.1)..lineTo(cx+r*0.5,cy)
-      ..lineTo(cx,cy+r*1.1)..lineTo(cx-r*0.5,cy)..close(),
+      ..moveTo(e.x,e.y-kEnemyR*1.1)..lineTo(e.x+kEnemyR*0.5,e.y)
+      ..lineTo(e.x,e.y+kEnemyR*1.1)..lineTo(e.x-kEnemyR*0.5,e.y)..close(),
         Paint()..color=c.withOpacity(0.85));
-    // Laser barrel
-    canvas.drawLine(Offset(cx,cy+r*1.1),Offset(cx,cy+r*1.6),
+    canvas.drawLine(Offset(e.x,e.y+kEnemyR*1.1),Offset(e.x,e.y+kEnemyR*1.6),
         Paint()..color=c.withOpacity(0.8)..strokeWidth=3);
-    // Pulsing scope
-    canvas.drawCircle(Offset(cx,cy),r*0.22,
+    canvas.drawCircle(Offset(e.x,e.y),kEnemyR*0.22,
         Paint()..color=Colors.white.withOpacity(0.5+sin(e.animT*4)*0.4)
           ..maskFilter=const MaskFilter.blur(BlurStyle.normal,4));
   }
 
-  // Parasite — organic biomechanical creature
-  void _drawParasite(Canvas canvas,Enemy e,Color c) {
-    final cx=e.x, cy=e.y, r=kEnemyR;
-    // Hexagonal shell
+  void _drawParasite(Canvas canvas,Enemy e,Color c){
     final p=Path();
     for(int i=0;i<6;i++){final a=i*pi/3+e.animT*0.2;
-      if(i==0)p.moveTo(cx+cos(a)*r,cy+sin(a)*r);
-      else p.lineTo(cx+cos(a)*r,cy+sin(a)*r);}
+      if(i==0)p.moveTo(e.x+cos(a)*kEnemyR,e.y+sin(a)*kEnemyR);
+      else p.lineTo(e.x+cos(a)*kEnemyR,e.y+sin(a)*kEnemyR);}
     p.close(); canvas.drawPath(p,Paint()..color=c.withOpacity(0.85));
-    // Rotating energy tendrils
     final tp=Paint()..color=c.withOpacity(0.5)..strokeWidth=1.5..style=PaintingStyle.stroke;
     for(int i=0;i<3;i++){final a=i*pi*2/3+e.animT;
-      canvas.drawLine(Offset(cx,cy),Offset(cx+cos(a)*r*1.5,cy+sin(a)*r*1.5),tp);}
-    // Core
-    canvas.drawCircle(Offset(cx,cy),r*0.28,
+      canvas.drawLine(Offset(e.x,e.y),Offset(e.x+cos(a)*kEnemyR*1.5,e.y+sin(a)*kEnemyR*1.5),tp);}
+    canvas.drawCircle(Offset(e.x,e.y),kEnemyR*0.28,
         Paint()..color=Colors.white.withOpacity(0.85)..maskFilter=const MaskFilter.blur(BlurStyle.normal,3));
   }
 
-  // Corrupter — star-burst dark energy ship
-  void _drawCorrupter(Canvas canvas,Enemy e,Color c) {
-    final cx=e.x, cy=e.y, r=kEnemyR;
+  void _drawCorrupter(Canvas canvas,Enemy e,Color c){
     final p=Path();
-    for(int i=0;i<8;i++){final a=i*pi/4+e.animT*0.5;final rad=i.isEven?r:r*0.42;
-      if(i==0)p.moveTo(cx+cos(a)*rad,cy+sin(a)*rad);
-      else p.lineTo(cx+cos(a)*rad,cy+sin(a)*rad);}
+    for(int i=0;i<8;i++){final a=i*pi/4+e.animT*0.5;final r=i.isEven?kEnemyR:kEnemyR*0.42;
+      if(i==0)p.moveTo(e.x+cos(a)*r,e.y+sin(a)*r);
+      else p.lineTo(e.x+cos(a)*r,e.y+sin(a)*r);}
     p.close(); canvas.drawPath(p,Paint()..color=c);
-    // Dark corruption eye
-    canvas.drawCircle(Offset(cx,cy),r*0.22,
+    canvas.drawCircle(Offset(e.x,e.y),kEnemyR*0.22,
         Paint()..color=const Color(0xFFFF0000).withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,5));
   }
 
   Color _eColor(EnemyKind k) => switch(k){
-    EnemyKind.interceptor=>const Color(0xFF4488FF),
-    EnemyKind.frigate    =>const Color(0xFF00FF88),
-    EnemyKind.parasite   =>const Color(0xFF9933FF),
-    EnemyKind.corrupter  =>const Color(0xFFFF6600),
-  };
+    EnemyKind.interceptor=>cWarlord, EnemyKind.frigate=>const Color(0xFF00FF88),
+    EnemyKind.parasite=>cShield,     EnemyKind.corrupter=>const Color(0xFFFF6600)};
 
-  // ── FROZEN WARLORD BOSS ────────────────────────────────
-  void _drawBoss(Canvas canvas,Enemy b) {
+  // ── FROZEN WARLORD BOSS ───────────────────────────────────
+  void _drawBoss(Canvas canvas,Enemy b){
     final frac=(b.hp/b.maxHp).clamp(0.0,1.0);
     final c=b.hitFlash>0?Color.lerp(cWarlord,Colors.white,b.hitFlash)!:cWarlord;
-
-    // Outer ice aura
     canvas.drawCircle(Offset(b.x,b.y),kBossR*1.8,
         Paint()..color=c.withOpacity(0.12)..maskFilter=const MaskFilter.blur(BlurStyle.normal,30));
-
-    // Main body — hexagonal warlord ship
     final path=Path();
     for(int i=0;i<6;i++){final a=i*pi/3+b.animT*0.15;
       if(i==0)path.moveTo(b.x+cos(a)*kBossR,b.y+sin(a)*kBossR);
@@ -1696,65 +1315,60 @@ class GamePainter extends CustomPainter {
     canvas.drawPath(path,Paint()..shader=RadialGradient(
         colors:[c.withOpacity(0.95),const Color(0xFF112244)],stops:const[0.3,1.0])
         .createShader(Rect.fromCircle(center:Offset(b.x,b.y),radius:kBossR)));
-
-    // Crown spikes
-    for(int i=-2;i<=2;i++){
-      final sx=b.x+i*kBossR*0.28;
+    for(int i=-2;i<=2;i++){final sx=b.x+i*kBossR*0.28;
       canvas.drawLine(Offset(sx-5,b.y-kBossR),Offset(sx,b.y-kBossR-14-i.abs()*6),
           Paint()..color=cFrost.withOpacity(0.8)..strokeWidth=2.5);
       canvas.drawLine(Offset(sx+5,b.y-kBossR),Offset(sx,b.y-kBossR-14-i.abs()*6),
-          Paint()..color=cFrost.withOpacity(0.8)..strokeWidth=2.5);
-    }
-
-    // Energy eye
-    canvas.drawCircle(Offset(b.x,b.y),kBossR*0.28,
-        Paint()..color=Colors.black.withOpacity(0.7));
+          Paint()..color=cFrost.withOpacity(0.8)..strokeWidth=2.5);}
+    canvas.drawCircle(Offset(b.x,b.y),kBossR*0.28,Paint()..color=Colors.black.withOpacity(0.7));
     canvas.drawCircle(Offset(b.x,b.y),kBossR*0.18,
         Paint()..color=c..maskFilter=const MaskFilter.blur(BlurStyle.normal,12));
-    canvas.drawCircle(Offset(b.x,b.y),kBossR*0.07,
-        Paint()..color=Colors.white);
-
-    // Energy spikes
+    canvas.drawCircle(Offset(b.x,b.y),kBossR*0.07,Paint()..color=Colors.white);
     final sp=Paint()..color=c.withOpacity(0.45)..strokeWidth=1.5..style=PaintingStyle.stroke;
     for(int i=0;i<6;i++){final a=i*pi/3+b.animT*0.5;
       canvas.drawLine(Offset(b.x+cos(a)*kBossR,b.y+sin(a)*kBossR),
           Offset(b.x+cos(a)*(kBossR+18),b.y+sin(a)*(kBossR+18)),sp);}
-
-    // Ice crystals on body
-    final cp=Paint()..color=cFrost.withOpacity(0.35)..style=PaintingStyle.stroke..strokeWidth=1;
-    for(int i=0;i<4;i++){
-      final ang=i*pi/2+0.3; final cr=kBossR*0.55;
-      canvas.drawLine(Offset(b.x+cos(ang)*cr-4,b.y+sin(ang)*cr),
-          Offset(b.x+cos(ang)*cr+4,b.y+sin(ang)*cr),cp);
-      canvas.drawLine(Offset(b.x+cos(ang)*cr,b.y+sin(ang)*cr-4),
-          Offset(b.x+cos(ang)*cr,b.y+sin(ang)*cr+4),cp);
-    }
-
-    // HP bar
     const bw=kBossR*2;
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR-14,bw,6),const Radius.circular(3)),
-        Paint()..color=Colors.white24);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR-14,bw,6),const Radius.circular(3)),Paint()..color=Colors.white24);
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR-14,bw*frac,6),const Radius.circular(3)),
         Paint()..color=Color.lerp(cDanger,cWarlord,frac)!);
-    _txt(canvas,'FROZEN WARLORD  ${(frac*100).toInt()}%',Offset(b.x,b.y-kBossR-26),cWarlord, 10);
+    _txt(canvas,'FROZEN WARLORD  ${(frac*100).toInt()}%',Offset(b.x,b.y-kBossR-26),cWarlord,10);
   }
 
+  // ── LASER BULLETS — dynamic color ────────────────────────
   void _drawBullets(Canvas canvas) {
-    for(final b in bullets){
-      if(b.isEnemy){
-        canvas.drawCircle(Offset(b.x,b.y),8,Paint()..color=cWarlord..maskFilter=const MaskFilter.blur(BlurStyle.normal,6));
+    for (final b in bullets) {
+      if (b.isEnemy) {
+        // Enemy plasma ball
+        canvas.drawCircle(Offset(b.x,b.y),8,
+            Paint()..color=cWarlord..maskFilter=const MaskFilter.blur(BlurStyle.normal,6));
         canvas.drawCircle(Offset(b.x,b.y),3,Paint()..color=cFrost);
       } else {
-        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center:Offset(b.x,b.y),width:5,height:18),const Radius.circular(3)),
-            Paint()..color=cIce.withOpacity(0.35)..maskFilter=const MaskFilter.blur(BlurStyle.normal,4));
-        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center:Offset(b.x,b.y),width:4,height:17),const Radius.circular(3)),
-            Paint()..shader=const LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
-                colors:[Colors.white,cIce]).createShader(Rect.fromCenter(center:Offset(b.x,b.y),width:4,height:17)));
+        // Player LASER — long beam, dynamic color, glow
+        final lc = laserColor;
+        // Outer glow
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(
+                Rect.fromCenter(center:Offset(b.x,b.y),width:9,height:22),
+                const Radius.circular(4)),
+            Paint()..color=lc.withOpacity(0.25)..maskFilter=const MaskFilter.blur(BlurStyle.normal,6));
+        // Main beam
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(
+                Rect.fromCenter(center:Offset(b.x,b.y),width:3,height:20),
+                const Radius.circular(2)),
+            Paint()..shader=LinearGradient(
+              begin:Alignment.topCenter,end:Alignment.bottomCenter,
+              colors:[Colors.white,lc,lc.withOpacity(0.5)],
+            ).createShader(Rect.fromCenter(center:Offset(b.x,b.y),width:3,height:20)));
+        // Bright tip
+        canvas.drawCircle(Offset(b.x,b.y-9),2.5,
+            Paint()..color=Colors.white.withOpacity(0.95));
       }
     }
   }
 
-  void _drawParticles(Canvas canvas) {
+  void _drawParticles(Canvas canvas){
     for(final p in particles){
       final a=(p.life/p.maxLife).clamp(0.0,1.0);
       if(p.isFrost){
@@ -1770,16 +1384,19 @@ class GamePainter extends CustomPainter {
     }
   }
 
-  void _drawFloats(Canvas canvas){for(final f in floats)_txt(canvas,f.text,Offset(f.x,f.y),f.color.withOpacity(f.life.clamp(0,1)),11);}
+  void _drawFloats(Canvas canvas){
+    for(final f in floats)
+      _txt(canvas,f.text,Offset(f.x,f.y),f.color.withOpacity(f.life.clamp(0,1)),11);
+  }
 
-  void _drawHUD(Canvas canvas) {
+  void _drawHUD(Canvas canvas){
     _txt(canvas,'SCORE  $score',Offset(16,56),Colors.white,15,left:true);
     final label=switch(phase.phase){
       GamePhase.combat  =>'COMBAT  ${(phase.combatProgress*100).toInt()}%',
       GamePhase.decision=>'DECISIÓN',GamePhase.boss=>'⚠ WARLORD',
     };
     _txt(canvas,label,Offset(sw/2,56),cIce,11);
-    final bw=sw*0.4, bx=(sw-bw)/2;
+    final bw=sw*0.4,bx=(sw-bw)/2;
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx,66,bw,3),const Radius.circular(2)),Paint()..color=Colors.white12);
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx,66,bw*phase.combatProgress,3),const Radius.circular(2)),Paint()..color=cIce);
     _vBar(canvas,14,sh*0.35,10,sh*0.32,res.energyFrac,cIce,'ENERGÍA');
@@ -1799,7 +1416,7 @@ class GamePainter extends CustomPainter {
     _txt(canvas,label,Offset(x+w/2,y+h+14),c.withOpacity(0.6),8);
   }
 
-  void _drawFrost(Canvas canvas) {
+  void _drawFrost(Canvas canvas){
     final ft=frostT.clamp(0.0,1.0);
     canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..shader=RadialGradient(
         center:Alignment.center,radius:0.7,
@@ -1810,26 +1427,27 @@ class GamePainter extends CustomPainter {
     void crack(double sx,double sy,int depth){
       if(depth<=0)return;
       for(int i=0;i<3;i++){final a=rng.nextDouble()*pi*2;final l=(20+rng.nextDouble()*40)*ft;
-        final ex=sx+cos(a)*l; final ey=sy+sin(a)*l;
+        final ex=sx+cos(a)*l;final ey=sy+sin(a)*l;
         canvas.drawLine(Offset(sx,sy),Offset(ex,ey),cp);
         if(rng.nextDouble()<0.5)crack(ex,ey,depth-1);}}
-    crack(0,0,4); crack(sw,0,4); crack(0,sh,4); crack(sw,sh,4);
+    crack(0,0,4);crack(sw,0,4);crack(0,sh,4);crack(sw,sh,4);
     final pulse=sin(frostT*pi*8)*0.5+0.5;
     _txt(canvas,'❄  QUENCH CRÍTICO  ❄',Offset(sw/2,sh*0.38),cFrost.withOpacity(0.6+pulse*0.4),18);
   }
 
-  void _drawQuench(Canvas canvas) {
+  void _drawQuench(Canvas canvas){
     final a=(quenchT/2.5).clamp(0.0,0.92);
     canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..color=cFire.withOpacity(a*0.8));
     _txt(canvas,'💥  QUENCH  💥',Offset(sw/2,sh*0.38),Colors.white,38);
     _txt(canvas,'FALLO CRIOGÉNICO TOTAL',Offset(sw/2,sh*0.48),cFire,16);
   }
 
-  void _txt(Canvas canvas,String t,Offset pos,Color c,double size,{bool left=false}){
-    final tp=TextPainter(text:TextSpan(text:t,style:TextStyle(color:c,fontSize:size,
-        fontFamily:'Orbitron',fontWeight:FontWeight.bold,
-        shadows:[Shadow(color:c.withOpacity(0.5),blurRadius:8)])),
-        textAlign:left?TextAlign.left:TextAlign.center,textDirection:TextDirection.ltr)..layout();
+  void _txt(Canvas canvas,String t,Offset pos,Color c,double sz,{bool left=false}){
+    final tp=TextPainter(
+      text:TextSpan(text:t,style:TextStyle(color:c,fontSize:sz,fontFamily:'Orbitron',
+          fontWeight:FontWeight.bold,shadows:[Shadow(color:c.withOpacity(0.5),blurRadius:8)])),
+      textAlign:left?TextAlign.left:TextAlign.center,
+      textDirection:TextDirection.ltr)..layout();
     tp.paint(canvas,Offset(left?pos.dx:pos.dx-tp.width/2,pos.dy-tp.height/2));
   }
 
@@ -1918,13 +1536,14 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
 class _FleetLegend extends StatelessWidget {
   @override Widget build(BuildContext context){
     final items=[
-      ('◐',const Color(0xFF4488FF),'Interceptor'),
+      ('◐',cWarlord,'Interceptor'),
       ('◆',const Color(0xFF00FF88),'Frigate'),
-      ('⬡',const Color(0xFF9933FF),'Parasite'),
+      ('⬡',cShield,'Parasite'),
       ('✦',const Color(0xFFFF6600),'Corrupter'),
     ];
     return Column(children:[
-      Text('FLOTA DEL WARLORD',style:TextStyle(color:Colors.white38,fontSize:9,fontFamily:'Orbitron',letterSpacing:2)),
+      const Text('FLOTA DEL WARLORD',style:TextStyle(color:Colors.white38,fontSize:9,
+          fontFamily:'Orbitron',letterSpacing:2)),
       const SizedBox(height:8),
       Row(mainAxisAlignment:MainAxisAlignment.center,children:items.map((e)=>Padding(
         padding:const EdgeInsets.symmetric(horizontal:10),
@@ -1942,7 +1561,8 @@ class _FleetLegend extends StatelessWidget {
 // ══════════════════════════════════════════════════════════
 class GameOverScreen extends StatelessWidget {
   final int score,best; final VoidCallback onRestart,onMenu;
-  const GameOverScreen({super.key,required this.score,required this.best,required this.onRestart,required this.onMenu});
+  const GameOverScreen({super.key,required this.score,required this.best,
+      required this.onRestart,required this.onMenu});
   @override Widget build(BuildContext context){
     final nr=score>=best&&score>0;
     return Scaffold(backgroundColor:cBg,body:SafeArea(child:Center(child:Column(
@@ -1966,7 +1586,8 @@ class _GlowText extends StatelessWidget {
   const _GlowText(this.text,{required this.color,required this.size});
   @override Widget build(BuildContext context)=>Text(text,textAlign:TextAlign.center,
       style:TextStyle(color:color,fontSize:size,fontFamily:'Orbitron',fontWeight:FontWeight.bold,
-          shadows:[Shadow(color:color.withOpacity(0.8),blurRadius:14),Shadow(color:color.withOpacity(0.3),blurRadius:28)]));
+          shadows:[Shadow(color:color.withOpacity(0.8),blurRadius:14),
+                   Shadow(color:color.withOpacity(0.3),blurRadius:28)]));
 }
 class _Btn extends StatelessWidget {
   final String label; final Color color; final VoidCallback onTap;
