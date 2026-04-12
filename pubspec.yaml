@@ -16,7 +16,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    # Sounds
     - assets/sounds/laser.mp3
     - assets/sounds/laser_triple.mp3
     - assets/sounds/explosion.mp3
@@ -24,14 +23,12 @@ flutter:
     - assets/sounds/musica_ambiente.mp3
     - assets/sounds/musica_jefe.mp3
     - assets/sounds/quench.wav
-    # Intro images
     - assets/images/cafe1.jpg
     - assets/images/hangar1.jpg
     - assets/images/ship_close.jpg
     - assets/images/warlord.jpg
     - assets/images/cockpit.jpg
     - assets/images/battle.jpg
-    # Sprite images
     - assets/images/player.png
     - assets/images/enemy1.png
     - assets/images/enemy2.png
