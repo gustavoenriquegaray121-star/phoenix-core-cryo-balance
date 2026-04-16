@@ -35,7 +35,23 @@ flutter:
     - assets/images/enemy3.png
     - assets/images/enemy4.png
     - assets/images/boss.png
-
+- assets/images/jefe2.png
+    - assets/images/jefe3.png
+    - assets/images/jefe4.png
+    - assets/images/escena1jefe2.jpg
+    - assets/images/escena2jefe2.jpg
+    - assets/images/escena3jefe2.jpg
+    - assets/images/escena4jefe2.jpg
+    - assets/images/escena1jefe3.jpg
+    - assets/images/escena2jefe3.jpg
+    - assets/images/escena3jefe3.jpg
+    - assets/images/escena4jefe3.jpg
+    - assets/images/escena1jefe4.jpg
+    - assets/images/escena2jefe4.jpg
+    - assets/images/escena3jefe4.jpg
+    - assets/images/escena4jefe4.jpg
+    - assets/images/escena5jefe4.jpg
+    
   fonts:
     - family: VT323
       fonts:
