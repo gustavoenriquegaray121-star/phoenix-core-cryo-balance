@@ -386,17 +386,33 @@ class SpriteCache {
     1=>boss, 2=>boss2, 3=>boss3, 4=>boss4, _=>boss};
 }
 
-// ── SPRITE DRAW (no checkered background) ────────────────
+// ── SPRITE DRAW (transparent PNG — no checkered box) ─────
+// Uses a saveLayer so the PNG alpha is composited correctly
+// against whatever is underneath, never a white/grey box.
 void drawSprite(Canvas canvas, ui.Image img, Offset center, double size,
-    {double flash=0}) {
-  final src=Rect.fromLTWH(0,0,img.width.toDouble(),img.height.toDouble());
-  final dst=Rect.fromCenter(center:center,width:size,height:size);
-  canvas.drawImageRect(img,src,dst,
-      Paint()..filterQuality=FilterQuality.high..isAntiAlias=true);
-  if(flash>0){
-    canvas.drawImageRect(img,src,dst,
-        Paint()..filterQuality=FilterQuality.high
-          ..colorFilter=ColorFilter.mode(Colors.white.withOpacity(flash*0.65),BlendMode.srcATop));
+    {double flash = 0}) {
+  final dst = Rect.fromCenter(center: center, width: size, height: size);
+  final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+
+  // Paint with blendMode.srcOver guarantees alpha is respected
+  final p = Paint()
+    ..filterQuality = FilterQuality.high
+    ..isAntiAlias   = true
+    ..blendMode     = BlendMode.srcOver;
+
+  canvas.drawImageRect(img, src, dst, p);
+
+  // White flash overlay only on the opaque pixels (srcATop)
+  if (flash > 0) {
+    canvas.drawImageRect(
+      img, src, dst,
+      Paint()
+        ..filterQuality = FilterQuality.high
+        ..blendMode     = BlendMode.srcATop
+        ..colorFilter   = ColorFilter.mode(
+            Colors.white.withOpacity(flash.clamp(0.0, 1.0) * 0.65),
+            BlendMode.srcATop),
+    );
   }
 }
 
@@ -646,14 +662,15 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   Boss?  _boss; bool _bossAlive=false;
   int    _score=0;
   double _coreTemp=0,_nucleusIFrame=0;
-  double _shootTimer=0,_spawnTimer=0,_powerUpTimer=25.0;
+  double _shootTimer=0,_spawnTimer=0,_powerUpTimer=35.0;
   bool   _touching=false,_alarmOn=false; double _touchX=0;
   bool   _showDecision=false; List<UpgradeOption> _options=[];
   bool   _frosting=false,_quenching=false;
   double _frostT=0,_quenchT=0,_corePulse=0,_pulseDir=1;
 
-  // Stage 3 — gravity timer
-  double _gravityTimer=90.0;
+  // Stage 3 — gravity timer (only active after boss spawns)
+  double _gravityTimer=75.0;
+  bool   _gravityTimerActive=false;
   bool   _gravityWarning=false;
 
   // Stage 4 — portal & repel
@@ -721,8 +738,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     if(_nucleusIFrame>0)_nucleusIFrame=(_nucleusIFrame-dt).clamp(0,kNucleusIFrame);
     _machineGun.update(dt);_freeze.update(dt);
 
-    // Stage 3: gravity timer
-    if(_stage.hazard==StageHazard.gravityTimer&&!_bossAlive){
+    // Stage 3: gravity timer — only starts when boss spawns
+    if(_stage.hazard==StageHazard.gravityTimer&&_gravityTimerActive){
       _gravityTimer-=dt;
       _gravityWarning=_gravityTimer<30;
       if(_gravityTimer<=0)_beginFrost();
@@ -751,7 +768,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       _player.x=_player.x.clamp(kPhoenixSize,_sw-kPhoenixSize);
     }
 
-    final effRate=_machineGun.active?_player.build.fireRate*2.2:_player.build.fireRate;
+    // Hard cap on fire rate — max 1.8x
+    final effRate=(_machineGun.active
+        ? _player.build.fireRate*1.8
+        : _player.build.fireRate).clamp(1.0,1.8);
     if(_touching&&_res.energy>0){
       _shootTimer-=dt;
       if(_shootTimer<=0){_shootTimer=0.14/effRate;_fireLaser();}
@@ -764,7 +784,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     _bullets.removeWhere((b)=>b.y<-30||b.y>_sh+30||b.x<-30||b.x>_sw+30);
 
     _powerUpTimer-=dt;
-    if(_powerUpTimer<=0){_powerUpTimer=22+_rng.nextDouble()*14;_spawnPowerUp();}
+    if(_powerUpTimer<=0){_powerUpTimer=30+_rng.nextDouble()*18;_spawnPowerUp();}
     _updatePowerUps(dt);
 
     if(_phase.phase==GamePhase.combat&&!_bossAlive){
@@ -858,8 +878,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   void _spawnPowerUp(){
     final c=_phase.cycleCount;
     final av=[PowerUpKind.energyBoost];
-    if(c>=1){av.add(PowerUpKind.rapidFire);av.add(PowerUpKind.shield);}
-    if(c>=2)av.add(PowerUpKind.tripleShot);
+    if(c>=1){av.add(PowerUpKind.shield);}
+    if(c>=2){av.add(PowerUpKind.rapidFire);}
+    if(c>=4)av.add(PowerUpKind.tripleShot); // rare — only late game
     if(c>=3)av.add(PowerUpKind.coreArmor);
     _powerUps.add(PowerUp(20+_rng.nextDouble()*(_sw-40),-30,av[_rng.nextInt(av.length)]));
   }
@@ -880,10 +901,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   void _applyPowerUp(PowerUpKind k){
     switch(k){
       case PowerUpKind.rapidFire:
-        _player.build.fireRate=(_player.build.fireRate*1.35).clamp(1.0,2.8);
+        _player.build.fireRate=(_player.build.fireRate*1.25).clamp(1.0,1.8);
       case PowerUpKind.tripleShot:
         _player.build.hasTripleShot=true;
-        _player.build.fireRate=(_player.build.fireRate*1.1).clamp(1.0,2.8);
+        _player.build.fireRate=(_player.build.fireRate*1.05).clamp(1.0,1.8);
       case PowerUpKind.shield:
         _player.shieldActive=true;_player.shieldTimer=10.0;
       case PowerUpKind.coreArmor:
@@ -1085,6 +1106,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     _enemies.clear();
     _boss=Boss(x:_sw/2,y:_sh*0.16,hp:_stage.bossHpBase+_phase.cycleCount*_stage.bossHpPerCycle);
     _bossAlive=true;_audio.switchToBoss();
+    // Stage 3: start gravity countdown NOW that boss appears
+    if(_stage.hazard==StageHazard.gravityTimer){
+      _gravityTimerActive=true;
+      _gravityTimer=75.0;
+    }
     _addFloat(_sw/2,_sh*0.3,'⚠ ${_stage.bossName}',_stage.bossColor);
   }
   void _triggerStageClear(){
@@ -1117,12 +1143,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     final all=[
       UpgradeOption(title:'Plasma Overload',   description:'+40% daño',            emoji:'🔥',color:cFire,  apply:(b)=>b.damage*=1.4),
       UpgradeOption(title:'Cryo Stabilizer',   description:'Enfriamiento +60%',    emoji:'❄️',color:cIce,   apply:(b)=>b.cooling*=1.6),
-      UpgradeOption(title:'Void Pulse',        description:'Cadencia +30%',        emoji:'⚡',color:cGold,  apply:(b)=>b.fireRate*=1.3),
+      UpgradeOption(title:'Void Pulse',        description:'Cadencia +20%',        emoji:'⚡',color:cGold,  apply:(b)=>b.fireRate=(b.fireRate*1.2).clamp(1,1.8)),
       UpgradeOption(title:'Energy Core Expand',description:'Energía máxima +25',   emoji:'💙',color:cIce,   apply:(b)=>b.maxEnergy+=25),
       UpgradeOption(title:'Entropy Shield',    description:'Escudo 10 segundos',   emoji:'🛡️',color:cShield,apply:(b){b.shieldEfficiency+=0.4;}),
-      UpgradeOption(title:'Triple Cannon',     description:'Disparo triple perm.', emoji:'💥',color:cFire,  apply:(b){b.hasTripleShot=true;b.fireRate=(b.fireRate*1.1).clamp(1,2.8);}),
+      UpgradeOption(title:'Triple Cannon',     description:'Disparo triple perm.', emoji:'💥',color:cFire,  apply:(b){b.hasTripleShot=true;b.fireRate=(b.fireRate*1.05).clamp(1,1.8);}),
       UpgradeOption(title:'Core Armor',        description:'Blindaje del núcleo',  emoji:'🔮',color:cShield,apply:(b)=>b.modules.add('core_armor')),
-      UpgradeOption(title:'Phoenix Overdrive', description:'+20% daño y cadencia', emoji:'🦅',color:cGold,  apply:(b){b.damage*=1.2;b.fireRate*=1.2;}),
+      UpgradeOption(title:'Phoenix Overdrive', description:'+20% daño, +10% cadencia', emoji:'🦅',color:cGold,  apply:(b){b.damage*=1.2;b.fireRate=(b.fireRate*1.1).clamp(1,1.8);}),
     ];
     all.shuffle(_rng);return all.take(3).toList();
   }
