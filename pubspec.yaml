@@ -23,33 +23,39 @@ flutter:
     - assets/sounds/musica_ambiente.mp3
     - assets/sounds/musica_jefe.mp3
     - assets/sounds/quench.wav
+
     - assets/images/cafe1.jpg
     - assets/images/hangar1.jpg
     - assets/images/ship_close.jpg
     - assets/images/warlord.jpg
     - assets/images/cockpit.jpg
     - assets/images/battle.jpg
+
     - assets/images/player.png
     - assets/images/enemy1.png
     - assets/images/enemy2.png
     - assets/images/enemy3.png
     - assets/images/enemy4.png
+
     - assets/images/boss.png
     - assets/images/jefe2.png
     - assets/images/jefe3.png
     - assets/images/jefe4.png
+
     - assets/images/escena1jefe2.jpg
     - assets/images/escena2jefe2.jpg
     - assets/images/escena3jefe2.jpg
     - assets/images/escena4jefe2.jpg
+
     - assets/images/escena1jefe3.jpg
     - assets/images/escena2jefe3.jpg
     - assets/images/escena3jefe3.jpg
     - assets/images/escena4jefe3.jpg
+
     - assets/images/escena1jefe4.jpg
     - assets/images/escena2jefe4.jpg
     - assets/images/escena3jefe4.jpg
-    - assets/images/escena4_jefe4.jpg
+    - assets/images/escena4jefe4.jpg   # 🔥 CORREGIDO AQUÍ
     - assets/images/escena5jefe4.jpg
 
   fonts:
