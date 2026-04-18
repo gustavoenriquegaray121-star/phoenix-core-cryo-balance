@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 
@@ -17,6 +20,7 @@ void hapticLight()  => HapticFeedback.lightImpact();
 void hapticMedium() => HapticFeedback.mediumImpact();
 void hapticHeavy()  => HapticFeedback.heavyImpact();
 
+// ── COLORES ──────────────────────────────────────────────
 const cFire    = Color(0xFFFF5500);
 const cIce     = Color(0xFF00DDFF);
 const cGold    = Color(0xFFFFCC00);
@@ -29,6 +33,7 @@ const cGreen   = Color(0xFF00FF88);
 const cPurple  = Color(0xFFAA44FF);
 const cRed     = Color(0xFFFF2222);
 
+// ── CONSTANTES ───────────────────────────────────────────
 const double kPhoenixSize    = 28.0;
 const double kEnemyR         = 22.0;
 const double kBossR          = 52.0;
@@ -39,436 +44,724 @@ const double kNucleusIFrame  = 0.9;
 const double kBossBulletDmg  = 0.055;
 const double kCoreHeatPerHit = 0.06;
 const double kCoreHeatPerPass= 0.10;
-// Heat added per shot — creates penalty for spamming
-const double kHeatPerShot    = 3.5;
-// Above this heat%, cooldown penalty kicks in
-const double kHeatPenaltyThreshold = 0.70;
+const double kHeatPerShot    = 2.5;   // heat por disparo (mild)
+const double kHeatPenalty    = 0.75;  // umbral penalización
+const double kBaseInterval   = 0.17;  // intervalo base de disparo
 
-enum AppScreen  { intro, menu, playing, stageClear, cinematic, gameOver, victory }
+// ── ENUMS ────────────────────────────────────────────────
+enum AppScreen  { dockIntro, intro, menu, playing, stageClear, cinematic, gameOver, victory }
 enum GamePhase  { combat, decision, boss }
 enum EnemyKind  { interceptor, frigate, parasite, corrupter }
 enum PowerUpKind{ rapidFire, tripleShot, shield, coreArmor, energyBoost }
 enum BossState  { moving, charging, firing, cooldown }
 enum StageHazard{ none, asteroids, gravityTimer, mirrorPortal }
 
-// ── STAGE CONFIGS ────────────────────────────────────────
+// ── STAGE CONFIG ─────────────────────────────────────────
 class StageConfig {
-  final int stageNum; final String name,bossName,bossAsset;
-  final Color bossColor; final StageHazard hazard;
-  final double bossHpBase,bossHpPerCycle;
+  final int stageNum;
+  final String name, bossName, bossAsset;
+  final Color bossColor;
+  final StageHazard hazard;
+  final double bossHpBase, bossHpPerCycle;
   final List<CinematicScene> scenes;
-  const StageConfig({required this.stageNum,required this.name,
-      required this.bossName,required this.bossAsset,required this.bossColor,
-      required this.hazard,required this.bossHpBase,required this.bossHpPerCycle,
-      required this.scenes});
+  const StageConfig({
+    required this.stageNum, required this.name,
+    required this.bossName, required this.bossAsset, required this.bossColor,
+    required this.hazard, required this.bossHpBase, required this.bossHpPerCycle,
+    required this.scenes,
+  });
 }
 
 class CinematicScene {
-  final String location,speaker,speakerColor,dialogue,imageAsset;
-  const CinematicScene({required this.location,required this.speaker,
-      required this.speakerColor,required this.dialogue,required this.imageAsset});
+  final String location, speaker, speakerColor, dialogue, imageAsset;
+  const CinematicScene({
+    required this.location, required this.speaker,
+    required this.speakerColor, required this.dialogue, required this.imageAsset,
+  });
 }
 
 const _stages = [
-  StageConfig(stageNum:1,name:'NEBULOSA DE ORIÓN',
-    bossName:'THE FROZEN WARLORD',bossAsset:'assets/images/boss.png',
-    bossColor:cWarlord,hazard:StageHazard.none,bossHpBase:110,bossHpPerCycle:25,scenes:[]),
-  StageConfig(stageNum:2,name:'ASTEROIDES DE KHAROS',
-    bossName:'EL SEGADOR DE ALMAS',bossAsset:'assets/images/jefe2.png',
-    bossColor:cGreen,hazard:StageHazard.asteroids,bossHpBase:160,bossHpPerCycle:30,
+  StageConfig(
+    stageNum:1, name:'NEBULOSA DE ORIÓN',
+    bossName:'THE FROZEN WARLORD', bossAsset:'assets/images/boss.png',
+    bossColor:cWarlord, hazard:StageHazard.none,
+    bossHpBase:110, bossHpPerCycle:25, scenes:[],
+  ),
+  StageConfig(
+    stageNum:2, name:'ASTEROIDES DE KHAROS',
+    bossName:'EL SEGADOR DE ALMAS', bossAsset:'assets/images/jefe2.png',
+    bossColor:cGreen, hazard:StageHazard.asteroids,
+    bossHpBase:160, bossHpPerCycle:30,
     scenes:[
-      CinematicScene(location:'DOCK 7A — BASE PHOENIX',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — BASE PHOENIX', speaker:'GENERAL G-G', speakerColor:'gold',
           dialogue:'Comandante… lo consiguió.\nEl núcleo cuántico llegó intacto.\nLa colonia Elysium ya está recibiendo energía estable.',
           imageAsset:'assets/images/escena1jefe2.jpg'),
-      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G-G',speakerColor:'gold',
-          dialogue:'Recibimos señales de alerta desde el sector de los Asteroides de Kharos.\nAlgo está atacando nuestros convoyes… y no es una nave común.\nLe llamamos El Segador de Almas del Abismo.',
+      CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G-G', speakerColor:'gold',
+          dialogue:'Recibimos señales de alerta desde los Asteroides de Kharos.\nAlgo está atacando nuestros convoyes…\nLe llamamos El Segador de Almas del Abismo.',
           imageAsset:'assets/images/escena2jefe2.jpg'),
-      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'USUARIO',speakerColor:'ice',
-          dialogue:'¿Qué necesita que haga?',imageAsset:'assets/images/escena3jefe2.jpg'),
-      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G-G',speakerColor:'gold',
-          dialogue:'Vaya allí y deténgalo antes de que alcance el Núcleo Central de Elysium.\nSu nave está siendo reparada. Descanse en el Café Altea.\nEsta entidad es mucho más antigua… y mucho más peligrosa.',
+      CinematicScene(location:'DOCK 7A — HANGAR', speaker:'USUARIO', speakerColor:'ice',
+          dialogue:'¿Qué necesita que haga?', imageAsset:'assets/images/escena3jefe2.jpg'),
+      CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G-G', speakerColor:'gold',
+          dialogue:'Vaya allí y deténgalo antes de que alcance el Núcleo Central de Elysium.\nSu nave está siendo reparada. Descanse.\nEsta entidad es mucho más antigua… y más peligrosa.',
           imageAsset:'assets/images/escena4jefe2.jpg'),
-    ]),
-  StageConfig(stageNum:3,name:'ZONA NEUTRÓNICA OMEGA',
-    bossName:'EL DEVORADOR DE SUEÑOS',bossAsset:'assets/images/jefe3.png',
-    bossColor:cPurple,hazard:StageHazard.gravityTimer,bossHpBase:220,bossHpPerCycle:35,
+    ],
+  ),
+  StageConfig(
+    stageNum:3, name:'ZONA NEUTRÓNICA OMEGA',
+    bossName:'EL DEVORADOR DE SUEÑOS', bossAsset:'assets/images/jefe3.png',
+    bossColor:cPurple, hazard:StageHazard.gravityTimer,
+    bossHpBase:220, bossHpPerCycle:35,
     scenes:[
-      CinematicScene(location:'DOCK 7A — BASE PHOENIX',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — BASE PHOENIX', speaker:'GENERAL G-G', speakerColor:'gold',
           dialogue:'Comandante… excelente trabajo.\nEl Segador fue neutralizado.\nPermítame presentarle a la Doctora Denise Moreau.',
           imageAsset:'assets/images/escena1jefe3.jpg'),
-      CinematicScene(location:'SALA DE ANÁLISIS',speaker:'DRA. DENISE MOREAU',speakerColor:'ice',
+      CinematicScene(location:'SALA DE ANÁLISIS', speaker:'DRA. DENISE MOREAU', speakerColor:'ice',
           dialogue:'Lo que enfrentaremos no es una nave enemiga…\nes una entidad biológica altamente evolucionada.\nUna vanguardia de enjambre insectoide.',
           imageAsset:'assets/images/escena2jefe3.jpg'),
-      CinematicScene(location:'CAFÉ ALTEA',speaker:'DRA. DENISE MOREAU',speakerColor:'ice',
-          dialogue:'Ataca la mente, genera alucinaciones y distorsiona la realidad.\nSi logra establecer una cabeza de playa, será casi imposible detener la infestación completa.',
+      CinematicScene(location:'CAFÉ ALTEA', speaker:'DRA. DENISE MOREAU', speakerColor:'ice',
+          dialogue:'Ataca la mente, genera alucinaciones y distorsiona la realidad.\nSi logra establecer una cabeza de playa, será casi imposible detener la infestación.',
           imageAsset:'assets/images/escena3jefe3.jpg'),
-      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G-G', speakerColor:'gold',
           dialogue:'Diríjase al punto de intercepción antes de que la nave nodriza cruce el vacío intergaláctico.\n¡ADVERTENCIA: campo gravitacional activo — neutralice al jefe antes de ser absorbido!',
           imageAsset:'assets/images/escena4jefe3.jpg'),
-    ]),
-  StageConfig(stageNum:4,name:'SECTOR OMEGA-9 — REALIDAD ESPEJO',
-    bossName:'ANTI-PHOENIX UNIT 01',bossAsset:'assets/images/jefe4.png',
-    bossColor:cRed,hazard:StageHazard.mirrorPortal,bossHpBase:999,bossHpPerCycle:0,
+    ],
+  ),
+  StageConfig(
+    stageNum:4, name:'SECTOR OMEGA-9 — REALIDAD ESPEJO',
+    bossName:'ANTI-PHOENIX UNIT 01', bossAsset:'assets/images/jefe4.png',
+    bossColor:cRed, hazard:StageHazard.mirrorPortal,
+    bossHpBase:999, bossHpPerCycle:0,
     scenes:[
-      CinematicScene(location:'PUENTE DE MANDO',speaker:'GENERAL G-G',speakerColor:'gold',
-          dialogue:'¡Comandante! Los sensores detectaron una anomalía masiva en el sector Omega-9.\nNo es una nave enemiga… es un portal dimensional que se está abriendo desde otro universo.',
+      CinematicScene(location:'PUENTE DE MANDO', speaker:'GENERAL G-G', speakerColor:'gold',
+          dialogue:'¡Comandante! Los sensores detectaron una anomalía masiva en el sector Omega-9.\nNo es una nave enemiga… es un portal dimensional que se está abriendo.',
           imageAsset:'assets/images/escena1jefe4.jpg'),
-      CinematicScene(location:'SALA DE ANÁLISIS',speaker:'DRA. DENISE MOREAU',speakerColor:'ice',
+      CinematicScene(location:'SALA DE ANÁLISIS', speaker:'DRA. DENISE MOREAU', speakerColor:'ice',
           dialogue:'La firma energética es completamente desconocida.\nSea lo que sea que intenta cruzar, viene con una cantidad de poder enorme.',
           imageAsset:'assets/images/escena2jefe4.jpg'),
-      CinematicScene(location:'SECTOR OMEGA-9',speaker:'USUARIO',speakerColor:'ice',
+      CinematicScene(location:'SECTOR OMEGA-9', speaker:'USUARIO', speakerColor:'ice',
           dialogue:'[ Emerge del portal una nave casi idéntica a la Phoenix… oscura y roja. ]\n\n"ANTI-PHOENIX" se lee en el casco.',
           imageAsset:'assets/images/escena3jefe4.jpg'),
-      CinematicScene(location:'CANAL DE COMUNICACIÓN',speaker:'ANTI-PHOENIX',speakerColor:'red',
+      CinematicScene(location:'CANAL DE COMUNICACIÓN', speaker:'ANTI-PHOENIX', speakerColor:'red',
           dialogue:'Por fin nos encontramos… "yo".\nEn mi universo ya conquisté todo lo que se movía.\nAhora vengo por el tuyo.',
           imageAsset:'assets/images/escena4jefe4.jpg'),
-      CinematicScene(location:'CANAL DE COMUNICACIÓN',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'CANAL DE COMUNICACIÓN', speaker:'GENERAL G-G', speakerColor:'gold',
           dialogue:'¡Comandante! ¡No intente destruirla!\n¡Su objetivo es CERRAR ESE PORTAL antes de que se estabilice!\n¡Repélalo de regreso a su realidad!',
           imageAsset:'assets/images/escena5jefe4.jpg'),
-    ]),
+    ],
+  ),
 ];
 
 const _introScenes = [
-  CinematicScene(location:'CAFÉ ALTEA — BASE PHOENIX',speaker:'GENERAL G-G',speakerColor:'gold',
+  CinematicScene(location:'CAFÉ ALTEA — BASE PHOENIX', speaker:'GENERAL G-G', speakerColor:'gold',
       dialogue:'Usuario. El Núcleo Cuántico debe llegar hoy al Cuadrante 7 de la Nebulosa de Orión.\nLa colonia Elysium se está quedando sin energía.\nSin ese núcleo… perdemos tres millones de personas en menos de 72 horas.',
       imageAsset:'assets/images/cafe1.jpg'),
-  CinematicScene(location:'CAFÉ ALTEA — BASE PHOENIX',speaker:'USUARIO',speakerColor:'ice',
-      dialogue:'Entendido.\n¿Mi nave?',imageAsset:'assets/images/cafe1.jpg'),
-  CinematicScene(location:'DOCK 7A — PHOENIX PROJECT',speaker:'USUARIO',speakerColor:'ice',
+  CinematicScene(location:'CAFÉ ALTEA — BASE PHOENIX', speaker:'USUARIO', speakerColor:'ice',
+      dialogue:'Entendido.\n¿Mi nave?', imageAsset:'assets/images/cafe1.jpg'),
+  CinematicScene(location:'DOCK 7A — PHOENIX PROJECT', speaker:'USUARIO', speakerColor:'ice',
       dialogue:'Núcleo asegurado. Sistemas en línea.\nPhoenix Project… listo para volar.',
       imageAsset:'assets/images/hangar1.jpg'),
-  CinematicScene(location:'DOCK 7A — CASCO DE LA NAVE',speaker:'',speakerColor:'white',
+  CinematicScene(location:'DOCK 7A — CASCO DE LA NAVE', speaker:'', speakerColor:'white',
       dialogue:'[ Pones la mano en el casco. El logo del Ave Fénix brilla bajo tus dedos. ]',
       imageAsset:'assets/images/ship_close.jpg'),
-  CinematicScene(location:'LADO ENEMIGO — UBICACIÓN DESCONOCIDA',
-      speaker:'THE FROZEN WARLORD',speakerColor:'red',
+  CinematicScene(location:'LADO ENEMIGO — UBICACIÓN DESCONOCIDA', speaker:'THE FROZEN WARLORD', speakerColor:'red',
       dialogue:'Phoenix Protocol…\npor eso perdí. Ahora lo conozco.\nSé cómo bloquearlo.',
       imageAsset:'assets/images/warlord.jpg'),
-  CinematicScene(location:'NEBULOSA DE ORIÓN — CUADRANTE 7',
-      speaker:'USUARIO',speakerColor:'ice',
+  CinematicScene(location:'NEBULOSA DE ORIÓN — CUADRANTE 7', speaker:'USUARIO', speakerColor:'ice',
       dialogue:'¿Qué carajos…?\nEs él… The Frozen Warlord.\n\nTe vencí una vez…\nY te voy a vencer otra vez.',
       imageAsset:'assets/images/battle.jpg'),
 ];
 
-// ── AUDIO ────────────────────────────────────────────────
+// ── AUDIO MANAGER ────────────────────────────────────────
 class AudioManager {
-  final List<AudioPlayer> _pool=List.generate(6,(_)=>AudioPlayer());
-  int _li=0;
-  final _bg=AudioPlayer(),_bm=AudioPlayer(),_eb=AudioPlayer(),
-        _qs=AudioPlayer(),_al=AudioPlayer();
-  bool _bo=false,_bg0=false,_aOn=false;
+  final List<AudioPlayer> _pool = List.generate(6, (_) => AudioPlayer());
+  int _li = 0;
+  final _bg      = AudioPlayer();
+  final _bm      = AudioPlayer();
+  final _eb      = AudioPlayer();
+  final _qs      = AudioPlayer();
+  final _al      = AudioPlayer();
+  final _sfx     = AudioPlayer(); // efectos únicos
+  bool _bossOn = false, _bgOn = false, _alOn = false;
 
   Future<void> startAmbient() async {
-    if(_bg0)return;_bg0=true;
-    try{await _bg.setReleaseMode(ReleaseMode.loop);
-      await _bg.play(AssetSource('sounds/musica_ambiente.mp3'),volume:0.5);}catch(_){}
+    if (_bgOn) return; _bgOn = true;
+    try {
+      await _bg.setReleaseMode(ReleaseMode.loop);
+      await _bg.play(AssetSource('sounds/musica_ambiente.mp3'), volume: 0.5);
+    } catch (_) {}
   }
   Future<void> switchToBoss() async {
-    if(_bo)return;_bo=true;
-    try{await _bg.stop();await _bm.setReleaseMode(ReleaseMode.loop);
-      await _bm.play(AssetSource('sounds/musica_jefe.mp3'),volume:0.7);}catch(_){}
+    if (_bossOn) return; _bossOn = true;
+    try { await _bg.stop(); await _bm.setReleaseMode(ReleaseMode.loop);
+      await _bm.play(AssetSource('sounds/musica_jefe.mp3'), volume: 0.7); } catch (_) {}
   }
   Future<void> switchToAmbient() async {
-    _bo=false;
-    try{await _bm.stop();await _bg.setReleaseMode(ReleaseMode.loop);
-      await _bg.play(AssetSource('sounds/musica_ambiente.mp3'),volume:0.5);}catch(_){}
+    _bossOn = false;
+    try { await _bm.stop(); await _bg.setReleaseMode(ReleaseMode.loop);
+      await _bg.play(AssetSource('sounds/musica_ambiente.mp3'), volume: 0.5); } catch (_) {}
   }
-  Future<void> playLaser({bool triple=false}) async {
-    try{final p=_pool[_li%_pool.length];_li++;await p.stop();
-      await p.play(AssetSource(triple?'sounds/laser_triple.mp3':'sounds/laser.mp3'),
-          volume:triple?0.5:0.3);}catch(_){}
+  Future<void> playLaser({bool triple = false}) async {
+    try {
+      final p = _pool[_li % _pool.length]; _li++;
+      await p.stop();
+      await p.play(AssetSource(triple ? 'sounds/laser_triple.mp3' : 'sounds/laser.mp3'),
+          volume: triple ? 0.5 : 0.3);
+    } catch (_) {}
   }
-  Future<void> playExplosion({bool isBoss=false}) async {
-    try{if(isBoss){await _eb.stop();await _eb.play(AssetSource('sounds/explosion_jefe.mp3'),volume:1.0);}
-      else{final p=AudioPlayer();await p.play(AssetSource('sounds/explosion.mp3'),volume:0.5);
-        p.onPlayerComplete.listen((_)=>p.dispose());}}catch(_){}
+  Future<void> playExplosion({bool isBoss = false, bool isAsteroid = false}) async {
+    try {
+      if (isAsteroid) {
+        final p = AudioPlayer();
+        await p.play(AssetSource('sounds/explosion_meteorito.mp3'), volume: 0.55);
+        p.onPlayerComplete.listen((_) => p.dispose());
+      } else if (isBoss) {
+        await _eb.stop();
+        await _eb.play(AssetSource('sounds/explosion_jefe.mp3'), volume: 1.0);
+      } else {
+        final p = AudioPlayer();
+        await p.play(AssetSource('sounds/explosion.mp3'), volume: 0.5);
+        p.onPlayerComplete.listen((_) => p.dispose());
+      }
+    } catch (_) {}
   }
+  Future<void> playShieldHit()    async { try { await _sfx.stop(); await _sfx.play(AssetSource('sounds/shiel_guarda.mp3'),  volume: 0.7); } catch (_) {} }
+  Future<void> playShieldCharge() async { try { await _sfx.stop(); await _sfx.play(AssetSource('sounds/cargando_shield.mp3'), volume: 0.6); } catch (_) {} }
+  Future<void> playMissionStart() async { try { await _sfx.stop(); await _sfx.play(AssetSource('sounds/intro_iniciando_mision.mp3'), volume: 0.8); } catch (_) {} }
   Future<void> startAlarm() async {
-    if(_aOn)return;_aOn=true;
-    try{await _al.setReleaseMode(ReleaseMode.loop);
-      await _al.play(AssetSource('sounds/quench.wav'),volume:0.45);}catch(_){}
+    if (_alOn) return; _alOn = true;
+    try { await _al.setReleaseMode(ReleaseMode.loop);
+      await _al.play(AssetSource('sounds/quench.wav'), volume: 0.45); } catch (_) {}
   }
-  Future<void> stopAlarm() async {
-    _aOn=false;try{await _al.stop();}catch(_){}
-  }
-  Future<void> playQuench() async {
-    try{await _qs.play(AssetSource('sounds/explosion_jefe.mp3'),volume:1.0);}catch(_){}
-  }
-  void dispose(){
-    for(final p in _pool)p.dispose();
-    _bg.dispose();_bm.dispose();_eb.dispose();_qs.dispose();_al.dispose();
+  Future<void> stopAlarm() async { _alOn = false; try { await _al.stop(); } catch (_) {} }
+  Future<void> playQuench() async { try { await _qs.play(AssetSource('sounds/explosion_jefe.mp3'), volume: 1.0); } catch (_) {} }
+  void dispose() {
+    for (final p in _pool) p.dispose();
+    _bg.dispose(); _bm.dispose(); _eb.dispose(); _qs.dispose(); _al.dispose(); _sfx.dispose();
   }
 }
 
 // ── DATA MODELS ──────────────────────────────────────────
 class PlayerBuild {
-  double damage,fireRate,maxEnergy,cooling,shieldEfficiency;
+  double damage, fireRate, maxEnergy, cooling, shieldEfficiency;
   bool hasTripleShot; List<String> modules;
-  PlayerBuild({this.damage=10,this.fireRate=1.0,this.maxEnergy=100,
-               this.cooling=1.0,this.shieldEfficiency=1.0,this.hasTripleShot=false,
-               List<String>? modules}):modules=modules??[];
+  PlayerBuild({this.damage=10, this.fireRate=1.0, this.maxEnergy=100,
+               this.cooling=1.0, this.shieldEfficiency=1.0, this.hasTripleShot=false,
+               List<String>? modules}) : modules = modules ?? [];
 }
 class Player {
-  double x,energy=100,heat=0;bool shieldActive=false;double shieldTimer=0;
+  double x, energy = 100, heat = 0; bool shieldActive = false; double shieldTimer = 0;
   PlayerBuild build;
-  Player(this.x,{PlayerBuild? b}):build=b??PlayerBuild(),energy=b?.maxEnergy??100;
+  Player(this.x, {PlayerBuild? b}) : build = b ?? PlayerBuild(), energy = b?.maxEnergy ?? 100;
 }
 class Enemy {
-  double x,y,hp,maxHp,vx,vy;EnemyKind kind;bool dead=false;
-  double hitFlash=0,actionTimer=0,animT=0;
-  Enemy({required this.x,required this.y,required this.hp,
-         required this.vx,this.vy=90,this.kind=EnemyKind.interceptor}):maxHp=hp;
+  double x, y, hp, maxHp, vx, vy; EnemyKind kind; bool dead = false;
+  double hitFlash = 0, actionTimer = 0, animT = 0;
+  Enemy({required this.x, required this.y, required this.hp, required this.vx,
+         this.vy=90, this.kind=EnemyKind.interceptor}) : maxHp = hp;
 }
 class Asteroid {
-  double x,y,vx,vy,r,angle,spin;bool dead=false;
-  Asteroid({required this.x,required this.y,required this.vx,required this.vy,
-            required this.r,bool small=false})
-      :angle=0,spin=(_rngA.nextDouble()-0.5)*(small?4:2);
-  static final _rngA=Random();
+  double x, y, vx, vy, r, angle, spin; bool dead = false;
+  Asteroid({required this.x, required this.y, required this.vx,
+            required this.vy, required this.r, bool small=false})
+      : angle = 0, spin = (_rAst.nextDouble()-0.5)*(small?4:2);
+  static final _rAst = Random();
 }
 class Boss {
-  double x,y,hp,maxHp,vx;bool dead=false;
-  double hitFlash=0,animT=0,stateTimer=0,chargeGlow=0,burstTimer=0;
-  int burstCount=0;BossState state=BossState.moving;
-  double repelMeter=0;
-  static const double moveTime=3.0,chargeTime=kBossChargeTime,cooldownTime=2.8;
-  Boss({required this.x,required this.y,required this.hp,this.vx=75}):maxHp=hp;
+  double x, y, hp, maxHp, vx; bool dead = false;
+  double hitFlash=0, animT=0, stateTimer=0, chargeGlow=0, burstTimer=0;
+  int burstCount = 0; BossState state = BossState.moving; double repelMeter = 0;
+  static const double moveTime=3.0, chargeTime=kBossChargeTime, cooldownTime=2.8;
+  Boss({required this.x, required this.y, required this.hp, this.vx=75}) : maxHp = hp;
 }
 class Bullet {
-  double x,y,damage,angle;bool isEnemy,fromBoss;
-  Bullet(this.x,this.y,this.damage,{this.isEnemy=false,this.angle=0,this.fromBoss=false});
+  double x, y, damage, angle; bool isEnemy, fromBoss;
+  Bullet(this.x, this.y, this.damage, {this.isEnemy=false, this.angle=0, this.fromBoss=false});
 }
 class PowerUp {
-  double x,y,animT;PowerUpKind kind;bool collected;
-  PowerUp(this.x,this.y,this.kind):animT=0,collected=false;
+  double x, y, animT; PowerUpKind kind; bool collected;
+  PowerUp(this.x, this.y, this.kind) : animT=0, collected=false;
 }
 class FloatingText {
-  double x,y,life;String text;Color color;
-  FloatingText(this.x,this.y,this.text,this.color):life=1.0;
+  double x, y, life; String text; Color color;
+  FloatingText(this.x, this.y, this.text, this.color) : life = 1.0;
 }
 class Particle {
-  double x,y,vx,vy,life,maxLife,size;Color color;bool isFrost;
-  Particle({required this.x,required this.y,required this.vx,required this.vy,
-            required this.life,required this.color,this.size=4,this.isFrost=false}):maxLife=life;
+  double x, y, vx, vy, life, maxLife, size; Color color; bool isFrost, isSmoke;
+  Particle({required this.x, required this.y, required this.vx, required this.vy,
+            required this.life, required this.color, this.size=4,
+            this.isFrost=false, this.isSmoke=false}) : maxLife = life;
 }
 class UpgradeOption {
-  final String title,description,emoji;final Color color;
+  final String title, description, emoji; final Color color;
   final void Function(PlayerBuild) apply;
-  const UpgradeOption({required this.title,required this.description,
-      required this.emoji,required this.color,required this.apply});
+  const UpgradeOption({required this.title, required this.description,
+      required this.emoji, required this.color, required this.apply});
+}
+
+// ── ROBOT ARM (para DockScene) ────────────────────────────
+class RobotArm {
+  Offset base; double angle = 0; bool active = false;
+  RobotArm(this.base);
+  void activate() => active = true;
+  void update(double dt) { if (!active) return; angle += dt * 1.5; }
+  void draw(Canvas canvas) {
+    final paint = Paint()..color = Colors.blueGrey..strokeWidth = 6..strokeCap = StrokeCap.round;
+    final end = Offset(base.dx + cos(angle)*60, base.dy + sin(angle)*60);
+    canvas.drawLine(base, end, paint);
+    canvas.drawCircle(end, 7, Paint()..color = Colors.orange);
+  }
 }
 
 // ── PHASE ENGINE ─────────────────────────────────────────
 class PhaseEngine {
-  GamePhase phase=GamePhase.combat;double timer=0;int cycleCount=0;
-  void update(double dt,{required VoidCallback onDecision,required VoidCallback onBoss}){
-    timer+=dt;
-    if(phase==GamePhase.combat&&timer>=kCombatDuration){
-      cycleCount++;timer=0;
-      if(cycleCount%3==0){phase=GamePhase.boss;onBoss();}
-      else{phase=GamePhase.decision;onDecision();}
+  GamePhase phase = GamePhase.combat; double timer = 0; int cycleCount = 0;
+  void update(double dt, {required VoidCallback onDecision, required VoidCallback onBoss}) {
+    timer += dt;
+    if (phase == GamePhase.combat && timer >= kCombatDuration) {
+      cycleCount++; timer = 0;
+      if (cycleCount % 3 == 0) { phase = GamePhase.boss; onBoss(); }
+      else { phase = GamePhase.decision; onDecision(); }
     }
   }
-  void endDecision(){phase=GamePhase.combat;timer=0;}
-  void endBoss(){phase=GamePhase.combat;timer=0;}
-  double get combatProgress=>phase==GamePhase.combat?(timer/kCombatDuration).clamp(0,1):1.0;
+  void endDecision() { phase = GamePhase.combat; timer = 0; }
+  void endBoss()     { phase = GamePhase.combat; timer = 0; }
+  double get combatProgress => phase == GamePhase.combat ? (timer/kCombatDuration).clamp(0,1) : 1.0;
 }
 
 // ── RESOURCE SYSTEM ──────────────────────────────────────
 class ResourceSystem {
-  double energy=100,heat=0,entropy=0;
-  void update(double dt,PlayerBuild b){
-    heat=(heat-10*b.cooling*dt).clamp(0,100);
-    energy=(energy+4*dt).clamp(0,b.maxEnergy);
-    entropy=(entropy+0.3*dt).clamp(0,100);
-    if(heat>97)energy-=4*dt;
+  double energy = 100, heat = 0, entropy = 0;
+  void update(double dt, PlayerBuild b) {
+    heat   = (heat   - 10*b.cooling*dt).clamp(0, 100);
+    energy = (energy + 4*dt).clamp(0, b.maxEnergy);
+    entropy = (entropy + 0.3*dt).clamp(0, 100);
+    if (heat > 97) energy -= 4*dt;
   }
-  // HEAT PENALTY: shooting adds heat, penalty above threshold
-  void applyShoot(PlayerBuild b){
-    energy-=1.5;entropy+=0.15;
-    heat=(heat+kHeatPerShot/b.cooling).clamp(0,100);
+  void applyShoot(PlayerBuild b) {
+    energy -= 1.5; entropy += 0.15;
+    heat = (heat + kHeatPerShot/b.cooling).clamp(0, 100);
   }
-  void applyDamageHeat(double f){heat=(heat+f*100).clamp(0,100);}
-  // Dynamic cooldown: penalized when hot
-  double shootCooldown(double baseRate){
-    final hf=heatFrac;
-    if(hf>=kHeatPenaltyThreshold){
-      // Progressive penalty: 0.18 → 0.45s at max heat
-      final penalty=0.18+((hf-kHeatPenaltyThreshold)/(1.0-kHeatPenaltyThreshold))*0.27;
-      return penalty;
-    }
-    return 0.14/baseRate;
+  void applyDamageHeat(double f) { heat = (heat + f*100).clamp(0, 100); }
+  // Intervalo dinámico: normal hasta umbral, luego se penaliza suavemente
+  double shootInterval(double fireRate) {
+    final base = kBaseInterval / fireRate.clamp(1.0, 2.0);
+    if (heat < kHeatPenalty * 100) return base;
+    final extra = ((heat/100 - kHeatPenalty)/(1.0 - kHeatPenalty)) * base;
+    return base + extra;
   }
-  bool   get overheating=>heat>90;
-  double get heatFrac   =>heat/100;
-  double get energyFrac =>(energy/100).clamp(0,1);
-  double get entropyFrac=>entropy/100;
+  bool   get overheating => heat > 95;
+  double get heatFrac    => heat / 100;
+  double get energyFrac  => (energy/100).clamp(0, 1);
+  double get entropyFrac => entropy / 100;
 }
 
 // ── AI ADAPT ─────────────────────────────────────────────
 class AIAdapt {
-  double aggression=1.0,swarmDensity=1.0,counterFire=0.5;
-  void analyze(PlayerBuild b,int s){
-    final sb=(s-1)*0.15;
-    if(b.damage>15)    aggression   =(aggression+0.18+sb).clamp(1,4);
-    if(b.fireRate>1.3) swarmDensity =(swarmDensity+0.22+sb).clamp(1,4);
-    counterFire=(counterFire+0.1*s).clamp(0.5,3);
+  double aggression = 1.0, swarmDensity = 1.0, counterFire = 0.5;
+  void analyze(PlayerBuild b, int s) {
+    final sb = (s-1)*0.15;
+    if (b.damage > 15)    aggression    = (aggression    + 0.18+sb).clamp(1, 4);
+    if (b.fireRate > 1.3) swarmDensity  = (swarmDensity  + 0.22+sb).clamp(1, 4);
+    counterFire = (counterFire + 0.1*s).clamp(0.5, 3);
   }
-  double spawnInterval(int c,int s)=>(2.0-c*0.12-(s-1)*0.1).clamp(0.4,2.0)/aggression;
-  int    waveSize(int c,int s)=>(1+(c*0.45+swarmDensity*0.4+(s-1)*0.5)).floor().clamp(1,7);
+  double spawnInterval(int c, int s) => (2.0 - c*0.12 - (s-1)*0.1).clamp(0.4, 2.0)/aggression;
+  int    waveSize(int c, int s)      => (1 + (c*0.45 + swarmDensity*0.4 + (s-1)*0.5)).floor().clamp(1, 7);
 }
 
 // ── CHARGE INDICATOR ─────────────────────────────────────
 class ChargeIndicator {
-  final String icon;final Color color;
-  double chargeTime,current=0;bool ready=false,active=false;double activeTimer=0;
+  final String icon; final Color color;
+  double chargeTime, current = 0; bool ready = false, active = false; double activeTimer = 0;
   final double activeDuration;
-  ChargeIndicator({required this.icon,required this.color,required this.chargeTime,required this.activeDuration});
-  void update(double dt){
-    if(active){activeTimer-=dt;if(activeTimer<=0){active=false;activeTimer=0;current=0;ready=false;}}
-    else if(!ready){current=(current+dt).clamp(0,chargeTime);if(current>=chargeTime)ready=true;}
+  ChargeIndicator({required this.icon, required this.color, required this.chargeTime, required this.activeDuration});
+  void update(double dt) {
+    if (active) { activeTimer -= dt; if (activeTimer <= 0) { active=false; activeTimer=0; current=0; ready=false; } }
+    else if (!ready) { current = (current+dt).clamp(0, chargeTime); if (current >= chargeTime) ready = true; }
   }
-  void consume(){if(ready&&!active){active=true;activeTimer=activeDuration;}}
-  double get fraction=>ready?1.0:current/chargeTime;
+  void consume() { if (ready && !active) { active=true; activeTimer=activeDuration; } }
+  double get fraction => ready ? 1.0 : current/chargeTime;
 }
 
-// ── SPRITE CACHE ─────────────────────────────────────────
+// ── SPRITE CACHE — con remoción de fondo gris ─────────────
+// Los PNGs generados por IA tienen fondo gris semi-transparente.
+// _loadClean() elimina esos píxeles grises para que las naves
+// se vean limpias sobre el fondo del juego.
 class SpriteCache {
-  ui.Image? player,boss,boss2,boss3,boss4,enemy1,enemy2,enemy3,enemy4;
-  bool loaded=false;
+  ui.Image? player, boss, boss2, boss3, boss4, enemy1, enemy2, enemy3, enemy4;
+  bool loaded = false;
+
   Future<void> load() async {
-    try{
-      player=await _load('assets/images/player.png');
-      boss  =await _load('assets/images/boss.png');
-      enemy1=await _load('assets/images/enemy1.png');
-      enemy2=await _load('assets/images/enemy2.png');
-      enemy3=await _load('assets/images/enemy3.png');
-      enemy4=await _load('assets/images/enemy4.png');
-      try{boss2=await _load('assets/images/jefe2.png');}catch(_){}
-      try{boss3=await _load('assets/images/jefe3.png');}catch(_){}
-      try{boss4=await _load('assets/images/jefe4.png');}catch(_){}
-      loaded=true;
-    }catch(_){loaded=false;}
+    try {
+      player = await _loadClean('assets/images/player.png');
+      boss   = await _loadClean('assets/images/boss.png');
+      enemy1 = await _loadClean('assets/images/enemy1.png');
+      enemy2 = await _loadClean('assets/images/enemy2.png');
+      enemy3 = await _loadClean('assets/images/enemy3.png');
+      enemy4 = await _loadClean('assets/images/enemy4.png');
+      try { boss2 = await _loadClean('assets/images/jefe2.png'); } catch (_) {}
+      try { boss3 = await _loadClean('assets/images/jefe3.png'); } catch (_) {}
+      try { boss4 = await _loadClean('assets/images/jefe4.png'); } catch (_) {}
+      loaded = true;
+    } catch (_) { loaded = false; }
   }
-  Future<ui.Image> _load(String p) async {
-    final d=await rootBundle.load(p);
-    final c=await ui.instantiateImageCodec(d.buffer.asUint8List());
-    return (await c.getNextFrame()).image;
+
+  Future<ui.Image> _loadClean(String path) async {
+    final data  = await rootBundle.load(path);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    final raw   = frame.image;
+    final bd    = await raw.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (bd == null) return raw;
+    final w = raw.width, h = raw.height;
+    final pixels = bd.buffer.asUint8List();
+    final result = Uint8List.fromList(pixels);
+    for (int i = 0; i < result.length; i += 4) {
+      final r=result[i], g=result[i+1], b=result[i+2], a=result[i+3];
+      final mx=max(r,max(g,b)); final mn=min(r,min(g,b));
+      final sat = mx == 0 ? 0 : (mx-mn)*255~/mx;
+      // Gris sin saturación y brillante → transparente
+      if (sat < 35 && mx > 80) { result[i+3] = 0; continue; }
+      // Blanco puro → transparente
+      if (r>220 && g>220 && b>220 && a>200) result[i+3] = 0;
+    }
+    final comp = Completer<ui.Image>();
+    ui.decodeImageFromPixels(result, w, h, ui.PixelFormat.rgba8888, comp.complete);
+    return comp.future;
   }
-  ui.Image? enemyImg(EnemyKind k)=>switch(k){
-    EnemyKind.interceptor=>enemy1,EnemyKind.frigate=>enemy2,
-    EnemyKind.parasite=>enemy3,EnemyKind.corrupter=>enemy4};
-  ui.Image? bossImg(int s)=>switch(s){1=>boss,2=>boss2,3=>boss3,4=>boss4,_=>boss};
+
+  ui.Image? enemyImg(EnemyKind k) => switch(k) {
+    EnemyKind.interceptor=>enemy1, EnemyKind.frigate=>enemy2,
+    EnemyKind.parasite=>enemy3,    EnemyKind.corrupter=>enemy4};
+  ui.Image? bossImg(int s) => switch(s) {1=>boss, 2=>boss2, 3=>boss3, 4=>boss4, _=>boss};
 }
 
-// ── SPRITE DRAW — transparent PNG, no grey box ───────────
-// BlendMode.srcOver composites alpha correctly against
-// whatever pixels are already on the canvas.
-void drawSprite(Canvas canvas,ui.Image img,Offset center,double size,{double flash=0}){
-  final src=Rect.fromLTWH(0,0,img.width.toDouble(),img.height.toDouble());
-  final dst=Rect.fromCenter(center:center,width:size,height:size);
-  canvas.drawImageRect(img,src,dst,
+// ── SPRITE DRAW ───────────────────────────────────────────
+void drawSprite(Canvas canvas, ui.Image img, Offset center, double size, {double flash=0}) {
+  final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+  final dst = Rect.fromCenter(center: center, width: size, height: size);
+  canvas.drawImageRect(img, src, dst,
       Paint()..filterQuality=FilterQuality.high..isAntiAlias=true..blendMode=BlendMode.srcOver);
-  if(flash>0){
-    canvas.drawImageRect(img,src,dst,
+  if (flash > 0) {
+    canvas.drawImageRect(img, src, dst,
         Paint()..filterQuality=FilterQuality.high..blendMode=BlendMode.srcATop
-          ..colorFilter=ColorFilter.mode(
-              Colors.white.withOpacity(flash.clamp(0.0,1.0)*0.65),BlendMode.srcATop));
+          ..colorFilter=ColorFilter.mode(Colors.white.withOpacity(flash.clamp(0,1)*0.65), BlendMode.srcATop));
   }
 }
 
-// ── APP ROOT ─────────────────────────────────────────────
-class PhoenixCoreApp extends StatelessWidget {
-  const PhoenixCoreApp({super.key});
-  @override Widget build(BuildContext ctx)=>MaterialApp(
-      debugShowCheckedModeBanner:false,theme:ThemeData.dark(),home:const AppRoot());
+// ══════════════════════════════════════════════════════════
+// DOCK SCENE — NAVE ATERRIZANDO CON EFECTOS COMPLETOS
+// ══════════════════════════════════════════════════════════
+class DockScene extends StatefulWidget {
+  final VoidCallback onFinish;
+  const DockScene({super.key, required this.onFinish});
+  @override State<DockScene> createState() => _DockSceneState();
 }
-class AppRoot extends StatefulWidget {
-  const AppRoot({super.key});
-  @override State<AppRoot> createState()=>_AppRootState();
-}
-class _AppRootState extends State<AppRoot> {
-  AppScreen _screen=AppScreen.intro;
-  int _score=0,_best=0,_currentStage=1;
-  final _audio=AudioManager();final _sprites=SpriteCache();
-  PlayerBuild? _carry;
 
-  @override void initState(){
+class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  double _shipY = -150, _shipSpeed = 180, _shipAngle = 0;
+  bool _landed = false, _transition = false;
+  double _transAlpha = 0;
+  final List<Particle> _particles = [];
+  final List<RobotArm> _arms = [];
+  double _shakeX = 0, _shakeY = 0, _shakeIntensity = 0;
+  double _t = 0;
+  final _rng = Random();
+  final _landing = AudioPlayer();
+  final _steam   = AudioPlayer();
+  final _spark   = AudioPlayer();
+  final _cafe    = AudioPlayer();
+
+  @override
+  void initState() {
     super.initState();
-    SharedPreferences.getInstance().then((p)=>setState(()=>_best=p.getInt('best_v4')??0));
-    _sprites.load().then((_){if(mounted)setState((){});});
-    WidgetsBinding.instance.addPostFrameCallback((_)=>_audio.startAmbient());
-  }
-  @override void dispose(){_audio.dispose();super.dispose();}
-
-  void _onIntroDone()=>setState(()=>_screen=AppScreen.menu);
-  void _start(){_currentStage=1;_carry=null;_score=0;setState(()=>_screen=AppScreen.playing);}
-  void _onStageClear(int score,PlayerBuild build){
-    _score=score;_carry=build;
-    if(_currentStage>=4){_save(_score);setState(()=>_screen=AppScreen.victory);}
-    else setState(()=>_screen=AppScreen.stageClear);
-  }
-  void _onCinematicDone(){_currentStage++;setState(()=>_screen=AppScreen.playing);}
-  void _gameOver(int score){
-    _audio.switchToAmbient();_save(score);
-    setState((){_score=score;_screen=AppScreen.gameOver;});
-  }
-  void _save(int s) async {
-    if(s>_best){_best=s;final p=await SharedPreferences.getInstance();await p.setInt('best_v4',_best);}
+    _arms.addAll([RobotArm(const Offset(80, 0)), RobotArm(const Offset(0, 0))]);
+    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 12))
+      ..addListener(_update)..repeat();
+    _playLandingAudio();
   }
 
-  @override Widget build(BuildContext ctx)=>switch(_screen){
-    AppScreen.intro      =>CinematicScreen(scenes:_introScenes,onDone:_onIntroDone),
-    AppScreen.menu       =>MenuScreen(best:_best,onStart:_start,sprites:_sprites),
-    AppScreen.playing    =>GameScreen(key:ValueKey('s$_currentStage'),
-        stageConfig:_stages[_currentStage-1],initialBuild:_carry,initialScore:_score,
-        onStageClear:_onStageClear,onGameOver:_gameOver,audio:_audio,sprites:_sprites),
-    AppScreen.stageClear =>StageClearScreen(stageNum:_currentStage,
-        onContinue:()=>setState(()=>_screen=AppScreen.cinematic)),
-    AppScreen.cinematic  =>CinematicScreen(scenes:_stages[_currentStage].scenes,onDone:_onCinematicDone),
-    AppScreen.gameOver   =>GameOverScreen(score:_score,best:_best,
-        onRestart:_start,onMenu:()=>setState(()=>_screen=AppScreen.menu)),
-    AppScreen.victory    =>VictoryScreen(score:_score,best:_best,
-        onMenu:()=>setState(()=>_screen=AppScreen.menu)),
-  };
+  Future<void> _playLandingAudio() async {
+    try { await _landing.play(AssetSource('sounds/space_ship_landing.mp3'), volume: 0.8); } catch (_) {}
+  }
+
+  void _update() {
+    final dt = 1/60.0;
+    _t += dt;
+    // Shake decay
+    _shakeIntensity *= 0.88;
+    _shakeX = (_rng.nextDouble()-0.5)*_shakeIntensity;
+    _shakeY = (_rng.nextDouble()-0.5)*_shakeIntensity;
+
+    if (!_landed) {
+      _shipY += _shipSpeed * dt;
+      _shipSpeed *= 0.978;
+      _shipAngle = sin(_t*3)*0.04;
+
+      // Humo mientras cae
+      if (_rng.nextDouble() < 0.4) {
+        _particles.add(Particle(
+          x: 200 + (_rng.nextDouble()-0.5)*30, y: _shipY + 55,
+          vx: (_rng.nextDouble()-0.5)*18, vy: -25-_rng.nextDouble()*20,
+          life: 1.4, color: Colors.grey.shade600, size: 8, isSmoke: true));
+      }
+      // Chispas cuando va rápido
+      if (_shipSpeed > 60 && _rng.nextDouble() < 0.5) {
+        _particles.add(Particle(
+          x: 200 + (_rng.nextDouble()-0.5)*40, y: _shipY + 50,
+          vx: (_rng.nextDouble()-0.5)*120, vy: -_rng.nextDouble()*120,
+          life: 0.5, color: Colors.orangeAccent, size: 2.5));
+      }
+
+      if (_shipY >= 280 && !_landed) {
+        _landed = true;
+        _shipY = 280;
+        _shakeIntensity = 14;
+        // Explosión de chispas al aterrizar
+        for (int i = 0; i < 30; i++) {
+          _particles.add(Particle(
+            x: 200 + (_rng.nextDouble()-0.5)*60, y: 300,
+            vx: (_rng.nextDouble()-0.5)*200, vy: -_rng.nextDouble()*200,
+            life: 0.8, color: _rng.nextBool() ? Colors.orangeAccent : Colors.white, size: 3));
+        }
+        for (final a in _arms) a.activate();
+        try { _steam.play(AssetSource('sounds/steam.mp3'), volume: 0.7); } catch (_) {}
+        try { _spark.play(AssetSource('sounds/spark.mp3'), volume: 0.6); } catch (_) {}
+        Future.delayed(const Duration(seconds: 3), () {
+          setState(() => _transition = true);
+          try { _cafe.play(AssetSource('sounds/cafeteria.mp3'), volume: 0.5); } catch (_) {}
+          Future.delayed(const Duration(seconds: 2), widget.onFinish);
+        });
+      }
+    }
+
+    for (final a in _arms) a.update(dt);
+    // Actualizar partículas
+    for (final p in _particles) {
+      p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+      if (p.isSmoke) { p.size += 6*dt; p.vx *= 0.97; p.vy -= 8*dt; }
+      else p.vy += 120*dt;
+    }
+    _particles.removeWhere((p) => p.life <= 0);
+    if (_transition) _transAlpha = (_transAlpha + dt*0.5).clamp(0, 1);
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _landing.dispose(); _steam.dispose(); _spark.dispose(); _cafe.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final sz = MediaQuery.of(ctx).size;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: CustomPaint(
+        painter: _DockPainter(
+          sw: sz.width, sh: sz.height,
+          shipY: _shipY + sz.height*0.3, shipAngle: _shipAngle,
+          particles: _particles, arms: _arms,
+          shakeX: _shakeX, shakeY: _shakeY,
+          t: _t, landed: _landed, transAlpha: _transAlpha,
+        ),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
 }
 
-// ── CINEMATIC SCREEN ─────────────────────────────────────
+class _DockPainter extends CustomPainter {
+  final double sw, sh, shipY, shipAngle, shakeX, shakeY, t, transAlpha;
+  final bool landed;
+  final List<Particle> particles;
+  final List<RobotArm> arms;
+  const _DockPainter({required this.sw, required this.sh, required this.shipY,
+      required this.shipAngle, required this.particles, required this.arms,
+      required this.shakeX, required this.shakeY, required this.t,
+      required this.landed, required this.transAlpha});
+
+  @override void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.translate(sw/2 + shakeX, shakeY);
+    _drawBg(canvas);
+    _drawDock(canvas);
+    _drawShip(canvas);
+    _drawParticles(canvas);
+    for (final a in arms) {
+      canvas.save();
+      canvas.translate(sw/2 - 70 + arms.indexOf(a)*140, shipY + 50);
+      a.draw(canvas);
+      canvas.restore();
+    }
+    canvas.restore();
+    if (transAlpha > 0) {
+      canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
+          Paint()..color = Colors.black.withOpacity(transAlpha));
+    }
+    _drawText(canvas);
+  }
+
+  void _drawBg(Canvas canvas) {
+    canvas.drawRect(Rect.fromLTWH(-sw/2,-sh,sw*2,sh*2),
+        Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
+            colors:[const Color(0xFF000814),const Color(0xFF001A22),const Color(0xFF002233)])
+            .createShader(Rect.fromLTWH(-sw/2,-sh,sw*2,sh*2)));
+    final rng = Random(42); final sp = Paint()..color = Colors.white.withOpacity(0.6);
+    for (int i=0; i<60; i++) canvas.drawCircle(Offset((rng.nextDouble()-0.5)*sw,(rng.nextDouble()-0.5)*sh),rng.nextDouble()*1.2,sp);
+  }
+
+  void _drawDock(Canvas canvas) {
+    // Plataforma
+    canvas.drawRect(Rect.fromLTWH(-sw/2, sh*0.3, sw*2, sh*0.8),
+        Paint()..color = Colors.grey.shade900);
+    // Líneas de hangar
+    final lp = Paint()..color = Colors.blueGrey.withOpacity(0.4)..strokeWidth = 1.5;
+    for (int i=0; i<8; i++) canvas.drawLine(Offset(-sw*0.4+i*sw*0.14,sh*0.3),Offset(-sw*0.4+i*sw*0.14,sh),lp);
+    // Luces de pista
+    final lip = Paint()..color = (landed?cGreen:cFire).withOpacity(0.8+sin(t*4)*0.2)..maskFilter=const MaskFilter.blur(BlurStyle.normal,6);
+    for (int i=0; i<6; i++) canvas.drawCircle(Offset(-sw*0.25+i*sw*0.1,sh*0.31),5,lip);
+    // Logo DOCK 7A
+    final tp = TextPainter(text:TextSpan(text:'DOCK 7A',style:TextStyle(color:Colors.white24,fontSize:11,fontFamily:'Orbitron',letterSpacing:2)),textDirection:TextDirection.ltr)..layout();
+    tp.paint(canvas, Offset(-tp.width/2, sh*0.33));
+  }
+
+  void _drawShip(Canvas canvas) {
+    canvas.save();
+    canvas.translate(0, shipY - sh*0.3);
+    canvas.rotate(shipAngle);
+    // Glow de motores
+    canvas.drawOval(Rect.fromCenter(center:Offset(0,42),width:90,height:20),
+        Paint()..color=cFire.withOpacity(0.15+sin(t*8)*0.08)..maskFilter=const MaskFilter.blur(BlurStyle.normal,18));
+    // Cuerpo de nave (fallback simple pero convincente)
+    final body = Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
+        colors:[Colors.blueGrey.shade300,Colors.blueGrey.shade700]).createShader(Rect.fromCenter(center:Offset.zero,width:80,height:100));
+    canvas.drawPath(Path()
+      ..moveTo(0,-50)..lineTo(18,20)..lineTo(0,35)..lineTo(-18,20)..close(), body);
+    // Alas
+    canvas.drawPath(Path()..moveTo(-18,10)..lineTo(-55,30)..lineTo(-35,40)..lineTo(-18,25)..close(),
+        Paint()..color=Colors.blueGrey.shade600);
+    canvas.drawPath(Path()..moveTo(18,10)..lineTo(55,30)..lineTo(35,40)..lineTo(18,25)..close(),
+        Paint()..color=Colors.blueGrey.shade600);
+    // Núcleo (cristal)
+    canvas.drawCircle(Offset.zero, 10, Paint()..color=cIce.withOpacity(0.85)..maskFilter=const MaskFilter.blur(BlurStyle.normal,6));
+    // Llama del motor
+    if (!landed) {
+      canvas.drawPath(Path()..moveTo(-10,38)..lineTo(0,38+_rng.nextDouble()*18+20)..lineTo(10,38)..close(),
+          Paint()..color=cFire.withOpacity(0.7+sin(t*12)*0.2));
+    }
+    // Daños de batalla (cicatrices)
+    final dp = Paint()..color=Colors.black45..strokeWidth=1.5;
+    canvas.drawLine(const Offset(-8,-20),const Offset(-20,-5),dp);
+    canvas.drawLine(const Offset(5,-30),const Offset(15,-15),dp);
+    canvas.drawLine(const Offset(-15,5),const Offset(-25,15),dp);
+    canvas.restore();
+  }
+
+  void _drawParticles(Canvas canvas) {
+    for (final p in particles) {
+      final a = (p.life/p.maxLife).clamp(0.0,1.0);
+      if (p.isSmoke) {
+        canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size,
+            Paint()..color=p.color.withOpacity(a*0.4)..maskFilter=const MaskFilter.blur(BlurStyle.normal,p.size*0.8));
+      } else {
+        canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size,
+            Paint()..color=p.color.withOpacity(a)..maskFilter=const MaskFilter.blur(BlurStyle.normal,2));
+      }
+    }
+  }
+
+  void _drawText(Canvas canvas) {
+    if (transAlpha > 0) return;
+    final tp = TextPainter(text:TextSpan(text:'DOCK 7A — PHOENIX PROJECT\nUnidad Phoenix ha aterrizado… iniciando protocolo criogénico.',
+        style:TextStyle(color:Colors.white.withOpacity(0.7+sin(t*2)*0.15),fontSize:10,fontFamily:'Orbitron',height:1.6)),
+        textAlign:TextAlign.center,textDirection:TextDirection.ltr)..layout(maxWidth:sw*0.85);
+    tp.paint(canvas, Offset((sw-tp.width)/2, sh*0.08));
+  }
+
+  final _rng = Random();
+  @override bool shouldRepaint(covariant CustomPainter _) => true;
+}
+
+// ══════════════════════════════════════════════════════════
+// CINEMATIC SCREEN — con zoom Ken Burns + TTS
+// ══════════════════════════════════════════════════════════
 class CinematicScreen extends StatefulWidget {
-  final List<CinematicScene> scenes;final VoidCallback onDone;
-  const CinematicScreen({super.key,required this.scenes,required this.onDone});
-  @override State<CinematicScreen> createState()=>_CinematicState();
+  final List<CinematicScene> scenes; final VoidCallback onDone;
+  const CinematicScreen({super.key, required this.scenes, required this.onDone});
+  @override State<CinematicScreen> createState() => _CinState();
 }
-class _CinematicState extends State<CinematicScreen> with SingleTickerProviderStateMixin {
-  int _idx=0,_ci=0;String _disp='';bool _full=false;
+class _CinState extends State<CinematicScreen> with SingleTickerProviderStateMixin {
+  int _idx = 0, _ci = 0; String _disp = ''; bool _full = false;
   late AnimationController _tc;
-  @override void initState(){super.initState();
-    _tc=AnimationController(vsync:this,duration:const Duration(milliseconds:32));
-    _tc.addListener(_tick);_startScene();}
-  void _startScene(){_ci=0;_disp='';_full=false;_tc.repeat();}
-  void _tick(){final f=widget.scenes[_idx].dialogue;
-    if(_ci<f.length){setState((){_ci++;_disp=f.substring(0,_ci);});}
-    else{_tc.stop();setState(()=>_full=true);}}
-  void _next(){
-    if(!_full){_tc.stop();setState((){_disp=widget.scenes[_idx].dialogue;_full=true;});return;}
-    if(_idx<widget.scenes.length-1){setState(()=>_idx++);_startScene();}
-    else widget.onDone();}
-  @override void dispose(){_tc.dispose();super.dispose();}
-  Color _sc(String s)=>switch(s){'gold'=>cGold,'ice'=>cIce,'red'=>cDanger,_=>Colors.white};
+  late AnimationController _zoom;
+  late Animation<double> _zoomAnim;
+  final _tts = FlutterTts();
+  bool _ttsReady = false;
 
-  @override Widget build(BuildContext ctx){
-    final s=widget.scenes[_idx];final sc=_sc(s.speakerColor);
-    final sz=MediaQuery.of(ctx).size;
+  @override void initState() {
+    super.initState();
+    _tc = AnimationController(vsync:this, duration:const Duration(milliseconds:32))
+      ..addListener(_tick);
+    _zoom = AnimationController(vsync:this, duration:const Duration(seconds:8))..forward();
+    _zoomAnim = Tween(begin:1.0, end:1.08).animate(CurvedAnimation(parent:_zoom, curve:Curves.easeInOut));
+    _initTts();
+    _startScene();
+  }
+
+  Future<void> _initTts() async {
+    try {
+      await _tts.setLanguage('es-MX');
+      await _tts.setSpeechRate(0.42);
+      await _tts.setPitch(0.95);
+      _ttsReady = true;
+    } catch (_) {}
+  }
+
+  void _startScene() {
+    _ci = 0; _disp = ''; _full = false;
+    _zoom.reset(); _zoom.forward();
+    _tc.repeat();
+    if (_ttsReady) _tts.speak(widget.scenes[_idx].dialogue.replaceAll('\n',' '));
+  }
+
+  void _tick() {
+    final f = widget.scenes[_idx].dialogue;
+    if (_ci < f.length) { setState((){_ci++; _disp=f.substring(0,_ci);}); }
+    else { _tc.stop(); setState(()=>_full=true); }
+  }
+
+  void _next() {
+    if (!_full) { _tc.stop(); setState((){_disp=widget.scenes[_idx].dialogue; _full=true;}); _tts.stop(); return; }
+    _tts.stop();
+    if (_idx < widget.scenes.length-1) { setState(()=>_idx++); _startScene(); }
+    else widget.onDone();
+  }
+
+  @override void dispose() { _tc.dispose(); _zoom.dispose(); _tts.stop(); super.dispose(); }
+  Color _sc(String s) => switch(s) {'gold'=>cGold,'ice'=>cIce,'red'=>cDanger,_=>Colors.white};
+
+  @override Widget build(BuildContext ctx) {
+    final s = widget.scenes[_idx]; final sc = _sc(s.speakerColor); final sz = MediaQuery.of(ctx).size;
     return Scaffold(backgroundColor:Colors.black,
       body:GestureDetector(onTapDown:(_)=>_next(),
         child:Column(children:[
-          Expanded(flex:55,child:Stack(children:[
-            Positioned.fill(child:Image.asset(s.imageAsset,fit:BoxFit.cover,
-                errorBuilder:(_,__,___)=>Container(color:const Color(0xFF050A14),
-                    child:const Center(child:Icon(Icons.image_not_supported,color:Colors.white24,size:48))))),
-            Positioned(bottom:0,left:0,right:0,height:80,child:Container(
+          Expanded(flex:55, child:Stack(children:[
+            // Imagen con zoom Ken Burns
+            Positioned.fill(child:AnimatedBuilder(animation:_zoomAnim,
+              builder:(_,__) => Transform.scale(scale:_zoomAnim.value,
+                child:Image.asset(s.imageAsset, fit:BoxFit.cover, width:double.infinity, height:double.infinity,
+                    errorBuilder:(_,__,___)=>Container(color:const Color(0xFF050A14),
+                        child:const Center(child:Icon(Icons.image_not_supported,color:Colors.white24,size:48))))))),
+            // Overlay cinemático
+            Positioned.fill(child:Container(color:Colors.black.withOpacity(0.3))),
+            // Degradado inferior
+            Positioned(bottom:0,left:0,right:0,height:100,child:Container(
                 decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,
-                    end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.black.withOpacity(0.9)])))),
+                    end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.black.withOpacity(0.95)])))),
+            // Location tag
             Positioned(top:MediaQuery.of(ctx).padding.top+10,left:12,right:80,
               child:Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),
                 decoration:BoxDecoration(color:Colors.black.withOpacity(0.75),
@@ -477,27 +770,30 @@ class _CinematicState extends State<CinematicScreen> with SingleTickerProviderSt
             Positioned(top:MediaQuery.of(ctx).padding.top+10,right:12,
               child:Text('${_idx+1}/${widget.scenes.length}',
                   style:const TextStyle(color:Colors.white38,fontSize:10,fontFamily:'Orbitron'))),
+            // Barras negras cinematográficas (letterbox)
+            Positioned(top:0,left:0,right:0,height:MediaQuery.of(ctx).padding.top+8,child:Container(color:Colors.black)),
           ])),
+          // Diálogo
           Container(constraints:BoxConstraints(minHeight:sz.height*0.32),
             padding:const EdgeInsets.fromLTRB(20,14,20,28),
             decoration:BoxDecoration(color:Colors.black,
                 border:Border(top:BorderSide(color:sc.withOpacity(0.5),width:1.5))),
             child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
-              if(s.speaker.isNotEmpty)...[
+              if (s.speaker.isNotEmpty)...[
                 Row(children:[
                   Container(width:3,height:14,decoration:BoxDecoration(color:sc,boxShadow:[BoxShadow(color:sc,blurRadius:5)])),
                   const SizedBox(width:8),
                   Expanded(child:Text(s.speaker,style:TextStyle(color:sc,fontSize:11,fontFamily:'Orbitron',fontWeight:FontWeight.bold))),
-                ]),const SizedBox(height:10),
+                ]), const SizedBox(height:10),
               ],
-              Text(_disp,style:const TextStyle(color:Colors.white,fontSize:13,height:1.55,fontFamily:'Orbitron')),
+              Text(_disp, style:const TextStyle(color:Colors.white,fontSize:13,height:1.55,fontFamily:'Orbitron')),
               const SizedBox(height:14),
               Row(mainAxisAlignment:MainAxisAlignment.end,children:[
-                if(_full)Row(children:[
+                if (_full) Row(children:[
                   Text(_idx==widget.scenes.length-1?'CONTINUAR':'SIGUIENTE',
                       style:TextStyle(color:sc,fontSize:10,fontFamily:'Orbitron',letterSpacing:1.5)),
                   const SizedBox(width:6),Icon(Icons.arrow_forward_ios,color:sc,size:14),
-                ])else Text('toca para continuar',
+                ]) else Text('toca para continuar',
                     style:const TextStyle(color:Colors.white24,fontSize:9,fontFamily:'Orbitron')),
               ]),
             ])),
@@ -505,20 +801,88 @@ class _CinematicState extends State<CinematicScreen> with SingleTickerProviderSt
   }
 }
 
+// ── APP ROOT ─────────────────────────────────────────────
+class PhoenixCoreApp extends StatelessWidget {
+  const PhoenixCoreApp({super.key});
+  @override Widget build(BuildContext ctx) => MaterialApp(
+      debugShowCheckedModeBanner:false, theme:ThemeData.dark(), home:const AppRoot());
+}
+class AppRoot extends StatefulWidget {
+  const AppRoot({super.key});
+  @override State<AppRoot> createState() => _AppRootState();
+}
+class _AppRootState extends State<AppRoot> {
+  AppScreen _screen = AppScreen.dockIntro;
+  int _score=0, _best=0, _currentStage=1;
+  final _audio   = AudioManager();
+  final _sprites = SpriteCache();
+  PlayerBuild? _carry;
+
+  @override void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((p)=>setState(()=>_best=p.getInt('best_v4')??0));
+    _sprites.load().then((_){if(mounted)setState((){});});
+  }
+  @override void dispose() { _audio.dispose(); super.dispose(); }
+
+  void _onDockDone() {
+    _audio.startAmbient();
+    setState(()=>_screen=AppScreen.intro);
+  }
+  void _onIntroDone()   => setState(()=>_screen=AppScreen.menu);
+  void _start() {
+    _currentStage=1; _carry=null; _score=0;
+    _audio.playMissionStart();
+    setState(()=>_screen=AppScreen.playing);
+  }
+  void _onStageClear(int score, PlayerBuild build) {
+    _score=score; _carry=build;
+    if (_currentStage>=4) { _save(_score); setState(()=>_screen=AppScreen.victory); }
+    else setState(()=>_screen=AppScreen.stageClear);
+  }
+  void _onCinematicDone() { _currentStage++; setState(()=>_screen=AppScreen.playing); }
+  void _gameOver(int score) {
+    _audio.switchToAmbient(); _save(score);
+    setState((){_score=score; _screen=AppScreen.gameOver;});
+  }
+  void _save(int s) async {
+    if (s>_best) { _best=s; final p=await SharedPreferences.getInstance(); await p.setInt('best_v4',_best); }
+  }
+
+  @override Widget build(BuildContext ctx) => switch(_screen) {
+    AppScreen.dockIntro  => DockScene(onFinish:_onDockDone),
+    AppScreen.intro      => CinematicScreen(scenes:_introScenes, onDone:_onIntroDone),
+    AppScreen.menu       => MenuScreen(best:_best, onStart:_start, sprites:_sprites),
+    AppScreen.playing    => GameScreen(key:ValueKey('s$_currentStage'),
+        stageConfig:_stages[_currentStage-1], initialBuild:_carry, initialScore:_score,
+        onStageClear:_onStageClear, onGameOver:_gameOver, audio:_audio, sprites:_sprites),
+    AppScreen.stageClear => StageClearScreen(stageNum:_currentStage,
+        onContinue:()=>setState(()=>_screen=AppScreen.cinematic)),
+    AppScreen.cinematic  => CinematicScreen(scenes:_stages[_currentStage].scenes, onDone:_onCinematicDone),
+    AppScreen.gameOver   => GameOverScreen(score:_score, best:_best,
+        onRestart:_start, onMenu:()=>setState(()=>_screen=AppScreen.menu)),
+    AppScreen.victory    => VictoryScreen(score:_score, best:_best,
+        onMenu:()=>setState(()=>_screen=AppScreen.menu)),
+  };
+}
+
 // ── STAGE CLEAR ──────────────────────────────────────────
 class StageClearScreen extends StatefulWidget {
-  final int stageNum;final VoidCallback onContinue;
-  const StageClearScreen({super.key,required this.stageNum,required this.onContinue});
-  @override State<StageClearScreen> createState()=>_StageClearState();
+  final int stageNum; final VoidCallback onContinue;
+  const StageClearScreen({super.key, required this.stageNum, required this.onContinue});
+  @override State<StageClearScreen> createState() => _SCState();
 }
-class _StageClearState extends State<StageClearScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;late Animation<double> _anim;
-  @override void initState(){super.initState();
-    _ctrl=AnimationController(vsync:this,duration:const Duration(milliseconds:800))..forward();
-    _anim=CurvedAnimation(parent:_ctrl,curve:Curves.elasticOut);hapticHeavy();}
-  @override void dispose(){_ctrl.dispose();super.dispose();}
-  @override Widget build(BuildContext ctx)=>Scaffold(backgroundColor:cBg,
-    body:SafeArea(child:Center(child:ScaleTransition(scale:_anim,child:Column(
+class _SCState extends State<StageClearScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _c; late Animation<double> _a;
+  @override void initState() {
+    super.initState();
+    _c = AnimationController(vsync:this, duration:const Duration(milliseconds:800))..forward();
+    _a = CurvedAnimation(parent:_c, curve:Curves.elasticOut);
+    hapticHeavy();
+  }
+  @override void dispose() { _c.dispose(); super.dispose(); }
+  @override Widget build(BuildContext ctx) => Scaffold(backgroundColor:cBg,
+    body:SafeArea(child:Center(child:ScaleTransition(scale:_a,child:Column(
       mainAxisAlignment:MainAxisAlignment.center,children:[
         const Text('✦',style:TextStyle(color:cGold,fontSize:64,shadows:[Shadow(color:cGold,blurRadius:30)])),
         const SizedBox(height:16),
@@ -535,187 +899,185 @@ class _StageClearState extends State<StageClearScreen> with SingleTickerProvider
 
 // ── VICTORY ──────────────────────────────────────────────
 class VictoryScreen extends StatelessWidget {
-  final int score,best;final VoidCallback onMenu;
-  const VictoryScreen({super.key,required this.score,required this.best,required this.onMenu});
-  @override Widget build(BuildContext ctx)=>Scaffold(backgroundColor:cBg,
+  final int score, best; final VoidCallback onMenu;
+  const VictoryScreen({super.key, required this.score, required this.best, required this.onMenu});
+  @override Widget build(BuildContext ctx) => Scaffold(backgroundColor:cBg,
     body:SafeArea(child:Center(child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       const Text('🏆',style:TextStyle(fontSize:80)),const SizedBox(height:16),
       _GlowText('VICTORIA GALÁCTICA',color:cGold,size:26),const SizedBox(height:8),
       _GlowText('La puerta dimensional fue cerrada…',color:Colors.white70,size:13),
       _GlowText('por ahora.',color:cIce,size:16),const SizedBox(height:8),
       _GlowText('COMANDANTE DE LAS FUERZAS GALÁCTICAS',color:cGold,size:11),
-      const SizedBox(height:32),
-      _GlowText('SCORE FINAL: $score',color:cGold,size:24),
+      const SizedBox(height:32),_GlowText('SCORE FINAL: $score',color:cGold,size:24),
       _GlowText('MEJOR: $best',color:Colors.white38,size:13),
       const SizedBox(height:48),_Btn(label:'MENÚ PRINCIPAL',color:cIce,onTap:onMenu),
     ]))));
 }
 
-// ── GAME SCREEN ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+// GAME SCREEN
+// ══════════════════════════════════════════════════════════
 class GameScreen extends StatefulWidget {
-  final StageConfig stageConfig;final PlayerBuild? initialBuild;final int initialScore;
+  final StageConfig stageConfig; final PlayerBuild? initialBuild; final int initialScore;
   final void Function(int,PlayerBuild) onStageClear;
   final void Function(int) onGameOver;
-  final AudioManager audio;final SpriteCache sprites;
+  final AudioManager audio; final SpriteCache sprites;
   const GameScreen({super.key,required this.stageConfig,required this.initialBuild,
       required this.initialScore,required this.onStageClear,required this.onGameOver,
       required this.audio,required this.sprites});
-  @override State<GameScreen> createState()=>_GameState();
+  @override State<GameScreen> createState() => _GState();
 }
-class _GameState extends State<GameScreen> with SingleTickerProviderStateMixin {
-  final _rng=Random();
-  AudioManager get _audio=>widget.audio;
-  SpriteCache  get _spr  =>widget.sprites;
-  StageConfig  get _stage=>widget.stageConfig;
 
-  double _sw=0,_sh=0;
+class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
+  final _rng = Random();
+  AudioManager get _audio  => widget.audio;
+  SpriteCache  get _spr    => widget.sprites;
+  StageConfig  get _stage  => widget.stageConfig;
+
+  double _sw=0, _sh=0;
   late Player _player;
-  final _res  =ResourceSystem();
-  final _phase=PhaseEngine();
-  late  AIAdapt _ai;
+  final _res   = ResourceSystem();
+  final _phase = PhaseEngine();
+  late AIAdapt _ai;
 
-  final _enemies  =<Enemy>[];
-  final _bullets  =<Bullet>[];
-  final _powerUps =<PowerUp>[];
-  final _particles=<Particle>[];
-  final _floats   =<FloatingText>[];
-  final _asteroids=<Asteroid>[];
+  final _enemies   = <Enemy>[];
+  final _bullets   = <Bullet>[];
+  final _powerUps  = <PowerUp>[];
+  final _particles = <Particle>[];
+  final _floats    = <FloatingText>[];
+  final _asteroids = <Asteroid>[];
 
-  Boss? _boss;bool _bossAlive=false;
-  int    _score=0;
-  double _coreTemp=0,_niFrame=0;
-  double _shootTimer=0,_spawnTimer=0,_puTimer=35.0;
-  bool   _touching=false,_alarmOn=false;double _touchX=0;
-  bool   _showDec=false;List<UpgradeOption> _opts=[];
-  bool   _frosting=false,_quenching=false;
-  double _frostT=0,_quenchT=0,_pulse=0,_pDir=1;
+  Boss? _boss; bool _bossAlive = false;
+  int    _score = 0;
+  double _coreTemp=0, _niFrame=0;
+  double _shootTimer=0, _spawnTimer=0, _puTimer=35.0;
+  bool   _touching=false, _alarmOn=false; double _touchX=0;
+  bool   _showDec=false; List<UpgradeOption> _opts=[];
+  bool   _frosting=false, _quenching=false;
+  double _frostT=0, _quenchT=0, _pulse=0, _pDir=1;
 
-  // Stage 3
-  double _gravTimer=75.0;bool _gravActive=false,_gravWarn=false;
-  // Stage 4
-  double _portal=0.0;bool _mirrorWin=false;double _mirrorT=0;
-  // Stage 2
+  double _gravTimer=75.0; bool _gravActive=false, _gravWarn=false;
+  double _portal=0.0; bool _mirrorWin=false; double _mirrorT=0;
   double _asteroidTimer=0;
 
-  final _mg=ChargeIndicator(icon:'⚡',color:cGold,chargeTime:28.0,activeDuration:8.0);
-  final _fr=ChargeIndicator(icon:'❄',color:cIce, chargeTime:38.0,activeDuration:6.0);
+  final _mg = ChargeIndicator(icon:'⚡',color:cGold,chargeTime:28.0,activeDuration:8.0);
+  final _fr = ChargeIndicator(icon:'❄',color:cIce, chargeTime:38.0,activeDuration:6.0);
 
-  Ticker? _ticker;Duration _last=Duration.zero;
+  Ticker? _ticker; Duration _last = Duration.zero;
 
-  @override void initState(){
+  @override void initState() {
     super.initState();
-    _score=widget.initialScore;_ai=AIAdapt();
-    WidgetsBinding.instance.addPostFrameCallback((_){
-      final sz=MediaQuery.of(context).size;_sw=sz.width;_sh=sz.height;
-      final b=widget.initialBuild??PlayerBuild();
-      _player=Player(_sw/2,b:b);_res.energy=_player.build.maxEnergy;
-      _ticker=createTicker(_tick)..start();
+    _score = widget.initialScore; _ai = AIAdapt();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final sz = MediaQuery.of(context).size; _sw=sz.width; _sh=sz.height;
+      final b = widget.initialBuild ?? PlayerBuild();
+      _player = Player(_sw/2, b:b); _res.energy = _player.build.maxEnergy;
+      _ticker = createTicker(_tick)..start();
     });
   }
-  @override void dispose(){_ticker?.dispose();super.dispose();}
+  @override void dispose() { _ticker?.dispose(); super.dispose(); }
 
-  void _tick(Duration elapsed){
-    final dt=((elapsed-_last).inMicroseconds/1e6).clamp(0.0,0.05).toDouble();
-    _last=elapsed;if(dt==0||!mounted)return;_update(dt);
+  void _tick(Duration elapsed) {
+    final dt = ((elapsed-_last).inMicroseconds/1e6).clamp(0.0,0.05).toDouble();
+    _last = elapsed; if (dt==0||!mounted) return; _update(dt);
   }
 
-  void _update(double dt){
-    if(_mirrorWin){
-      _mirrorT+=dt;_updateParticles(dt);
-      if(_mirrorT>3.0)widget.onStageClear(_score,_player.build);
-      if(mounted)setState((){});return;
+  void _update(double dt) {
+    if (_mirrorWin) {
+      _mirrorT+=dt; _updateParticles(dt);
+      if (_mirrorT>3.0) widget.onStageClear(_score,_player.build);
+      if (mounted) setState((){}); return;
     }
-    if(_quenching){
-      _quenchT+=dt;_updateParticles(dt);
-      if(_quenchT>2.5)widget.onGameOver(_score);
-      if(mounted)setState((){});return;
+    if (_quenching) {
+      _quenchT+=dt; _updateParticles(dt);
+      if (_quenchT>2.5) widget.onGameOver(_score);
+      if (mounted) setState((){}); return;
     }
-    if(_frosting){
-      _frostT+=dt*0.55;_spawnFrost();_updateParticles(dt);_updateFloats(dt);
-      if(_frostT>=1.0){_frosting=false;_quenching=true;_audio.stopAlarm();_audio.playQuench();_quenchExp();}
-      if(mounted)setState((){});return;
+    if (_frosting) {
+      _frostT+=dt*0.55; _spawnFrost(); _updateParticles(dt); _updateFloats(dt);
+      if (_frostT>=1.0) { _frosting=false; _quenching=true; _audio.stopAlarm(); _audio.playQuench(); _quenchExp(); }
+      if (mounted) setState((){}); return;
     }
-    if(_showDec){if(mounted)setState((){});return;}
+    if (_showDec) { if (mounted) setState((){}); return; }
 
-    _pulse+=_pDir*dt*2.2;if(_pulse>1)_pDir=-1;if(_pulse<0)_pDir=1;
-    _phase.update(dt,onDecision:_triggerDec,onBoss:_triggerBoss);
-    _res.update(dt,_player.build);
-    _player.energy=_res.energy;_player.heat=_res.heat;
+    _pulse+=_pDir*dt*2.2; if(_pulse>1)_pDir=-1; if(_pulse<0)_pDir=1;
+    _phase.update(dt, onDecision:_triggerDec, onBoss:_triggerBoss);
+    _res.update(dt, _player.build);
+    _player.energy=_res.energy; _player.heat=_res.heat;
 
-    if(_niFrame>0)_niFrame=(_niFrame-dt).clamp(0,kNucleusIFrame);
-    _mg.update(dt);_fr.update(dt);
+    if (_niFrame>0) _niFrame=(_niFrame-dt).clamp(0,kNucleusIFrame);
+    _mg.update(dt); _fr.update(dt);
 
-    // Stage 3 gravity — only after boss spawns
-    if(_stage.hazard==StageHazard.gravityTimer&&_gravActive){
-      _gravTimer-=dt;_gravWarn=_gravTimer<30;
-      if(_gravTimer<=0)_beginFrost();
+    // Stage 3: gravedad — solo cuando boss aparece
+    if (_stage.hazard==StageHazard.gravityTimer && _gravActive) {
+      _gravTimer-=dt; _gravWarn=_gravTimer<30;
+      if (_gravTimer<=0) _beginFrost();
     }
-    // Stage 4 portal
-    if(_stage.hazard==StageHazard.mirrorPortal){
-      if(_bossAlive)_portal+=dt*0.004;
-      if(_portal>=1.0)_beginFrost();
+    // Stage 4: portal crece
+    if (_stage.hazard==StageHazard.mirrorPortal) {
+      if (_bossAlive) _portal+=dt*0.004;
+      if (_portal>=1.0) _beginFrost();
     }
-    // Stage 2 asteroids
-    if(_stage.hazard==StageHazard.asteroids){
+    // Stage 2: asteroides
+    if (_stage.hazard==StageHazard.asteroids) {
       _asteroidTimer-=dt;
-      if(_asteroidTimer<=0){_asteroidTimer=4+_rng.nextDouble()*4;_spawnAsteroid(false);}
+      if (_asteroidTimer<=0) { _asteroidTimer=4+_rng.nextDouble()*4; _spawnAsteroid(false); }
       _updateAsteroids(dt);
     }
 
-    if(_res.heatFrac>=0.8&&!_alarmOn){_alarmOn=true;_audio.startAlarm();}
-    else if(_res.heatFrac<0.75&&_alarmOn){_alarmOn=false;_audio.stopAlarm();}
+    if (_res.heatFrac>=0.8 && !_alarmOn) { _alarmOn=true; _audio.startAlarm(); }
+    else if (_res.heatFrac<0.75 && _alarmOn) { _alarmOn=false; _audio.stopAlarm(); }
 
-    if(_player.shieldActive){_player.shieldTimer-=dt;if(_player.shieldTimer<=0)_player.shieldActive=false;}
-    if(_touching){
+    if (_player.shieldActive) { _player.shieldTimer-=dt; if(_player.shieldTimer<=0)_player.shieldActive=false; }
+    if (_touching) {
       _player.x+=(_touchX-_player.x)*14*dt;
       _player.x=_player.x.clamp(kPhoenixSize,_sw-kPhoenixSize);
     }
 
-    // SHOOT with dynamic heat-based cooldown
-    if(_touching&&_res.energy>0&&!_res.overheating){
+    // DISPARO con intervalo dinámico por heat
+    if (_touching && _res.energy>0 && !_res.overheating) {
       _shootTimer-=dt;
-      if(_shootTimer<=0){
-        final effRate=_mg.active?_player.build.fireRate*1.7:_player.build.fireRate;
-        _shootTimer=_res.shootCooldown(effRate.clamp(1.0,1.8));
+      if (_shootTimer<=0) {
+        final rate = _mg.active ? _player.build.fireRate*1.7 : _player.build.fireRate;
+        _shootTimer = _res.shootInterval(rate);
         _fireLaser();
       }
     }
 
-    for(final b in _bullets){
-      if(b.isEnemy){b.y+=360*dt;}
-      else{b.x+=sin(b.angle)*560*dt;b.y-=cos(b.angle)*560*dt;}
+    for (final b in _bullets) {
+      if (b.isEnemy) { b.y+=360*dt; }
+      else { b.x+=sin(b.angle)*560*dt; b.y-=cos(b.angle)*560*dt; }
     }
     _bullets.removeWhere((b)=>b.y<-30||b.y>_sh+30||b.x<-30||b.x>_sw+30);
 
     _puTimer-=dt;
-    if(_puTimer<=0){_puTimer=30+_rng.nextDouble()*18;_spawnPowerUp();}
+    if (_puTimer<=0) { _puTimer=30+_rng.nextDouble()*18; _spawnPowerUp(); }
     _updatePowerUps(dt);
 
-    if(_phase.phase==GamePhase.combat&&!_bossAlive){
+    if (_phase.phase==GamePhase.combat && !_bossAlive) {
       _spawnTimer-=dt;
-      if(_spawnTimer<=0){
+      if (_spawnTimer<=0) {
         _spawnTimer=_ai.spawnInterval(_phase.cycleCount,_stage.stageNum);
-        final n=_ai.waveSize(_phase.cycleCount,_stage.stageNum);
-        for(int i=0;i<n;i++)_spawnEnemy();
+        for (int i=0; i<_ai.waveSize(_phase.cycleCount,_stage.stageNum); i++) _spawnEnemy();
       }
     }
 
     _updateEnemies(dt);
-    if(_bossAlive&&_boss!=null)_updateBoss(dt);
+    if (_bossAlive && _boss!=null) _updateBoss(dt);
     _resolveCollisions();
 
     _coreTemp=(_coreTemp-0.004*dt).clamp(0,1);
-    if(_coreTemp>=1.0&&!_frosting&&!_quenching)_beginFrost();
-    _updateParticles(dt);_updateFloats(dt);
-    if(mounted)setState((){});
+    if (_coreTemp>=1.0 && !_frosting && !_quenching) _beginFrost();
+    _updateParticles(dt); _updateFloats(dt);
+    if (mounted) setState((){});
   }
 
-  void _fireLaser(){
+  void _fireLaser() {
     _res.applyShoot(_player.build);
-    final isTriple=_player.build.hasTripleShot||_player.build.fireRate>=1.8;
+    final isTriple = _player.build.hasTripleShot || _player.build.fireRate>=1.8;
     _audio.playLaser(triple:isTriple);
-    final py=_sh*0.72-kPhoenixSize;
-    if(isTriple){
+    final py = _sh*0.72-kPhoenixSize;
+    if (isTriple) {
       _bullets.add(Bullet(_player.x,py,_player.build.damage,angle:0));
       _bullets.add(Bullet(_player.x,py,_player.build.damage*0.7,angle:-0.13));
       _bullets.add(Bullet(_player.x,py,_player.build.damage*0.7,angle:0.13));
@@ -724,209 +1086,212 @@ class _GameState extends State<GameScreen> with SingleTickerProviderStateMixin {
     }
   }
 
-  void _spawnAsteroid(bool small,{double? ox,double? oy,double? ovx,double? ovy}){
-    final r=small?8+_rng.nextDouble()*10:18+_rng.nextDouble()*22;
-    final x=ox??20+_rng.nextDouble()*(_sw-40);
-    final y=oy??-r;
-    final vx=ovx??(_rng.nextBool()?1:-1)*(20+_rng.nextDouble()*40);
-    final vy=ovy??60+_rng.nextDouble()*50;
-    _asteroids.add(Asteroid(x:x,y:y,vx:vx,vy:vy,r:r,small:small));
+  void _spawnAsteroid(bool small, {double? ox, double? oy, double? ovx, double? ovy}) {
+    final r = small ? 7+_rng.nextDouble()*10 : 18+_rng.nextDouble()*22;
+    _asteroids.add(Asteroid(
+      x:ox??20+_rng.nextDouble()*(_sw-40), y:oy??-r,
+      vx:ovx??(_rng.nextBool()?1:-1)*(20+_rng.nextDouble()*40),
+      vy:ovy??60+_rng.nextDouble()*50, r:r, small:small));
   }
 
-  // Asteroid splits into 2–3 smaller pieces
-  void _splitAsteroid(Asteroid a){
-    if(a.r<12)return; // too small, just destroy
-    final count=_rng.nextInt(2)+2;
-    for(int i=0;i<count;i++){
+  // FRAGMENTACIÓN: 2–4 pedazos al destruir asteroide grande
+  void _splitAsteroid(Asteroid a) {
+    if (a.r < 11) return; // muy pequeño, no fragmenta
+    final count = 2 + _rng.nextInt(3); // 2, 3 o 4 pedazos
+    for (int i=0; i<count; i++) {
+      final angle = (pi*2/count)*i + _rng.nextDouble()*0.5;
       _spawnAsteroid(true,
-        ox:a.x,oy:a.y,
-        ovx:(_rng.nextDouble()-0.5)*70,
-        ovy:a.vy+_rng.nextDouble()*30);
+        ox:a.x, oy:a.y,
+        ovx:cos(angle)*(50+_rng.nextDouble()*60),
+        ovy:sin(angle)*(50+_rng.nextDouble()*60) - 20);
     }
   }
 
-  void _updateAsteroids(double dt){
-    for(final a in _asteroids){
-      if(a.dead)continue;
-      a.x+=a.vx*dt;a.y+=a.vy*dt;a.angle+=a.spin*dt;
-      if(a.x<a.r||a.x>_sw-a.r)a.vx*=-1;
-      // Hit player
-      final px=_player.x,py=_sh*0.72;
-      if((a.x-px).abs()<a.r+kPhoenixSize*0.8&&(a.y-py).abs()<a.r+kPhoenixSize*0.8){
+  void _updateAsteroids(double dt) {
+    for (final a in _asteroids) {
+      if (a.dead) continue;
+      a.x+=a.vx*dt; a.y+=a.vy*dt; a.angle+=a.spin*dt;
+      if (a.x<a.r||a.x>_sw-a.r) a.vx*=-1;
+
+      // Golpea jugador
+      final px=_player.x, py=_sh*0.72;
+      if ((a.x-px).abs()<a.r+kPhoenixSize*0.8 && (a.y-py).abs()<a.r+kPhoenixSize*0.8) {
         a.dead=true;
-        if(!_player.shieldActive){
-          _res.applyDamageHeat(0.08);_coreTemp+=0.05;hapticMedium();
-          _spawnBurst(px,py,cFire,10);_addFloat(px,py-20,'ASTEROIDE!',cFire);
-        } else {
-          hapticLight();_spawnBurst(px,py,cShield,6);
-        }
+        if (!_player.shieldActive) {
+          _res.applyDamageHeat(0.08); _coreTemp+=0.05; hapticMedium();
+          _spawnBurst(px,py,cFire,10); _addFloat(px,py-20,'ASTEROIDE!',cFire);
+        } else { hapticLight(); _audio.playShieldHit(); _spawnBurst(px,py,cShield,6); }
       }
-      // Hit nucleus
-      final nx=_sw/2,ny=_sh*0.87;
-      if((a.x-nx).abs()<a.r+kNucleusR&&(a.y-ny).abs()<a.r+kNucleusR){
+      // Golpea núcleo
+      final nx=_sw/2, ny=_sh*0.87;
+      if ((a.x-nx).abs()<a.r+kNucleusR && (a.y-ny).abs()<a.r+kNucleusR) {
         a.dead=true;
-        if(_niFrame<=0){
+        if (_niFrame<=0) {
           _niFrame=kNucleusIFrame;
-          _res.applyDamageHeat(kCoreHeatPerHit*1.5);_coreTemp+=kCoreHeatPerHit*1.5;
-          hapticHeavy();_addFloat(nx,ny-20,'NÚCLEO HIT!',cDanger);_spawnBurst(nx,ny,cDanger,8);
+          _res.applyDamageHeat(kCoreHeatPerHit*1.5); _coreTemp+=kCoreHeatPerHit*1.5;
+          hapticHeavy(); _addFloat(nx,ny-20,'NÚCLEO HIT!',cDanger); _spawnBurst(nx,ny,cDanger,8);
         }
       }
-      // Hit enemies
-      if(!a.dead){
-        for(final e in _enemies){
-          if(e.dead)continue;
-          if((a.x-e.x).abs()<a.r+kEnemyR*0.7&&(a.y-e.y).abs()<a.r+kEnemyR*0.7){
-            a.dead=true;e.hp-=15;e.hitFlash=0.8;
-            _spawnBurst(a.x,a.y,Colors.grey,6);
-            if(e.hp<=0){e.dead=true;_score+=_eScore(e.kind)~/2;
-              _spawnBurst(e.x,e.y,_eColor(e.kind),10);_audio.playExplosion();}
+      // Golpea enemigos
+      if (!a.dead) {
+        for (final e in _enemies) {
+          if (e.dead) continue;
+          if ((a.x-e.x).abs()<a.r+kEnemyR*0.7 && (a.y-e.y).abs()<a.r+kEnemyR*0.7) {
+            a.dead=true; e.hp-=15; e.hitFlash=0.8;
+            _spawnBurst(a.x,a.y,Colors.grey,6); _audio.playExplosion(isAsteroid:true);
+            if (e.hp<=0) { e.dead=true; _score+=_eScore(e.kind)~/2;
+              _spawnBurst(e.x,e.y,_eColor(e.kind),10); _audio.playExplosion(); }
             break;
           }
         }
       }
-      if(a.y>_sh+a.r)a.dead=true;
+      if (a.y>_sh+a.r) a.dead=true;
     }
-    // Player bullets vs asteroids
-    final rem=<Bullet>{};
-    for(final b in _bullets){
-      if(b.isEnemy)continue;
-      for(final a in _asteroids){
-        if(a.dead)continue;
-        if((b.x-a.x).abs()<a.r&&(b.y-a.y).abs()<a.r){
-          rem.add(b);
-          _splitAsteroid(a); // FRAGMENT
-          a.dead=true;_score+=a.r>15?25:10;
-          _spawnBurst(a.x,a.y,Colors.grey.shade400,a.r>15?10:5);
+
+    // Balas del jugador vs asteroides → FRAGMENTACIÓN
+    final remB = <Bullet>{};
+    for (final b in _bullets) {
+      if (b.isEnemy) continue;
+      for (final a in _asteroids) {
+        if (a.dead) continue;
+        if ((b.x-a.x).abs()<a.r && (b.y-a.y).abs()<a.r) {
+          remB.add(b);
+          _splitAsteroid(a); a.dead=true;
+          _score += a.r>15 ? 25 : 10;
+          _spawnBurst(a.x,a.y,Colors.grey.shade400,a.r>15?12:5);
           _addFloat(a.x,a.y-10,'+${a.r>15?25:10}',Colors.grey.shade300);
+          _audio.playExplosion(isAsteroid:true);
           break;
         }
       }
     }
-    _bullets.removeWhere((b)=>rem.contains(b));
-    // Enemy bullets vs asteroids (asteroids block enemy shots!)
-    final remE=<Bullet>{};
-    for(final b in _bullets){
-      if(!b.isEnemy)continue;
-      for(final a in _asteroids){
-        if(a.dead)continue;
-        if((b.x-a.x).abs()<a.r&&(b.y-a.y).abs()<a.r){
-          remE.add(b);_spawnBurst(a.x,a.y,Colors.grey,4);break;
-        }
+    _bullets.removeWhere((b)=>remB.contains(b));
+
+    // Balas enemigas bloqueadas por asteroides
+    final remE = <Bullet>{};
+    for (final b in _bullets) {
+      if (!b.isEnemy) continue;
+      for (final a in _asteroids) {
+        if (a.dead) continue;
+        if ((b.x-a.x).abs()<a.r && (b.y-a.y).abs()<a.r) { remE.add(b); break; }
       }
     }
     _bullets.removeWhere((b)=>remE.contains(b));
     _asteroids.removeWhere((a)=>a.dead);
   }
 
-  void _spawnPowerUp(){
-    final c=_phase.cycleCount;
-    final av=[PowerUpKind.energyBoost];
-    if(c>=1)av.add(PowerUpKind.shield);
-    if(c>=2)av.add(PowerUpKind.rapidFire);
-    if(c>=3)av.add(PowerUpKind.coreArmor);
-    if(c>=4)av.add(PowerUpKind.tripleShot);
+  void _spawnPowerUp() {
+    final c = _phase.cycleCount;
+    final av = [PowerUpKind.energyBoost];
+    if (c>=1) av.add(PowerUpKind.shield);
+    if (c>=2) av.add(PowerUpKind.rapidFire);
+    if (c>=3) av.add(PowerUpKind.coreArmor);
+    if (c>=4) av.add(PowerUpKind.tripleShot);
     _powerUps.add(PowerUp(20+_rng.nextDouble()*(_sw-40),-30,av[_rng.nextInt(av.length)]));
   }
-
-  void _updatePowerUps(double dt){
-    for(final p in _powerUps){
-      p.y+=65*dt;p.animT+=dt*3;
-      if(!p.collected&&(p.x-_player.x).abs()<40&&(p.y-_sh*0.72).abs()<40){
-        p.collected=true;_applyPU(p.kind);hapticLight();
-        _spawnBurst(p.x,p.y,_puC(p.kind),18);_addFloat(p.x,p.y-10,_puL(p.kind),_puC(p.kind));
+  void _updatePowerUps(double dt) {
+    for (final p in _powerUps) {
+      p.y+=65*dt; p.animT+=dt*3;
+      if (!p.collected && (p.x-_player.x).abs()<40 && (p.y-_sh*0.72).abs()<40) {
+        p.collected=true; _applyPU(p.kind); hapticLight();
+        _spawnBurst(p.x,p.y,_puC(p.kind),18); _addFloat(p.x,p.y-10,_puL(p.kind),_puC(p.kind));
       }
     }
     _powerUps.removeWhere((p)=>p.y>_sh+40||p.collected);
   }
-  void _applyPU(PowerUpKind k){
-    switch(k){
+  void _applyPU(PowerUpKind k) {
+    switch(k) {
       case PowerUpKind.rapidFire:
-        _player.build.fireRate=(_player.build.fireRate*1.25).clamp(1.0,1.8);
+        _player.build.fireRate=(_player.build.fireRate*1.3).clamp(1.0,2.0);
       case PowerUpKind.tripleShot:
         _player.build.hasTripleShot=true;
-        _player.build.fireRate=(_player.build.fireRate*1.05).clamp(1.0,1.8);
+        _player.build.fireRate=(_player.build.fireRate*1.1).clamp(1.0,2.0);
       case PowerUpKind.shield:
-        _player.shieldActive=true;_player.shieldTimer=10.0;
+        _player.shieldActive=true; _player.shieldTimer=10.0;
+        _audio.playShieldCharge();
       case PowerUpKind.coreArmor:
-        _coreTemp=(_coreTemp-0.22).clamp(0,1);_res.heat=(_res.heat-30).clamp(0,100);
+        _coreTemp=(_coreTemp-0.22).clamp(0,1); _res.heat=(_res.heat-30).clamp(0,100);
       case PowerUpKind.energyBoost:
         _res.energy=(_res.energy+35).clamp(0,_player.build.maxEnergy);
         _res.heat=(_res.heat-25).clamp(0,100);
     }
   }
-  Color  _puC(PowerUpKind k)=>switch(k){PowerUpKind.rapidFire=>cFire,PowerUpKind.tripleShot=>cGold,PowerUpKind.shield=>cShield,PowerUpKind.coreArmor=>cIce,PowerUpKind.energyBoost=>cGreen};
-  String _puL(PowerUpKind k)=>switch(k){PowerUpKind.rapidFire=>'⚡ RAPID FIRE',PowerUpKind.tripleShot=>'💥 TRIPLE SHOT',PowerUpKind.shield=>'🛡 ESCUDO',PowerUpKind.coreArmor=>'❄ CORE ARMOR',PowerUpKind.energyBoost=>'💚 ENERGÍA +35'};
+  Color  _puC(PowerUpKind k) => switch(k){PowerUpKind.rapidFire=>cFire,PowerUpKind.tripleShot=>cGold,PowerUpKind.shield=>cShield,PowerUpKind.coreArmor=>cIce,PowerUpKind.energyBoost=>cGreen};
+  String _puL(PowerUpKind k) => switch(k){PowerUpKind.rapidFire=>'⚡ RAPID FIRE',PowerUpKind.tripleShot=>'💥 TRIPLE SHOT',PowerUpKind.shield=>'🛡 ESCUDO',PowerUpKind.coreArmor=>'❄ CORE ARMOR',PowerUpKind.energyBoost=>'💚 ENERGÍA +35'};
 
-  void _spawnEnemy(){
-    final c=_phase.cycleCount;final s=_stage.stageNum;final r=_rng.nextDouble();
+  void _spawnEnemy() {
+    final c=_phase.cycleCount; final s=_stage.stageNum; final r=_rng.nextDouble();
     EnemyKind k;
-    if(c==0&&s==1) k=EnemyKind.interceptor;
-    else if(c<=1&&s<=2) k=r<0.55?EnemyKind.interceptor:EnemyKind.frigate;
-    else if(c<=2) k=r<0.35?EnemyKind.interceptor:r<0.65?EnemyKind.frigate:EnemyKind.parasite;
+    if (c==0&&s==1) k=EnemyKind.interceptor;
+    else if (c<=1&&s<=2) k=r<0.55?EnemyKind.interceptor:EnemyKind.frigate;
+    else if (c<=2) k=r<0.35?EnemyKind.interceptor:r<0.65?EnemyKind.frigate:EnemyKind.parasite;
     else k=r<0.28?EnemyKind.interceptor:r<0.52?EnemyKind.frigate:r<0.76?EnemyKind.parasite:EnemyKind.corrupter;
     final base=18.0+c*6+(s-1)*8;
     final hp=k==EnemyKind.parasite?base*1.6:k==EnemyKind.frigate?base*0.85:base;
     _enemies.add(Enemy(
-      x:20+_rng.nextDouble()*(_sw-40),y:-kEnemyR,hp:hp,
+      x:20+_rng.nextDouble()*(_sw-40), y:-kEnemyR, hp:hp,
       vx:(_rng.nextBool()?1:-1)*(55+_rng.nextDouble()*65+(s-1)*10),
-      vy:70+c*4.5+_rng.nextDouble()*18+(s-1)*6,kind:k));
+      vy:70+c*4.5+_rng.nextDouble()*18+(s-1)*6, kind:k));
   }
 
-  void _updateEnemies(double dt){
-    for(final e in _enemies){
-      if(e.dead)continue;
-      if(e.hitFlash>0)e.hitFlash-=dt*5;e.animT+=dt*2;
-      switch(e.kind){
+  void _updateEnemies(double dt) {
+    for (final e in _enemies) {
+      if (e.dead) continue;
+      if (e.hitFlash>0) e.hitFlash-=dt*5; e.animT+=dt*2;
+      switch(e.kind) {
         case EnemyKind.interceptor:
-          e.x+=e.vx*dt;e.y+=e.vy*dt;if(e.x<kEnemyR||e.x>_sw-kEnemyR)e.vx*=-1;
+          e.x+=e.vx*dt; e.y+=e.vy*dt; if(e.x<kEnemyR||e.x>_sw-kEnemyR) e.vx*=-1;
         case EnemyKind.frigate:
           e.y=(e.y+e.vy*dt*0.4).clamp(-kEnemyR,_sh*0.25);
-          e.x+=e.vx*dt;if(e.x<kEnemyR||e.x>_sw-kEnemyR)e.vx*=-1;
+          e.x+=e.vx*dt; if(e.x<kEnemyR||e.x>_sw-kEnemyR) e.vx*=-1;
           e.actionTimer+=dt;
-          if(e.actionTimer>1.5/_ai.counterFire){
-            e.actionTimer=0;_bullets.add(Bullet(e.x,e.y+kEnemyR,9,isEnemy:true));}
+          if (e.actionTimer>1.5/_ai.counterFire) {
+            e.actionTimer=0; _bullets.add(Bullet(e.x,e.y+kEnemyR,9,isEnemy:true));
+          }
         case EnemyKind.parasite:
-          e.x+=(_player.x-e.x).sign*48*dt;e.y+=e.vy*dt*0.6;
-          if((e.x-_player.x).abs()<40&&(e.y-_sh*0.72).abs()<40){
+          e.x+=(_player.x-e.x).sign*48*dt; e.y+=e.vy*dt*0.6;
+          if ((e.x-_player.x).abs()<40 && (e.y-_sh*0.72).abs()<40) {
             _res.energy-=11*dt;
-            if(_rng.nextDouble()<0.08)_particles.add(Particle(x:e.x,y:e.y,
-                vx:(_player.x-e.x)*1.5,vy:(_sh*0.72-e.y)*1.5,life:0.4,color:cShield,size:5));}
+            if (_rng.nextDouble()<0.08) _particles.add(Particle(x:e.x,y:e.y,
+                vx:(_player.x-e.x)*1.5,vy:(_sh*0.72-e.y)*1.5,life:0.4,color:cShield,size:5));
+          }
         case EnemyKind.corrupter:
-          e.x+=e.vx*dt;e.y+=e.vy*dt;if(e.x<kEnemyR||e.x>_sw-kEnemyR)e.vx*=-1;
-          if(e.y>_sh*0.65){_res.heat+=5*dt;_addFloat(e.x,e.y,'+HEAT',cDanger);}
+          e.x+=e.vx*dt; e.y+=e.vy*dt; if(e.x<kEnemyR||e.x>_sw-kEnemyR) e.vx*=-1;
+          if (e.y>_sh*0.65) { _res.heat+=5*dt; _addFloat(e.x,e.y,'+HEAT',cDanger); }
       }
-      if(e.y>_sh*0.87){
-        e.dead=true;_spawnBurst(e.x,e.y,cFire,10);_audio.playExplosion();
-        if(!_player.shieldActive){
-          _res.applyDamageHeat(kCoreHeatPerPass);_coreTemp+=kCoreHeatPerPass;
-          hapticMedium();_addFloat(_sw/2,_sh*0.84,'NÚCLEO HIT',cDanger);
+      if (e.y>_sh*0.87) {
+        e.dead=true; _spawnBurst(e.x,e.y,cFire,10); _audio.playExplosion();
+        if (!_player.shieldActive) {
+          _res.applyDamageHeat(kCoreHeatPerPass); _coreTemp+=kCoreHeatPerPass;
+          hapticMedium(); _addFloat(_sw/2,_sh*0.84,'NÚCLEO HIT',cDanger);
         }
       }
     }
     _enemies.removeWhere((e)=>e.dead&&e.hitFlash<=0);
   }
 
-  void _updateBoss(double dt){
-    final b=_boss!;if(b.dead)return;
-    if(b.hitFlash>0)b.hitFlash-=dt*3;b.animT+=dt;
-    if(_stage.stageNum==4){
-      b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*24;
-      if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;
-      if(b.repelMeter>=1.0&&!_mirrorWin){
-        _mirrorWin=true;hapticHeavy();
-        _spawnBurst(b.x,b.y,cRed,50);_spawnBurst(_sw/2,_sh/2,cGold,40);
+  void _updateBoss(double dt) {
+    final b=_boss!; if(b.dead) return;
+    if (b.hitFlash>0) b.hitFlash-=dt*3; b.animT+=dt;
+    // Stage 4: repel
+    if (_stage.stageNum==4) {
+      b.x+=b.vx*dt; b.y=_sh*0.16+sin(b.animT*0.8)*24;
+      if(b.x<kBossR||b.x>_sw-kBossR) b.vx*=-1;
+      if (b.repelMeter>=1.0 && !_mirrorWin) {
+        _mirrorWin=true; hapticHeavy();
+        _spawnBurst(b.x,b.y,cRed,50); _spawnBurst(_sw/2,_sh/2,cGold,40);
         _addFloat(_sw/2,_sh*0.4,'PORTAL CERRADO!',cGold);
-        _audio.playExplosion(isBoss:true);_audio.switchToAmbient();
+        _audio.playExplosion(isBoss:true); _audio.switchToAmbient();
       }
     }
-    switch(b.state){
+    switch(b.state) {
       case BossState.moving:
-        b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*24;
-        if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;
+        b.x+=b.vx*dt; b.y=_sh*0.16+sin(b.animT*0.8)*24;
+        if(b.x<kBossR||b.x>_sw-kBossR) b.vx*=-1;
         b.stateTimer+=dt;
         if(b.stateTimer>=Boss.moveTime){b.state=BossState.charging;b.stateTimer=0;b.chargeGlow=0;}
       case BossState.charging:
-        b.stateTimer+=dt;b.chargeGlow=(b.stateTimer/Boss.chargeTime).clamp(0,1);
+        b.stateTimer+=dt; b.chargeGlow=(b.stateTimer/Boss.chargeTime).clamp(0,1);
         b.y=_sh*0.16+sin(b.animT*12)*3*b.chargeGlow;
         if(b.stateTimer>=Boss.chargeTime){b.state=BossState.firing;b.stateTimer=0;b.burstCount=0;b.burstTimer=0;}
       case BossState.firing:
@@ -934,78 +1299,75 @@ class _GameState extends State<GameScreen> with SingleTickerProviderStateMixin {
         if(b.burstTimer>=0.5&&b.burstCount<3){b.burstTimer=0;b.burstCount++;_fireBoss(b);}
         if(b.burstCount>=3){b.state=BossState.cooldown;b.stateTimer=0;}
       case BossState.cooldown:
-        b.x+=b.vx*dt;b.y=_sh*0.16;if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;
-        b.stateTimer+=dt;b.chargeGlow=0;
+        b.x+=b.vx*dt; b.y=_sh*0.16; if(b.x<kBossR||b.x>_sw-kBossR) b.vx*=-1;
+        b.stateTimer+=dt; b.chargeGlow=0;
         if(b.stateTimer>=Boss.cooldownTime){b.state=BossState.moving;b.stateTimer=0;}
     }
   }
 
-  void _fireBoss(Boss b){
-    final ba=atan2(_player.x-b.x,_sh*0.5)*0.35;
-    const sp=0.31;
+  void _fireBoss(Boss b) {
+    final ba=atan2(_player.x-b.x,_sh*0.5)*0.35; const sp=0.31;
     final offsets=_stage.stageNum>=3?[0.0,-sp,sp,-sp*0.5]:[0.0,-sp,sp];
-    for(int i=0;i<offsets.length;i++){
+    for (final off in offsets) {
       _bullets.add(Bullet(b.x,b.y+kBossR,14+(_stage.stageNum-1)*3,
-          isEnemy:true,fromBoss:true,angle:ba+offsets[i]));
+          isEnemy:true,fromBoss:true,angle:ba+off));
     }
   }
 
-  void _resolveCollisions(){
-    final rem=<Bullet>{};
-    for(final bul in _bullets){
-      if(bul.isEnemy){
-        final px=_player.x,py=_sh*0.72;
-        if((bul.x-px).abs()<kPhoenixSize&&(bul.y-py).abs()<kPhoenixSize){
+  void _resolveCollisions() {
+    final rem = <Bullet>{};
+    for (final bul in _bullets) {
+      if (bul.isEnemy) {
+        final px=_player.x, py=_sh*0.72;
+        if ((bul.x-px).abs()<kPhoenixSize && (bul.y-py).abs()<kPhoenixSize) {
           rem.add(bul);
-          if(_player.shieldActive){
-            _player.shieldActive=false;hapticLight();
-            _spawnBurst(px,py,cShield,8);_addFloat(px,py-20,'ESCUDO!',cShield);
+          if (_player.shieldActive) {
+            _player.shieldActive=false; hapticLight(); _audio.playShieldHit();
+            _spawnBurst(px,py,cShield,8); _addFloat(px,py-20,'ESCUDO!',cShield);
           } else {
             _res.energy-=bul.fromBoss?11:13;
-            _res.applyDamageHeat(bul.fromBoss?0.045:0.06);
-            _coreTemp+=bul.fromBoss?0.032:0.042;
-            hapticMedium();_spawnBurst(px,py,cDanger,8);_addFloat(px,py-20,'-E',cDanger);
+            _res.applyDamageHeat(bul.fromBoss?0.045:0.06); _coreTemp+=bul.fromBoss?0.032:0.042;
+            hapticMedium(); _spawnBurst(px,py,cDanger,8); _addFloat(px,py-20,'-E',cDanger);
           }
         }
-        final nx=_sw/2,ny=_sh*0.87;
-        if(_niFrame<=0&&(bul.x-nx).abs()<kNucleusR&&(bul.y-ny).abs()<kNucleusR){
-          rem.add(bul);_niFrame=kNucleusIFrame;
+        final nx=_sw/2, ny=_sh*0.87;
+        if (_niFrame<=0 && (bul.x-nx).abs()<kNucleusR && (bul.y-ny).abs()<kNucleusR) {
+          rem.add(bul); _niFrame=kNucleusIFrame;
           _res.applyDamageHeat(bul.fromBoss?kBossBulletDmg:kCoreHeatPerHit);
           _coreTemp+=bul.fromBoss?kBossBulletDmg:kCoreHeatPerHit;
-          hapticHeavy();_addFloat(nx,ny-20,'NÚCLEO!',cDanger);_spawnBurst(nx,ny,cDanger,6);
-        } else if(_niFrame>0&&(bul.x-nx).abs()<kNucleusR&&(bul.y-ny).abs()<kNucleusR){
-          rem.add(bul);_spawnBurst(bul.x,bul.y,cShield.withOpacity(0.5),4);
+          hapticHeavy(); _addFloat(nx,ny-20,'NÚCLEO!',cDanger); _spawnBurst(nx,ny,cDanger,6);
+        } else if (_niFrame>0 && (bul.x-nx).abs()<kNucleusR && (bul.y-ny).abs()<kNucleusR) {
+          rem.add(bul); _spawnBurst(bul.x,bul.y,cShield.withOpacity(0.5),4);
         }
       } else {
         bool hit=false;
-        for(final e in _enemies){
-          if(e.dead||hit)continue;
-          if((bul.x-e.x).abs()<kEnemyR&&(bul.y-e.y).abs()<kEnemyR){
-            rem.add(bul);hit=true;
+        for (final e in _enemies) {
+          if (e.dead||hit) continue;
+          if ((bul.x-e.x).abs()<kEnemyR && (bul.y-e.y).abs()<kEnemyR) {
+            rem.add(bul); hit=true;
             final dmg=_fr.active?bul.damage*1.6:bul.damage;
-            e.hp-=dmg;e.hitFlash=1.0;
-            if(e.hp<=0){e.dead=true;_score+=_eScore(e.kind);
-              _spawnBurst(e.x,e.y,_eColor(e.kind),16);_audio.playExplosion();
-              _addFloat(e.x,e.y-10,'+${_eScore(e.kind)}',cGold);}
+            e.hp-=dmg; e.hitFlash=1.0;
+            if (e.hp<=0) { e.dead=true; _score+=_eScore(e.kind);
+              _spawnBurst(e.x,e.y,_eColor(e.kind),16); _audio.playExplosion();
+              _addFloat(e.x,e.y-10,'+${_eScore(e.kind)}',cGold); }
           }
         }
-        if(!hit&&_bossAlive&&_boss!=null&&!_boss!.dead){
+        if (!hit && _bossAlive && _boss!=null && !_boss!.dead) {
           final bo=_boss!;
-          if((bul.x-bo.x).abs()<kBossR&&(bul.y-bo.y).abs()<kBossR){
+          if ((bul.x-bo.x).abs()<kBossR && (bul.y-bo.y).abs()<kBossR) {
             rem.add(bul);
             final dmg=_fr.active?bul.damage*1.5:bul.damage;
-            if(_stage.stageNum==4){
-              bo.repelMeter=(bo.repelMeter+dmg/800).clamp(0,1);_score+=5;
+            if (_stage.stageNum==4) {
+              bo.repelMeter=(bo.repelMeter+dmg/800).clamp(0,1); _score+=5;
             } else {
-              bo.hp-=dmg;bo.hitFlash=1.0;_score+=_fr.active?7:5;
-              if(bo.hp<=0){
-                bo.dead=true;_bossAlive=false;_score+=500+(_stage.stageNum-1)*200;
-                _spawnBurst(bo.x,bo.y,cGold,40);_spawnBurst(bo.x-30,bo.y+20,cFire,20);
-                _audio.playExplosion(isBoss:true);hapticHeavy();
+              bo.hp-=dmg; bo.hitFlash=1.0; _score+=_fr.active?7:5;
+              if (bo.hp<=0) {
+                bo.dead=true; _bossAlive=false; _score+=500+(_stage.stageNum-1)*200;
+                _spawnBurst(bo.x,bo.y,cGold,40); _spawnBurst(bo.x-30,bo.y+20,cFire,20);
+                _audio.playExplosion(isBoss:true); hapticHeavy();
                 _addFloat(bo.x,bo.y,'+${500+(_stage.stageNum-1)*200} BOSS!',cGold);
-                _phase.endBoss();_ai.analyze(_player.build,_stage.stageNum);
-                _audio.switchToAmbient();
-                if(_phase.cycleCount>=3)_stageClear();
+                _phase.endBoss(); _ai.analyze(_player.build,_stage.stageNum); _audio.switchToAmbient();
+                if (_phase.cycleCount>=3) _stageClear();
               }
             }
           }
@@ -1015,92 +1377,85 @@ class _GameState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _bullets.removeWhere((b)=>rem.contains(b));
   }
 
-  int   _eScore(EnemyKind k)=>switch(k){EnemyKind.interceptor=>100,EnemyKind.frigate=>150,EnemyKind.parasite=>200,EnemyKind.corrupter=>175};
-  Color _eColor(EnemyKind k)=>switch(k){EnemyKind.interceptor=>cWarlord,EnemyKind.frigate=>cGreen,EnemyKind.parasite=>cShield,EnemyKind.corrupter=>const Color(0xFFFF6600)};
+  int   _eScore(EnemyKind k) => switch(k){EnemyKind.interceptor=>100,EnemyKind.frigate=>150,EnemyKind.parasite=>200,EnemyKind.corrupter=>175};
+  Color _eColor(EnemyKind k) => switch(k){EnemyKind.interceptor=>cWarlord,EnemyKind.frigate=>cGreen,EnemyKind.parasite=>cShield,EnemyKind.corrupter=>const Color(0xFFFF6600)};
 
-  void _triggerDec(){_ai.analyze(_player.build,_stage.stageNum);_opts=_buildOpts();_showDec=true;}
-  void _triggerBoss(){
+  void _triggerDec() { _ai.analyze(_player.build,_stage.stageNum); _opts=_buildOpts(); _showDec=true; }
+  void _triggerBoss() {
     _enemies.clear();
     _boss=Boss(x:_sw/2,y:_sh*0.16,hp:_stage.bossHpBase+_phase.cycleCount*_stage.bossHpPerCycle);
-    _bossAlive=true;_audio.switchToBoss();
-    if(_stage.hazard==StageHazard.gravityTimer){_gravActive=true;_gravTimer=75.0;}
+    _bossAlive=true; _audio.switchToBoss();
+    if (_stage.hazard==StageHazard.gravityTimer) { _gravActive=true; _gravTimer=75.0; }
     _addFloat(_sw/2,_sh*0.3,'⚠ ${_stage.bossName}',_stage.bossColor);
   }
-  void _stageClear(){_audio.stopAlarm();widget.onStageClear(_score,_player.build);}
-  void _beginFrost(){if(_frosting||_quenching)return;_frosting=true;_coreTemp=1.0;_audio.stopAlarm();}
-  void _quenchExp(){
-    for(int i=0;i<80;i++){final a=_rng.nextDouble()*pi*2;final s=100+_rng.nextDouble()*320;
+  void _stageClear() { _audio.stopAlarm(); widget.onStageClear(_score,_player.build); }
+  void _beginFrost() { if(_frosting||_quenching) return; _frosting=true; _coreTemp=1.0; _audio.stopAlarm(); }
+  void _quenchExp() {
+    for (int i=0;i<80;i++) { final a=_rng.nextDouble()*pi*2; final s=100+_rng.nextDouble()*320;
       _particles.add(Particle(x:_sw/2,y:_sh*0.87,vx:cos(a)*s,vy:sin(a)*s,
-          life:1.2+_rng.nextDouble(),color:_rng.nextBool()?cFire:cIce,size:5+_rng.nextDouble()*12));}
+          life:1.2+_rng.nextDouble(),color:_rng.nextBool()?cFire:cIce,size:5+_rng.nextDouble()*12)); }
   }
-  void _spawnFrost(){
-    if(_rng.nextDouble()>0.3)return;
-    final a=_rng.nextDouble()*pi*2;final r=kNucleusR+_rng.nextDouble()*60;
+  void _spawnFrost() {
+    if (_rng.nextDouble()>0.3) return;
+    final a=_rng.nextDouble()*pi*2; final r=kNucleusR+_rng.nextDouble()*60;
     _particles.add(Particle(x:_sw/2+cos(a)*r,y:_sh*0.87+sin(a)*r,
-        vx:cos(a+pi)*40,vy:sin(a+pi)*40,
-        life:0.8+_rng.nextDouble()*0.6,color:cFrost,size:3+_rng.nextDouble()*6,isFrost:true));
+        vx:cos(a+pi)*40,vy:sin(a+pi)*40,life:0.8+_rng.nextDouble()*0.6,color:cFrost,size:3+_rng.nextDouble()*6,isFrost:true));
   }
-
-  void _selectUpg(UpgradeOption o){
-    o.apply(_player.build);
-    _res.energy=(_res.energy+20).clamp(0,_player.build.maxEnergy);
-    _showDec=false;_phase.endDecision();
-    if(!_bossAlive&&_phase.cycleCount>=3)_stageClear();
+  void _selectUpg(UpgradeOption o) {
+    o.apply(_player.build); _res.energy=(_res.energy+20).clamp(0,_player.build.maxEnergy);
+    _showDec=false; _phase.endDecision();
+    if (!_bossAlive && _phase.cycleCount>=3) _stageClear();
   }
-
-  List<UpgradeOption> _buildOpts(){
+  List<UpgradeOption> _buildOpts() {
     final all=[
       UpgradeOption(title:'Plasma Overload',   description:'+40% daño',              emoji:'🔥',color:cFire,  apply:(b)=>b.damage*=1.4),
       UpgradeOption(title:'Cryo Stabilizer',   description:'Enfriamiento +60%',      emoji:'❄️',color:cIce,   apply:(b)=>b.cooling*=1.6),
-      UpgradeOption(title:'Void Pulse',        description:'Cadencia +20%',          emoji:'⚡',color:cGold,  apply:(b)=>b.fireRate=(b.fireRate*1.2).clamp(1,1.8)),
+      UpgradeOption(title:'Void Pulse',        description:'Cadencia +20%',          emoji:'⚡',color:cGold,  apply:(b)=>b.fireRate=(b.fireRate*1.2).clamp(1,2.0)),
       UpgradeOption(title:'Energy Core Expand',description:'Energía máxima +25',     emoji:'💙',color:cIce,   apply:(b)=>b.maxEnergy+=25),
       UpgradeOption(title:'Entropy Shield',    description:'Escudo 10 segundos',     emoji:'🛡️',color:cShield,apply:(b){b.shieldEfficiency+=0.4;}),
-      UpgradeOption(title:'Triple Cannon',     description:'Disparo triple perm.',   emoji:'💥',color:cFire,  apply:(b){b.hasTripleShot=true;b.fireRate=(b.fireRate*1.05).clamp(1,1.8);}),
+      UpgradeOption(title:'Triple Cannon',     description:'Disparo triple perm.',   emoji:'💥',color:cFire,  apply:(b){b.hasTripleShot=true;b.fireRate=(b.fireRate*1.1).clamp(1,2.0);}),
       UpgradeOption(title:'Core Armor',        description:'Blindaje del núcleo',    emoji:'🔮',color:cShield,apply:(b)=>b.modules.add('core_armor')),
-      UpgradeOption(title:'Phoenix Overdrive', description:'+20% daño, +10% cadencia',emoji:'🦅',color:cGold,apply:(b){b.damage*=1.2;b.fireRate=(b.fireRate*1.1).clamp(1,1.8);}),
+      UpgradeOption(title:'Phoenix Overdrive', description:'+20% daño,+10% cadencia',emoji:'🦅',color:cGold, apply:(b){b.damage*=1.2;b.fireRate=(b.fireRate*1.1).clamp(1,2.0);}),
     ];
-    all.shuffle(_rng);return all.take(3).toList();
+    all.shuffle(_rng); return all.take(3).toList();
+  }
+  void _spawnBurst(double x,double y,Color c,int n) {
+    for(int i=0;i<n;i++) { final a=_rng.nextDouble()*pi*2; final s=40+_rng.nextDouble()*200;
+      _particles.add(Particle(x:x,y:y,vx:cos(a)*s,vy:sin(a)*s,life:0.3+_rng.nextDouble()*0.6,color:c,size:2+_rng.nextDouble()*6)); }
+  }
+  void _addFloat(double x,double y,String t,Color c) => _floats.add(FloatingText(x,y,t,c));
+  void _updateParticles(double dt) {
+    for (final p in _particles) { p.x+=p.vx*dt; p.y+=p.vy*dt; if(!p.isFrost)p.vy+=40*dt; p.life-=dt; }
+    _particles.removeWhere((p)=>p.life<=0);
+  }
+  void _updateFloats(double dt) {
+    for (final f in _floats) { f.y-=55*dt; f.life-=dt*1.5; }
+    _floats.removeWhere((f)=>f.life<=0);
   }
 
-  void _spawnBurst(double x,double y,Color c,int n){
-    for(int i=0;i<n;i++){final a=_rng.nextDouble()*pi*2;final s=40+_rng.nextDouble()*200;
-      _particles.add(Particle(x:x,y:y,vx:cos(a)*s,vy:sin(a)*s,
-          life:0.3+_rng.nextDouble()*0.6,color:c,size:2+_rng.nextDouble()*6));}
-  }
-  void _addFloat(double x,double y,String t,Color c)=>_floats.add(FloatingText(x,y,t,c));
-  void _updateParticles(double dt){
-    for(final p in _particles){p.x+=p.vx*dt;p.y+=p.vy*dt;if(!p.isFrost)p.vy+=40*dt;p.life-=dt;}
-    _particles.removeWhere((p)=>p.life<=0);}
-  void _updateFloats(double dt){
-    for(final f in _floats){f.y-=55*dt;f.life-=dt*1.5;}
-    _floats.removeWhere((f)=>f.life<=0);}
+  void _onPS(DragStartDetails d)  { _touching=true;  _touchX=d.localPosition.dx; }
+  void _onPU(DragUpdateDetails d) { _touchX=d.localPosition.dx; }
+  void _onPE(DragEndDetails _)    { _touching=false; }
+  void _onTD(TapDownDetails d)    { _touching=true;  _touchX=d.localPosition.dx; }
+  void _onTU(TapUpDetails _)      { _touching=false; }
+  void _onTap(bool mg) { if(mg&&_mg.ready)_mg.consume(); else if(!mg&&_fr.ready)_fr.consume(); }
 
-  void _onPS(DragStartDetails d){_touching=true;_touchX=d.localPosition.dx;}
-  void _onPU(DragUpdateDetails d){_touchX=d.localPosition.dx;}
-  void _onPE(DragEndDetails _){_touching=false;}
-  void _onTD(TapDownDetails d){_touching=true;_touchX=d.localPosition.dx;}
-  void _onTU(TapUpDetails _){_touching=false;}
-  void _onTap(bool mg){if(mg&&_mg.ready)_mg.consume();else if(!mg&&_fr.ready)_fr.consume();}
-
-  @override Widget build(BuildContext ctx){
-    final sz=MediaQuery.of(ctx).size;_sw=sz.width;_sh=sz.height;
+  @override Widget build(BuildContext ctx) {
+    final sz=MediaQuery.of(ctx).size; _sw=sz.width; _sh=sz.height;
     final lc=Color.lerp(cIce,cGold,(_player.build.fireRate-1.0).clamp(0,1))!;
     final isTriple=_player.build.hasTripleShot||_player.build.fireRate>=1.8;
     return Scaffold(backgroundColor:cBg,
       body:Stack(children:[
-        GestureDetector(onPanStart:_onPS,onPanUpdate:_onPU,onPanEnd:_onPE,
-          onTapDown:_onTD,onTapUp:_onTU,
-          child:CustomPaint(painter:GamePainter(
-              sw:_sw,sh:_sh,player:_player,enemies:_enemies,bullets:_bullets,
-              powerUps:_powerUps,boss:_bossAlive?_boss:null,
+        GestureDetector(onPanStart:_onPS,onPanUpdate:_onPU,onPanEnd:_onPE,onTapDown:_onTD,onTapUp:_onTU,
+          child:CustomPaint(painter:GamePainter(sw:_sw,sh:_sh,player:_player,enemies:_enemies,
+              bullets:_bullets,powerUps:_powerUps,boss:_bossAlive?_boss:null,
               particles:_particles,floats:_floats,score:_score,res:_res,phase:_phase,
               coreTemp:_coreTemp,corePulse:_pulse,laserColor:lc,isTriple:isTriple,
               frosting:_frosting,frostT:_frostT,quenching:_quenching,quenchT:_quenchT,
               touching:_touching,sprites:_spr,nucleusIFrame:_niFrame,
               freezeActive:_fr.active,machineGunActive:_mg.active,
               stageNum:_stage.stageNum,bossColor:_stage.bossColor,
-              asteroids:_asteroids,
-              gravityTimer:_stage.hazard==StageHazard.gravityTimer&&_gravActive?_gravTimer:-1,
+              asteroids:_asteroids,gravityTimer:_gravActive?_gravTimer:-1,
               portalGrow:_stage.hazard==StageHazard.mirrorPortal?_portal:-1,
               mirrorVictory:_mirrorWin,mirrorVictoryT:_mirrorT,
               repelMeter:_boss?.repelMeter??0,stageName:_stage.name),
@@ -1115,9 +1470,7 @@ class _GameState extends State<GameScreen> with SingleTickerProviderStateMixin {
         if(isTriple)Positioned(bottom:_sh*0.14,right:20,child:_GlowText('💥 TRIPLE',color:cGold,size:11)),
         if(_mg.active)Positioned(bottom:_sh*0.16,left:20,child:_GlowText('⚡ RÁFAGA ${_mg.activeTimer.toStringAsFixed(1)}s',color:cGold,size:11)),
         if(_fr.active)Positioned(bottom:_sh*0.18,left:20,child:_GlowText('❄ FREEZE ${_fr.activeTimer.toStringAsFixed(1)}s',color:cIce,size:11)),
-        if(_gravWarn&&_stage.hazard==StageHazard.gravityTimer)
-          Positioned(top:_sh*0.3,left:0,right:0,
-              child:Center(child:_GlowText('⚠ GRAVEDAD: ${_gravTimer.toInt()}s',color:cDanger,size:16))),
+        if(_gravWarn)Positioned(top:_sh*0.3,left:0,right:0,child:Center(child:_GlowText('⚠ GRAVEDAD: ${_gravTimer.toInt()}s',color:cDanger,size:16))),
         if(_stage.stageNum==4&&_bossAlive&&_boss!=null)
           Positioned(bottom:_sh*0.22,left:20,right:20,child:Column(children:[
             _GlowText('REPELER PORTAL ${(_boss!.repelMeter*100).toInt()}%',color:cRed,size:12),
@@ -1126,12 +1479,6 @@ class _GameState extends State<GameScreen> with SingleTickerProviderStateMixin {
                 value:_boss!.repelMeter,backgroundColor:Colors.white12,
                 valueColor:AlwaysStoppedAnimation(cRed),minHeight:8)),
           ])),
-        // HEAT WARNING overlay when shooting is penalized
-        if(_res.heatFrac>=kHeatPenaltyThreshold)
-          Positioned(bottom:_sh*0.10,left:0,right:0,
-              child:Center(child:_GlowText(
-                  '🔥 SOBRECALENTAMIENTO — CADENCIA REDUCIDA',
-                  color:cFire.withOpacity(0.6+(_res.heatFrac-0.7)*1.5),size:9))),
       ]));
   }
 }
@@ -1141,55 +1488,51 @@ class GamePainter extends CustomPainter {
   final double sw,sh,coreTemp,corePulse,frostT,quenchT,nucleusIFrame;
   final double gravityTimer,portalGrow,mirrorVictoryT,repelMeter;
   final bool frosting,quenching,touching,isTriple,freezeActive,machineGunActive,mirrorVictory;
-  final Color laserColor,bossColor;
-  final int stageNum;final String stageName;
+  final Color laserColor,bossColor; final int stageNum; final String stageName;
   final Player player;
-  final List<Enemy> enemies;final List<Bullet> bullets;final List<PowerUp> powerUps;
-  final List<Asteroid> asteroids;final Boss? boss;
-  final List<Particle> particles;final List<FloatingText> floats;
-  final int score;final ResourceSystem res;final PhaseEngine phase;final SpriteCache sprites;
+  final List<Enemy> enemies; final List<Bullet> bullets; final List<PowerUp> powerUps;
+  final List<Asteroid> asteroids; final Boss? boss;
+  final List<Particle> particles; final List<FloatingText> floats;
+  final int score; final ResourceSystem res; final PhaseEngine phase; final SpriteCache sprites;
 
   const GamePainter({
-    required this.sw,required this.sh,required this.player,
-    required this.enemies,required this.bullets,required this.powerUps,
-    required this.boss,required this.particles,required this.floats,
-    required this.score,required this.res,required this.phase,
-    required this.coreTemp,required this.corePulse,required this.laserColor,
-    required this.isTriple,required this.frosting,required this.frostT,
-    required this.quenching,required this.quenchT,required this.touching,
-    required this.sprites,required this.nucleusIFrame,
-    required this.freezeActive,required this.machineGunActive,
-    required this.stageNum,required this.bossColor,required this.asteroids,
-    required this.gravityTimer,required this.portalGrow,
-    required this.mirrorVictory,required this.mirrorVictoryT,required this.repelMeter,
-    required this.stageName,
+    required this.sw,required this.sh,required this.player,required this.enemies,
+    required this.bullets,required this.powerUps,required this.boss,required this.particles,
+    required this.floats,required this.score,required this.res,required this.phase,
+    required this.coreTemp,required this.corePulse,required this.laserColor,required this.isTriple,
+    required this.frosting,required this.frostT,required this.quenching,required this.quenchT,
+    required this.touching,required this.sprites,required this.nucleusIFrame,
+    required this.freezeActive,required this.machineGunActive,required this.stageNum,
+    required this.bossColor,required this.asteroids,required this.gravityTimer,
+    required this.portalGrow,required this.mirrorVictory,required this.mirrorVictoryT,
+    required this.repelMeter,required this.stageName,
   });
 
-  @override void paint(Canvas canvas,Size size){
-    _bg(canvas);if(portalGrow>0)_drawPortal(canvas);
-    _drawNucleus(canvas);_drawPowerUps(canvas);_drawAsteroids(canvas);
-    _drawEnemies(canvas);if(boss!=null)_drawBoss(canvas,boss!);
-    _drawBullets(canvas);_drawPhoenix(canvas);
-    _drawParticles(canvas);_drawFloats(canvas);_drawHUD(canvas);
-    if(frosting)_drawFrost(canvas);if(quenching)_drawQuench(canvas);
+  @override void paint(Canvas canvas,Size size) {
+    _bg(canvas); if(portalGrow>0)_portal(canvas);
+    _drawNucleus(canvas); _drawPowerUps(canvas); _drawAsteroids(canvas);
+    _drawEnemies(canvas); if(boss!=null)_drawBoss(canvas,boss!);
+    _drawBullets(canvas); _drawPhoenix(canvas);
+    _drawParticles(canvas); _drawFloats(canvas); _drawHUD(canvas);
+    if(frosting)_drawFrost(canvas); if(quenching)_drawQuench(canvas);
     if(mirrorVictory)_drawMirrorWin(canvas);
   }
 
-  void _bg(Canvas canvas){
+  void _bg(Canvas canvas) {
     final sa=switch(stageNum){2=>const Color(0xFF001A00),3=>const Color(0xFF0A001A),4=>const Color(0xFF1A0000),_=>const Color(0xFF001022)};
     final danger=coreTemp>0.5?Color.lerp(sa,const Color(0xFF200008),(coreTemp-0.5)*2)!:sa;
     canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..shader=LinearGradient(
         begin:Alignment.topCenter,end:Alignment.bottomCenter,
         colors:[const Color(0xFF000814),sa,danger]).createShader(Rect.fromLTWH(0,0,sw,sh)));
-    final rng=Random(77+stageNum);final sp=Paint()..color=Colors.white.withOpacity(0.5);
+    final rng=Random(77+stageNum); final sp=Paint()..color=Colors.white.withOpacity(0.5);
     for(int i=0;i<70;i++)canvas.drawCircle(Offset(rng.nextDouble()*sw,rng.nextDouble()*sh),rng.nextDouble()*1.3,sp);
     if(res.entropyFrac>0.4)canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
         Paint()..color=const Color(0xFF330044).withOpacity(res.entropyFrac*0.25)..maskFilter=const MaskFilter.blur(BlurStyle.normal,60));
-    _txt(canvas,'STAGE $stageNum',Offset(sw-12,sh*0.06+20),Colors.white24,9,right:true);
+    _txt(canvas,'STAGE $stageNum',Offset(sw-12,72),Colors.white24,9,right:true);
   }
 
-  void _drawPortal(Canvas canvas){
-    final cx=sw/2,cy=sh*0.25;final pg=portalGrow.clamp(0.0,1.0);final r=60+pg*120;
+  void _portal(Canvas canvas) {
+    final cx=sw/2,cy=sh*0.25; final pg=portalGrow.clamp(0.0,1.0); final r=60+pg*120;
     for(int i=8;i>=1;i--)canvas.drawCircle(Offset(cx,cy),r*i*0.12,
         Paint()..color=cRed.withOpacity(pg*0.06*i)..maskFilter=const MaskFilter.blur(BlurStyle.normal,20));
     canvas.drawCircle(Offset(cx,cy),r,Paint()..color=const Color(0xFF1A0000).withOpacity(pg*0.8));
@@ -1197,23 +1540,23 @@ class GamePainter extends CustomPainter {
     if(pg>0.5)_txt(canvas,'PORTAL DIMENSIONAL',Offset(cx,cy),cRed.withOpacity(pg),11);
   }
 
-  void _drawAsteroids(Canvas canvas){
-    for(final a in asteroids){
+  void _drawAsteroids(Canvas canvas) {
+    for(final a in asteroids) {
       if(a.dead)continue;
       canvas.save();canvas.translate(a.x,a.y);canvas.rotate(a.angle);
-      final paint=Paint()..color=const Color(0xFF666655);
       final path=Path();
       for(int i=0;i<8;i++){final ang=i*pi/4;final r2=a.r*(0.7+0.3*(i%2==0?1:0.6));
         if(i==0)path.moveTo(cos(ang)*r2,sin(ang)*r2);else path.lineTo(cos(ang)*r2,sin(ang)*r2);}
-      path.close();canvas.drawPath(path,paint);
-      canvas.drawPath(path,Paint()..color=const Color(0xFF888877)..style=PaintingStyle.stroke..strokeWidth=1.5);
+      path.close();
+      canvas.drawPath(path,Paint()..color=const Color(0xFF665544));
+      canvas.drawPath(path,Paint()..color=const Color(0xFF887766)..style=PaintingStyle.stroke..strokeWidth=1.5);
       canvas.restore();
     }
   }
 
-  void _drawNucleus(Canvas canvas){
+  void _drawNucleus(Canvas canvas) {
     final cx=sw/2,cy=sh*0.87;
-    final tc=Color.lerp(cIce,cDanger,coreTemp)!;final pulse=kNucleusR+corePulse*5;
+    final tc=Color.lerp(cIce,cDanger,coreTemp)!; final pulse=kNucleusR+corePulse*5;
     if(nucleusIFrame>0)canvas.drawCircle(Offset(cx,cy),pulse+10,
         Paint()..color=cShield.withOpacity(0.35)..maskFilter=const MaskFilter.blur(BlurStyle.normal,15));
     for(int i=4;i>=1;i--)canvas.drawCircle(Offset(cx,cy),pulse+i*12,
@@ -1268,6 +1611,7 @@ class GamePainter extends CustomPainter {
     if(machineGunActive)canvas.drawCircle(Offset(px,py),kPhoenixSize*1.1,Paint()..color=cGold.withOpacity(0.3)..maskFilter=const MaskFilter.blur(BlurStyle.normal,10));
     if(sprites.loaded&&sprites.player!=null){
       drawSprite(canvas,sprites.player!,Offset(px,py),kPhoenixSize*2.4);return;}
+    // Fallback
     canvas.drawCircle(Offset(px,py+kPhoenixSize*0.55),kPhoenixSize*0.35,
         Paint()..color=cFire.withOpacity(touching?0.85:0.3)..maskFilter=const MaskFilter.blur(BlurStyle.normal,12));
     final bp=Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
@@ -1290,14 +1634,12 @@ class GamePainter extends CustomPainter {
       final base=_eColor(e.kind);final c=e.hitFlash>0?Color.lerp(base,Colors.white,e.hitFlash)!:base;
       canvas.drawCircle(Offset(e.x,e.y),kEnemyR*1.45,Paint()..color=c.withOpacity(0.18)..maskFilter=const MaskFilter.blur(BlurStyle.normal,10));
       final img=sprites.enemyImg(e.kind);
-      if(sprites.loaded&&img!=null){
-        drawSprite(canvas,img,Offset(e.x,e.y),kEnemyR*2.4,flash:e.hitFlash);
-      }else{_eFallback(canvas,e,c);}
+      if(sprites.loaded&&img!=null){drawSprite(canvas,img,Offset(e.x,e.y),kEnemyR*2.4,flash:e.hitFlash);}
+      else{_eFallback(canvas,e,c);}
       if(e.maxHp>20){
         final bw=kEnemyR*2;final frac=(e.hp/e.maxHp).clamp(0.0,1.0);
         canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(e.x-bw/2,e.y-kEnemyR-8,bw,3),const Radius.circular(2)),Paint()..color=Colors.white24);
-        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(e.x-bw/2,e.y-kEnemyR-8,bw*frac,3),const Radius.circular(2)),Paint()..color=c);
-      }
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(e.x-bw/2,e.y-kEnemyR-8,bw*frac,3),const Radius.circular(2)),Paint()..color=c);}
     }
   }
   void _eFallback(Canvas canvas,Enemy e,Color c){
@@ -1323,15 +1665,12 @@ class GamePainter extends CustomPainter {
   void _drawBoss(Canvas canvas,Boss b){
     final isCharging=b.state==BossState.charging;
     if(isCharging){
-      canvas.drawCircle(Offset(b.x,b.y),kBossR*2.2,
-          Paint()..color=bossColor.withOpacity(b.chargeGlow*0.35)..maskFilter=const MaskFilter.blur(BlurStyle.normal,30));
+      canvas.drawCircle(Offset(b.x,b.y),kBossR*2.2,Paint()..color=bossColor.withOpacity(b.chargeGlow*0.35)..maskFilter=const MaskFilter.blur(BlurStyle.normal,30));
       for(int i=1;i<=3;i++)canvas.drawCircle(Offset(b.x,b.y),kBossR*(1.0+i*0.4*b.chargeGlow),
-          Paint()..color=bossColor.withOpacity((1-b.chargeGlow)*0.3/(i*0.8))..style=PaintingStyle.stroke..strokeWidth=1.5);
-    }
+          Paint()..color=bossColor.withOpacity((1-b.chargeGlow)*0.3/(i*0.8))..style=PaintingStyle.stroke..strokeWidth=1.5);}
     final img=sprites.bossImg(stageNum);
-    if(sprites.loaded&&img!=null){
-      drawSprite(canvas,img,Offset(b.x,b.y),kBossR*2.4,flash:b.hitFlash);
-    } else {
+    if(sprites.loaded&&img!=null){drawSprite(canvas,img,Offset(b.x,b.y),kBossR*2.4,flash:b.hitFlash);}
+    else{
       final c=b.hitFlash>0?Color.lerp(bossColor,Colors.white,b.hitFlash)!:bossColor;
       canvas.drawCircle(Offset(b.x,b.y),kBossR*1.8,Paint()..color=c.withOpacity(0.12)..maskFilter=const MaskFilter.blur(BlurStyle.normal,30));
       final path=Path();for(int i=0;i<6;i++){final a=i*pi/3+b.animT*0.15;if(i==0)path.moveTo(b.x+cos(a)*kBossR,b.y+sin(a)*kBossR);else path.lineTo(b.x+cos(a)*kBossR,b.y+sin(a)*kBossR);}
@@ -1392,17 +1731,14 @@ class GamePainter extends CustomPainter {
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx,66,bw*phase.combatProgress,3),const Radius.circular(2)),Paint()..color=cIce);
     _vBar(canvas,14,sh*0.35,10,sh*0.32,res.energyFrac,cIce,'ENERGÍA');
     _vBar(canvas,sw-60,sh*0.35,10,sh*0.32,res.heatFrac,Color.lerp(cGold,cDanger,res.heatFrac)!,'HEAT');
-    // Heat penalty indicator on the heat bar
-    if(res.heatFrac>=kHeatPenaltyThreshold){
-      final penaltyY=sh*0.35+sh*0.32*(1-kHeatPenaltyThreshold);
-      canvas.drawLine(Offset(sw-64,penaltyY),Offset(sw-52,penaltyY),
-          Paint()..color=cDanger..strokeWidth=2);
-    }
+    // Línea de umbral de penalización en barra HEAT
+    final penY=sh*0.35+sh*0.32*(1-kHeatPenalty);
+    canvas.drawLine(Offset(sw-64,penY),Offset(sw-52,penY),Paint()..color=cDanger.withOpacity(0.6)..strokeWidth=2);
+    if(gravityTimer>0)_txt(canvas,'⏱ ${gravityTimer.toInt()}s',Offset(sw-12,84),cDanger,11,right:true);
     if(res.entropyFrac>0.3)_txt(canvas,'ENTROPÍA ${(res.entropyFrac*100).toInt()}%',Offset(sw/2,sh-28),cShield.withOpacity(res.entropyFrac),10);
     _txt(canvas,'DMG ${player.build.damage.toStringAsFixed(0)}  SPD ${player.build.fireRate.toStringAsFixed(1)}  COOL ${player.build.cooling.toStringAsFixed(1)}',Offset(sw/2,sh-14),Colors.white24,9);
     if(coreTemp>0.75)_txt(canvas,'⚠  QUENCH INMINENTE  ⚠',Offset(sw/2,sh*0.48),cDanger,15);
-    if(res.overheating)_txt(canvas,'SOBRECALENTAMIENTO',Offset(sw/2,sh*0.53),cFire.withOpacity(0.85),11);
-    if(gravityTimer>0)_txt(canvas,'⏱ GRAVEDAD: ${gravityTimer.toInt()}s',Offset(sw-12,72),cDanger,10,right:true);
+    if(res.overheating)_txt(canvas,'🔥 SOBRECALENTAMIENTO',Offset(sw/2,sh*0.53),cFire.withOpacity(0.85),11);
   }
   void _vBar(Canvas canvas,double x,double y,double w,double h,double frac,Color c,String label){
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x,y,w,h),const Radius.circular(4)),Paint()..color=Colors.white12);
@@ -1438,11 +1774,9 @@ class GamePainter extends CustomPainter {
     _txt(canvas,'La puerta fue cerrada…',Offset(sw/2,sh*0.48),Colors.white.withOpacity(t),14);
     _txt(canvas,'por ahora.',Offset(sw/2,sh*0.54),cIce.withOpacity(t),18);
   }
-
   void _txt(Canvas canvas,String t,Offset pos,Color c,double sz,{bool left=false,bool right=false}){
-    final tp=TextPainter(text:TextSpan(text:t,style:TextStyle(color:c,fontSize:sz,
-        fontFamily:'Orbitron',fontWeight:FontWeight.bold,
-        shadows:[Shadow(color:c.withOpacity(0.5),blurRadius:8)])),
+    final tp=TextPainter(text:TextSpan(text:t,style:TextStyle(color:c,fontSize:sz,fontFamily:'Orbitron',
+        fontWeight:FontWeight.bold,shadows:[Shadow(color:c.withOpacity(0.5),blurRadius:8)])),
         textAlign:left?TextAlign.left:TextAlign.center,textDirection:TextDirection.ltr)..layout();
     final dx=right?pos.dx-tp.width:left?pos.dx:pos.dx-tp.width/2;
     tp.paint(canvas,Offset(dx,pos.dy-tp.height/2));
@@ -1452,7 +1786,7 @@ class GamePainter extends CustomPainter {
 
 // ── CHARGE RING ──────────────────────────────────────────
 class _ChargeRing extends StatelessWidget {
-  final ChargeIndicator indicator;final VoidCallback onTap;
+  final ChargeIndicator indicator; final VoidCallback onTap;
   const _ChargeRing({required this.indicator,required this.onTap});
   @override Widget build(BuildContext ctx){
     final c=indicator.color;final ready=indicator.ready&&!indicator.active;final active=indicator.active;
@@ -1506,21 +1840,21 @@ class _DecisionOverlay extends StatelessWidget {
 class MenuScreen extends StatefulWidget {
   final int best;final VoidCallback onStart;final SpriteCache sprites;
   const MenuScreen({super.key,required this.best,required this.onStart,required this.sprites});
-  @override State<MenuScreen> createState()=>_MenuState();
+  @override State<MenuScreen> createState()=>_MState();
 }
-class _MenuState extends State<MenuScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;late Animation<double> _pulse;
+class _MState extends State<MenuScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _c;late Animation<double> _p;
   @override void initState(){super.initState();
-    _ctrl=AnimationController(vsync:this,duration:const Duration(milliseconds:1400))..repeat(reverse:true);
-    _pulse=CurvedAnimation(parent:_ctrl,curve:Curves.easeInOut);}
-  @override void dispose(){_ctrl.dispose();super.dispose();}
+    _c=AnimationController(vsync:this,duration:const Duration(milliseconds:1400))..repeat(reverse:true);
+    _p=CurvedAnimation(parent:_c,curve:Curves.easeInOut);}
+  @override void dispose(){_c.dispose();super.dispose();}
   @override Widget build(BuildContext ctx)=>Scaffold(backgroundColor:cBg,
     body:SafeArea(child:Center(child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       _GlowText('PHOENIX CORE',color:cFire,size:38),const SizedBox(height:4),
       _GlowText('CRYO BALANCE  V4',color:cIce,size:16),const SizedBox(height:6),
       _GlowText('BEST: ${widget.best}',color:cGold,size:14),
       const SizedBox(height:32),_FleetLegend(sprites:widget.sprites),const SizedBox(height:32),
-      AnimatedBuilder(animation:_pulse,builder:(_,__)=>Transform.scale(scale:1+_pulse.value*0.05,
+      AnimatedBuilder(animation:_p,builder:(_,__)=>Transform.scale(scale:1+_p.value*0.05,
         child:GestureDetector(onTap:widget.onStart,child:Container(
           padding:const EdgeInsets.symmetric(horizontal:52,vertical:18),
           decoration:BoxDecoration(border:Border.all(color:cFire,width:2),borderRadius:BorderRadius.circular(10),
