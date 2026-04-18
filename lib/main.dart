@@ -665,7 +665,7 @@ class _DockPainter extends CustomPainter {
       final a = (p.life/p.maxLife).clamp(0.0,1.0);
       if (p.isSmoke) {
         canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size,
-            Paint()..color=p.color.withOpacity(a*0.4)..maskFilter=const MaskFilter.blur(BlurStyle.normal,p.size*0.8));
+            Paint()..color = p.color.withOpacity(a*0.4)..maskFilter = MaskFilter.blur(BlurStyle.normal, p.size*0.8);
       } else {
         canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size,
             Paint()..color=p.color.withOpacity(a)..maskFilter=const MaskFilter.blur(BlurStyle.normal,2));
@@ -681,7 +681,7 @@ class _DockPainter extends CustomPainter {
     tp.paint(canvas, Offset((sw-tp.width)/2, sh*0.08));
   }
 
-  final _rng = Random();
+  static final Random _rng = Random();
   @override bool shouldRepaint(covariant CustomPainter _) => true;
 }
 
