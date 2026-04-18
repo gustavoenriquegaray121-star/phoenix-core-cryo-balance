@@ -11,19 +11,38 @@ dependencies:
     sdk: flutter
   shared_preferences: ^2.2.2
   audioplayers: ^5.2.1
+  flutter_tts: ^3.8.5
 
 flutter:
   uses-material-design: true
 
   assets:
+    # ── SONIDOS DE COMBATE ──────────────────────────────
     - assets/sounds/laser.mp3
     - assets/sounds/laser_triple.mp3
     - assets/sounds/explosion.mp3
     - assets/sounds/explosion_jefe.mp3
+    - assets/sounds/explosion_meteorito.mp3
+
+    # ── SONIDOS DE ESCUDO ───────────────────────────────
+    - assets/sounds/cargando_shield.mp3
+    - assets/sounds/shiel_guarda.mp3
+
+    # ── MÚSICA ─────────────────────────────────────────
     - assets/sounds/musica_ambiente.mp3
     - assets/sounds/musica_jefe.mp3
+
+    # ── EFECTOS CRÍTICOS ────────────────────────────────
     - assets/sounds/quench.wav
 
+    # ── CINEMÁTICAS / DOCK ──────────────────────────────
+    - assets/sounds/space_ship_landing.mp3
+    - assets/sounds/steam.mp3
+    - assets/sounds/spark.mp3
+    - assets/sounds/cafeteria.mp3
+    - assets/sounds/intro_iniciando_mision.mp3
+
+    # ── IMÁGENES — INTRO / CINEMÁTICAS ─────────────────
     - assets/images/cafe1.jpg
     - assets/images/hangar1.jpg
     - assets/images/ship_close.jpg
@@ -31,31 +50,36 @@ flutter:
     - assets/images/cockpit.jpg
     - assets/images/battle.jpg
 
+    # ── SPRITES JUGADOR / ENEMIGOS ──────────────────────
     - assets/images/player.png
     - assets/images/enemy1.png
     - assets/images/enemy2.png
     - assets/images/enemy3.png
     - assets/images/enemy4.png
 
+    # ── BOSSES ─────────────────────────────────────────
     - assets/images/boss.png
     - assets/images/jefe2.png
     - assets/images/jefe3.png
     - assets/images/jefe4.png
 
+    # ── CINEMÁTICAS STAGE 2 (El Segador) ───────────────
     - assets/images/escena1jefe2.jpg
     - assets/images/escena2jefe2.jpg
     - assets/images/escena3jefe2.jpg
     - assets/images/escena4jefe2.jpg
 
+    # ── CINEMÁTICAS STAGE 3 (El Devorador) ─────────────
     - assets/images/escena1jefe3.jpg
     - assets/images/escena2jefe3.jpg
     - assets/images/escena3jefe3.jpg
     - assets/images/escena4jefe3.jpg
 
+    # ── CINEMÁTICAS STAGE 4 (Anti-Phoenix) ─────────────
     - assets/images/escena1jefe4.jpg
     - assets/images/escena2jefe4.jpg
     - assets/images/escena3jefe4.jpg
-    - assets/images/escena4jefe4.jpg   # 🔥 CORREGIDO AQUÍ
+    - assets/images/escena4jefe4.jpg
     - assets/images/escena5jefe4.jpg
 
   fonts:
