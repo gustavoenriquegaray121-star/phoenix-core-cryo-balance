@@ -466,6 +466,7 @@ class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMix
   final List<RobotArm> _arms = [];
   double _shakeX = 0, _shakeY = 0, _shakeIntensity = 0;
   double _t = 0;
+  double _sw = 390, _sh = 844; // valores default S21, se actualizan en build
   final _rng = Random();
   final _landing = AudioPlayer();
   final _steam   = AudioPlayer();
@@ -488,63 +489,64 @@ class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMix
   void _update() {
     final dt = 1/60.0;
     _t += dt;
-    // Shake decay
     _shakeIntensity *= 0.88;
     _shakeX = (_rng.nextDouble()-0.5)*_shakeIntensity;
     _shakeY = (_rng.nextDouble()-0.5)*_shakeIntensity;
+
+    // Tamaño de pantalla desde el context — usamos valores guardados
+    final sw2 = _sw; final sh2 = _sh;
+    final cx = sw2/2; // centro X de la pantalla
 
     if (!_landed) {
       _shipY += _shipSpeed * dt;
       _shipSpeed *= 0.978;
       _shipAngle = sin(_t*3)*0.04;
 
-      // Humo mientras cae
+      // Humo (coordenadas absolutas — cerca del motor de la nave)
       if (_rng.nextDouble() < 0.4) {
         _particles.add(Particle(
-          x: 200 + (_rng.nextDouble()-0.5)*30, y: _shipY + 55,
-          vx: (_rng.nextDouble()-0.5)*18, vy: -25-_rng.nextDouble()*20,
+          x: cx + (_rng.nextDouble()-0.5)*35, y: _shipY + 55,
+          vx: (_rng.nextDouble()-0.5)*22, vy: -30-_rng.nextDouble()*25,
           life: 1.4, color: Colors.grey.shade600, size: 8, isSmoke: true));
       }
-      // Chispas cuando va rápido
+      // Chispas
       if (_shipSpeed > 60 && _rng.nextDouble() < 0.5) {
         _particles.add(Particle(
-          x: 200 + (_rng.nextDouble()-0.5)*40, y: _shipY + 50,
-          vx: (_rng.nextDouble()-0.5)*120, vy: -_rng.nextDouble()*120,
+          x: cx + (_rng.nextDouble()-0.5)*50, y: _shipY + 48,
+          vx: (_rng.nextDouble()-0.5)*140, vy: -_rng.nextDouble()*140,
           life: 0.5, color: Colors.orangeAccent, size: 2.5));
       }
 
-      if (_shipY >= 280 && !_landed) {
-        _landed = true;
-        _shipY = 280;
-        _shakeIntensity = 14;
+      final landingY = sh2 * 0.58; // nave aterriza en 58% de la pantalla
+      if (_shipY >= landingY && !_landed) {
+        _landed = true; _shipY = landingY; _shakeIntensity = 16;
         // Explosión de chispas al aterrizar
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < 35; i++) {
           _particles.add(Particle(
-            x: 200 + (_rng.nextDouble()-0.5)*60, y: 300,
-            vx: (_rng.nextDouble()-0.5)*200, vy: -_rng.nextDouble()*200,
-            life: 0.8, color: _rng.nextBool() ? Colors.orangeAccent : Colors.white, size: 3));
+            x: cx + (_rng.nextDouble()-0.5)*80, y: landingY + 35,
+            vx: (_rng.nextDouble()-0.5)*240, vy: -_rng.nextDouble()*240,
+            life: 0.9, color: _rng.nextBool() ? Colors.orangeAccent : Colors.white, size: 3));
         }
         for (final a in _arms) a.activate();
         try { _steam.play(AssetSource('sounds/steam.mp3'), volume: 0.7); } catch (_) {}
         try { _spark.play(AssetSource('sounds/spark.mp3'), volume: 0.6); } catch (_) {}
         Future.delayed(const Duration(seconds: 3), () {
-          setState(() => _transition = true);
+          if (mounted) setState(() => _transition = true);
           try { _cafe.play(AssetSource('sounds/cafeteria.mp3'), volume: 0.5); } catch (_) {}
-          Future.delayed(const Duration(seconds: 2), widget.onFinish);
+          Future.delayed(const Duration(seconds: 2), () { if (mounted) widget.onFinish(); });
         });
       }
     }
 
     for (final a in _arms) a.update(dt);
-    // Actualizar partículas
     for (final p in _particles) {
       p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
       if (p.isSmoke) { p.size += 6*dt; p.vx *= 0.97; p.vy -= 8*dt; }
-      else p.vy += 120*dt;
+      else p.vy += 130*dt;
     }
     _particles.removeWhere((p) => p.life <= 0);
-    if (_transition) _transAlpha = (_transAlpha + dt*0.5).clamp(0, 1);
-    setState(() {});
+    if (_transition) _transAlpha = (_transAlpha + dt*0.5).clamp(0.0, 1.0);
+    if (mounted) setState(() {});
   }
 
   @override
@@ -557,12 +559,13 @@ class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext ctx) {
     final sz = MediaQuery.of(ctx).size;
+    _sw = sz.width; _sh = sz.height; // actualizar para que _update los use
     return Scaffold(
       backgroundColor: Colors.black,
       body: CustomPaint(
         painter: _DockPainter(
           sw: sz.width, sh: sz.height,
-          shipY: _shipY + sz.height*0.3, shipAngle: _shipAngle,
+          shipY: _shipY, shipAngle: _shipAngle,
           particles: _particles, arms: _arms,
           shakeX: _shakeX, shakeY: _shakeY,
           t: _t, landed: _landed, transAlpha: _transAlpha,
@@ -573,119 +576,152 @@ class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMix
   }
 }
 
+// _DockPainter — NO const, coordenadas absolutas correctas
 class _DockPainter extends CustomPainter {
   final double sw, sh, shipY, shipAngle, shakeX, shakeY, t, transAlpha;
   final bool landed;
   final List<Particle> particles;
   final List<RobotArm> arms;
-  const _DockPainter({required this.sw, required this.sh, required this.shipY,
+  // _rng va aquí fuera del CustomPainter const
+  static final _rng = Random();
+
+  _DockPainter({required this.sw, required this.sh, required this.shipY,
       required this.shipAngle, required this.particles, required this.arms,
       required this.shakeX, required this.shakeY, required this.t,
       required this.landed, required this.transAlpha});
 
   @override void paint(Canvas canvas, Size size) {
-    canvas.save();
-    canvas.translate(sw/2 + shakeX, shakeY);
+    // Fondo sin translate — coordenadas absolutas
     _drawBg(canvas);
+    // Camera shake translate para todo lo demás
+    canvas.save();
+    canvas.translate(shakeX, shakeY);
     _drawDock(canvas);
-    _drawShip(canvas);
     _drawParticles(canvas);
-    for (final a in arms) {
+    _drawShip(canvas);
+    // Brazos robóticos centrados en la nave
+    final armCenterX = sw/2;
+    final armY = shipY + 45;
+    for (int i=0; i<arms.length; i++) {
       canvas.save();
-      canvas.translate(sw/2 - 70 + arms.indexOf(a)*140, shipY + 50);
-      a.draw(canvas);
+      canvas.translate(armCenterX - 50 + i*100, armY);
+      arms[i].draw(canvas);
       canvas.restore();
     }
     canvas.restore();
+    // Fade de transición encima de todo
     if (transAlpha > 0) {
       canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
-          Paint()..color = Colors.black.withOpacity(transAlpha));
+          Paint()..color=Colors.black.withOpacity(transAlpha.clamp(0,1)));
     }
     _drawText(canvas);
   }
 
   void _drawBg(Canvas canvas) {
-    canvas.drawRect(Rect.fromLTWH(-sw/2,-sh,sw*2,sh*2),
+    canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
         Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
             colors:[const Color(0xFF000814),const Color(0xFF001A22),const Color(0xFF002233)])
-            .createShader(Rect.fromLTWH(-sw/2,-sh,sw*2,sh*2)));
-    final rng = Random(42); final sp = Paint()..color = Colors.white.withOpacity(0.6);
-    for (int i=0; i<60; i++) canvas.drawCircle(Offset((rng.nextDouble()-0.5)*sw,(rng.nextDouble()-0.5)*sh),rng.nextDouble()*1.2,sp);
+            .createShader(Rect.fromLTWH(0,0,sw,sh)));
+    final rng = Random(42);
+    final sp = Paint()..color=Colors.white.withOpacity(0.6);
+    for (int i=0; i<60; i++) {
+      canvas.drawCircle(Offset(rng.nextDouble()*sw, rng.nextDouble()*sh*0.55),
+          rng.nextDouble()*1.2, sp);
+    }
   }
 
   void _drawDock(Canvas canvas) {
-    // Plataforma
-    canvas.drawRect(Rect.fromLTWH(-sw/2, sh*0.3, sw*2, sh*0.8),
-        Paint()..color = Colors.grey.shade900);
-    // Líneas de hangar
-    final lp = Paint()..color = Colors.blueGrey.withOpacity(0.4)..strokeWidth = 1.5;
-    for (int i=0; i<8; i++) canvas.drawLine(Offset(-sw*0.4+i*sw*0.14,sh*0.3),Offset(-sw*0.4+i*sw*0.14,sh),lp);
-    // Luces de pista
-    final lip = Paint()..color = (landed?cGreen:cFire).withOpacity(0.8+sin(t*4)*0.2)..maskFilter=const MaskFilter.blur(BlurStyle.normal,6);
-    for (int i=0; i<6; i++) canvas.drawCircle(Offset(-sw*0.25+i*sw*0.1,sh*0.31),5,lip);
-    // Logo DOCK 7A
-    final tp = TextPainter(text:TextSpan(text:'DOCK 7A',style:TextStyle(color:Colors.white24,fontSize:11,fontFamily:'Orbitron',letterSpacing:2)),textDirection:TextDirection.ltr)..layout();
-    tp.paint(canvas, Offset(-tp.width/2, sh*0.33));
+    final dockY = sh * 0.62; // plataforma en 62% de la pantalla
+    // Plataforma del hangar
+    canvas.drawRect(Rect.fromLTWH(0, dockY, sw, sh-dockY),
+        Paint()..color=Colors.grey.shade900);
+    // Líneas verticales del hangar
+    final lp = Paint()..color=Colors.blueGrey.withOpacity(0.35)..strokeWidth=1.5;
+    for (int i=0; i<8; i++) {
+      canvas.drawLine(Offset(sw*0.05+i*sw*0.13, dockY),
+                      Offset(sw*0.05+i*sw*0.13, sh), lp);
+    }
+    // Luces de pista (encima del dock)
+    final lightColor = landed ? cGreen : cFire;
+    final lightPaint = Paint()
+      ..color=lightColor.withOpacity(0.85+sin(t*4)*0.15)
+      ..maskFilter=const MaskFilter.blur(BlurStyle.normal, 8);
+    for (int i=0; i<6; i++) {
+      canvas.drawCircle(Offset(sw*0.1+i*sw*0.16, dockY+8), 6, lightPaint);
+    }
+    // Texto DOCK 7A
+    final tp = TextPainter(text:TextSpan(text:'DOCK 7A',
+        style:const TextStyle(color:Colors.white24,fontSize:11,fontFamily:'Orbitron',letterSpacing:2)),
+        textDirection:TextDirection.ltr)..layout();
+    tp.paint(canvas, Offset((sw-tp.width)/2, dockY+22));
+    // Línea horizontal de la plataforma
+    canvas.drawLine(Offset(0, dockY), Offset(sw, dockY),
+        Paint()..color=Colors.blueGrey.withOpacity(0.5)..strokeWidth=2);
   }
 
   void _drawShip(Canvas canvas) {
+    // shipY va de ~-150 hasta ~sh*0.55 (aterriza en el dock)
+    final cx = sw/2;
+    final cy = shipY; // coordenada absoluta Y de la nave
     canvas.save();
-    canvas.translate(0, shipY - sh*0.3);
+    canvas.translate(cx, cy);
     canvas.rotate(shipAngle);
-    // Glow de motores
-    canvas.drawOval(Rect.fromCenter(center:Offset(0,42),width:90,height:20),
-        Paint()..color=cFire.withOpacity(0.15+sin(t*8)*0.08)..maskFilter=const MaskFilter.blur(BlurStyle.normal,18));
-    // Cuerpo de nave (fallback simple pero convincente)
-    final body = Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
-        colors:[Colors.blueGrey.shade300,Colors.blueGrey.shade700]).createShader(Rect.fromCenter(center:Offset.zero,width:80,height:100));
+    // Glow de motores (debajo de la nave)
+    canvas.drawOval(Rect.fromCenter(center:const Offset(0,45),width:100,height:22),
+        Paint()..color=cFire.withOpacity(0.2+sin(t*8)*0.08)
+          ..maskFilter=const MaskFilter.blur(BlurStyle.normal,18));
+    // Cuerpo principal
+    final bodyPaint = Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
+        colors:[Colors.blueGrey.shade300,Colors.blueGrey.shade700])
+        .createShader(Rect.fromCenter(center:Offset.zero,width:80,height:100));
     canvas.drawPath(Path()
-      ..moveTo(0,-50)..lineTo(18,20)..lineTo(0,35)..lineTo(-18,20)..close(), body);
+      ..moveTo(0,-52)..lineTo(20,22)..lineTo(0,38)..lineTo(-20,22)..close(), bodyPaint);
     // Alas
-    canvas.drawPath(Path()..moveTo(-18,10)..lineTo(-55,30)..lineTo(-35,40)..lineTo(-18,25)..close(),
+    canvas.drawPath(Path()..moveTo(-20,8)..lineTo(-62,28)..lineTo(-40,42)..lineTo(-20,28)..close(),
         Paint()..color=Colors.blueGrey.shade600);
-    canvas.drawPath(Path()..moveTo(18,10)..lineTo(55,30)..lineTo(35,40)..lineTo(18,25)..close(),
+    canvas.drawPath(Path()..moveTo(20,8)..lineTo(62,28)..lineTo(40,42)..lineTo(20,28)..close(),
         Paint()..color=Colors.blueGrey.shade600);
-    // Núcleo (cristal)
-    canvas.drawCircle(Offset.zero, 10, Paint()..color=cIce.withOpacity(0.85)..maskFilter=const MaskFilter.blur(BlurStyle.normal,6));
-    // Llama del motor
+    // Núcleo de cristal (centro)
+    canvas.drawCircle(Offset.zero, 11,
+        Paint()..color=cIce.withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,7));
+    canvas.drawCircle(Offset.zero, 6, Paint()..color=Colors.white.withOpacity(0.95));
+    // Llama del motor (solo si no ha aterrizado)
     if (!landed) {
-      canvas.drawPath(Path()..moveTo(-10,38)..lineTo(0,38+_rng.nextDouble()*18+20)..lineTo(10,38)..close(),
-          Paint()..color=cFire.withOpacity(0.7+sin(t*12)*0.2));
+      final flameH = 22.0 + sin(t*15)*8;
+      canvas.drawPath(
+        Path()..moveTo(-12,40)..lineTo(0,40+flameH)..lineTo(12,40)..close(),
+        Paint()..color=cFire.withOpacity(0.75));
+      canvas.drawPath(
+        Path()..moveTo(-6,40)..lineTo(0,40+flameH*0.6)..lineTo(6,40)..close(),
+        Paint()..color=Colors.orange.withOpacity(0.9));
     }
-    // Daños de batalla (cicatrices)
-    final dp = Paint()..color=Colors.black45..strokeWidth=1.5;
-    canvas.drawLine(const Offset(-8,-20),const Offset(-20,-5),dp);
-    canvas.drawLine(const Offset(5,-30),const Offset(15,-15),dp);
-    canvas.drawLine(const Offset(-15,5),const Offset(-25,15),dp);
+    // Cicatrices de batalla
+    final dp = Paint()..color=Colors.black54..strokeWidth=1.5;
+    canvas.drawLine(const Offset(-9,-22),const Offset(-22,-6),dp);
+    canvas.drawLine(const Offset(6,-32),const Offset(18,-16),dp);
+    canvas.drawLine(const Offset(-16,4),const Offset(-28,16),dp);
     canvas.restore();
   }
 
   void _drawParticles(Canvas canvas) {
     for (final p in particles) {
-      final a = (p.life/p.maxLife).clamp(0.0,1.0);
-      if (p.isSmoke) {
-        final paint = Paint()
-  ..color = p.color.withOpacity(a * 0.4)
-  ..maskFilter = MaskFilter.blur(BlurStyle.normal, p.size * 0.8);
-
-canvas.drawCircle(Offset(p.x - sw/2, p.y - sh*0.3), p.size, paint);
-            Paint()..color = p.color.withOpacity(a*0.4)..maskFilter = MaskFilter.blur(BlurStyle.normal, p.size*0.8);
-      } else {
-        canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size,
-            Paint()..color=p.color.withOpacity(a)..maskFilter=const MaskFilter.blur(BlurStyle.normal,2));
-      }
+      final alpha = (p.life/p.maxLife).clamp(0.0,1.0);
+      final blurR = p.isSmoke ? p.size*0.7 : 2.0;
+      canvas.drawCircle(Offset(p.x, p.y), p.size.clamp(0.5,80),
+          Paint()..color=p.color.withOpacity(p.isSmoke?alpha*0.45:alpha)
+            ..maskFilter=MaskFilter.blur(BlurStyle.normal, blurR));
     }
   }
 
   void _drawText(Canvas canvas) {
-    if (transAlpha > 0) return;
-    final tp = TextPainter(text:TextSpan(text:'DOCK 7A — PHOENIX PROJECT\nUnidad Phoenix ha aterrizado… iniciando protocolo criogénico.',
-        style:TextStyle(color:Colors.white.withOpacity(0.7+sin(t*2)*0.15),fontSize:10,fontFamily:'Orbitron',height:1.6)),
-        textAlign:TextAlign.center,textDirection:TextDirection.ltr)..layout(maxWidth:sw*0.85);
-    tp.paint(canvas, Offset((sw-tp.width)/2, sh*0.08));
+    if (transAlpha > 0.5) return;
+    final tp = TextPainter(
+      text:TextSpan(text:'DOCK 7A — PHOENIX PROJECT\nUnidad Phoenix ha aterrizado… iniciando protocolo criogénico.',
+          style:TextStyle(color:Colors.white.withOpacity(0.75),fontSize:10,fontFamily:'Orbitron',height:1.6)),
+      textAlign:TextAlign.center,textDirection:TextDirection.ltr)..layout(maxWidth:sw*0.85);
+    tp.paint(canvas, Offset((sw-tp.width)/2, sh*0.07));
   }
 
-  static final Random _rng = Random();
   @override bool shouldRepaint(covariant CustomPainter _) => true;
 }
 
