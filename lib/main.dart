@@ -664,7 +664,7 @@ class _DockPainter extends CustomPainter {
     for (final p in particles) {
       final a = (p.life/p.maxLife).clamp(0.0,1.0);
       if (p.isSmoke) {
-        canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size,
+        canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size);
             Paint()..color = p.color.withOpacity(a*0.4)..maskFilter = MaskFilter.blur(BlurStyle.normal, p.size*0.8);
       } else {
         canvas.drawCircle(Offset(p.x-sw/2, p.y-sh*0.3), p.size,
