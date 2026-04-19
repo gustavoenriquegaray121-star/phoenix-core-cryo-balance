@@ -52,7 +52,48 @@ enum EnemyKind  { interceptor, frigate, parasite, corrupter }
 enum PowerUpKind{ rapidFire, tripleShot, shield, coreArmor, energyBoost }
 enum BossState  { moving, charging, firing, cooldown }
 enum StageHazard{ none, asteroids, gravityTimer, mirrorPortal }
+enum MoveType   { left, right, shoot, idle }
 
+// ── PLAYER TRACKER + PROFILE — el Anti-Phoenix te lee ────
+class PlayerTracker {
+  final List<MoveType> history=[];
+  void add(MoveType m){history.add(m);if(history.length>24)history.removeAt(0);}
+  bool isRepeating(){
+    if(history.length<10)return false;
+    final last=history.sublist(history.length-5);
+    final prev=history.sublist(history.length-10,history.length-5);
+    for(int i=0;i<5;i++){if(last[i]!=prev[i])return false;}
+    return true;
+  }
+  MoveType get lastMove=>history.isEmpty?MoveType.idle:history.last;
+}
+
+class PlayerProfile {
+  int left=0,right=0,shoot=0;
+  void register(MoveType m){
+    if(m==MoveType.left)left++;
+    else if(m==MoveType.right)right++;
+    else if(m==MoveType.shoot)shoot++;
+  }
+  MoveType dominantMove(){
+    if(left>right&&left>shoot)return MoveType.left;
+    if(right>left&&right>shoot)return MoveType.right;
+    return MoveType.shoot;
+  }
+  double predictability(){
+    final total=left+right+shoot;
+    if(total==0)return 0;
+    final mx=[left,right,shoot].reduce((a,b)=>a>b?a:b);
+    return mx/total;
+  }
+  void decay(){
+    left=(left*0.8).toInt();
+    right=(right*0.8).toInt();
+    shoot=(shoot*0.8).toInt();
+  }
+}
+
+// ── STAGE CONFIG ──────────────────────────────────────────
 class StageConfig {
   final int stageNum; final String name,bossName,bossAsset;
   final Color bossColor; final StageHazard hazard;
@@ -117,7 +158,7 @@ const _stages = [
           dialogue:'La firma energética es completamente desconocida.\nSea lo que sea que intenta cruzar, viene con poder enorme.',
           imageAsset:'assets/images/escena2jefe4.jpg'),
       CinematicScene(location:'SECTOR OMEGA-9',speaker:'USUARIO',speakerColor:'ice',
-          dialogue:'[ Emerge una nave casi idéntica a la Phoenix… oscura y roja. ]\n\n"ANTI-PHOENIX" se lee en el casco.',
+          dialogue:'Del portal emerge una nave casi idéntica a la Phoenix… oscura y roja.\nEl emblema está invertido.\n"ANTI-PHOENIX" pintado en el casco con plasma.',
           imageAsset:'assets/images/escena3jefe4.jpg'),
       CinematicScene(location:'CANAL DE COMUNICACIÓN',speaker:'ANTI-PHOENIX',speakerColor:'red',
           dialogue:'Por fin nos encontramos… "yo".\nEn mi universo ya conquisté todo lo que se movía.\nAhora vengo por el tuyo.',
@@ -137,8 +178,8 @@ const _introScenes = [
   CinematicScene(location:'DOCK 7A — PHOENIX PROJECT',speaker:'USUARIO',speakerColor:'ice',
       dialogue:'Núcleo asegurado. Sistemas en línea.\nPhoenix Project… listo para volar.',
       imageAsset:'assets/images/hangar1.jpg'),
-  CinematicScene(location:'DOCK 7A — CASCO DE LA NAVE',speaker:'',speakerColor:'white',
-      dialogue:'[ Pones la mano en el casco. El logo del Ave Fénix brilla bajo tus dedos. ]',
+  CinematicScene(location:'DOCK 7A — CASCO DE LA NAVE',speaker:'USUARIO',speakerColor:'ice',
+      dialogue:'El casco está dañado. Tres cicatrices de plasma.\nEl emblema del Ave Fénix sigue intacto.\nSiempre sobrevive al fuego.\nYo también.',
       imageAsset:'assets/images/ship_close.jpg'),
   CinematicScene(location:'LADO ENEMIGO — UBICACIÓN DESCONOCIDA',
       speaker:'THE FROZEN WARLORD',speakerColor:'red',
@@ -157,7 +198,6 @@ class AudioManager {
   final _bg=AudioPlayer(),_bm=AudioPlayer(),_eb=AudioPlayer(),
         _qs=AudioPlayer(),_al=AudioPlayer(),_sfx=AudioPlayer();
   bool _bossOn=false,_bgOn=false,_alOn=false;
-
   Future<void> startAmbient() async {
     if(_bgOn)return;_bgOn=true;
     try{await _bg.setReleaseMode(ReleaseMode.loop);
@@ -200,6 +240,13 @@ class AudioManager {
   }
   Future<void> stopAlarm() async{_alOn=false;try{await _al.stop();}catch(_){}}
   Future<void> playQuench() async{try{await _qs.play(AssetSource('sounds/explosion_jefe.mp3'),volume:1.0);}catch(_){}}
+  Future<void> stopAll() async {
+    try{await _bg.stop();}catch(_){} try{await _bm.stop();}catch(_){}
+    try{await _eb.stop();}catch(_){} try{await _qs.stop();}catch(_){}
+    try{await _al.stop();}catch(_){} try{await _sfx.stop();}catch(_){}
+    for(final p in _pool){try{await p.stop();}catch(_){}}
+    _bossOn=false;_bgOn=false;_alOn=false;
+  }
   void dispose(){
     for(final p in _pool)p.dispose();
     _bg.dispose();_bm.dispose();_eb.dispose();_qs.dispose();_al.dispose();_sfx.dispose();
@@ -225,19 +272,19 @@ class Enemy {
   Enemy({required this.x,required this.y,required this.hp,required this.vx,
          this.vy=90,this.kind=EnemyKind.interceptor}):maxHp=hp;
 }
+// Asteroide con NIVEL — controla fragmentación sin recursión infinita
 class Asteroid {
   double x,y,vx,vy,r,angle,spin;bool dead=false;
+  int level; // 2=grande→3med, 1=mediano→2peq, 0=pequeño→MUERE
   Asteroid({required this.x,required this.y,required this.vx,required this.vy,
-            required this.r,bool small=false})
-      :angle=0,spin=(Random().nextDouble()-0.5)*(small?4:2);
+            required this.r,this.level=2})
+      :angle=0,spin=(Random().nextDouble()-0.5)*(level==0?5:level==1?3:2);
 }
 class Boss {
   double x,y,hp,maxHp,vx;bool dead=false;
   double hitFlash=0,animT=0,stateTimer=0,chargeGlow=0,burstTimer=0;
   int burstCount=0;BossState state=BossState.moving;double repelMeter=0;
-  // Escudo de fase: se activa cuando HP cae al 50%
-  bool phaseShieldActive=false;double phaseShieldTimer=0;
-  bool phaseTriggered=false; // solo se activa una vez
+  bool phaseShieldActive=false;double phaseShieldTimer=0;bool phaseTriggered=false;
   static const double moveTime=3.0,chargeTime=kBossChargeTime,cooldownTime=2.8;
   Boss({required this.x,required this.y,required this.hp,this.vx=75}):maxHp=hp;
 }
@@ -291,10 +338,7 @@ class ResourceSystem {
     entropy=(entropy+0.3*dt).clamp(0,100);
     if(heat>97)energy-=4*dt;
   }
-  void applyShoot(PlayerBuild b){
-    energy-=1.5;entropy+=0.15;
-    heat=(heat+kHeatPerShot/b.cooling).clamp(0,100);
-  }
+  void applyShoot(PlayerBuild b){energy-=1.5;entropy+=0.15;heat=(heat+kHeatPerShot/b.cooling).clamp(0,100);}
   void applyDamageHeat(double f){heat=(heat+f*100).clamp(0,100);}
   double shootInterval(double fireRate){
     final base=kBaseInterval/fireRate.clamp(1.0,2.0);
@@ -335,7 +379,7 @@ class ChargeIndicator {
   double get fraction=>ready?1.0:current/chargeTime;
 }
 
-// ── SPRITE CACHE — remoción de fondo gris AI ─────────────
+// ── SPRITE CACHE ──────────────────────────────────────────
 class SpriteCache {
   ui.Image? player,boss,boss2,boss3,boss4,enemy1,enemy2,enemy3,enemy4;
   bool loaded=false;
@@ -365,16 +409,11 @@ class SpriteCache {
     final result=Uint8List.fromList(pixels);
     for(int i=0;i<result.length;i+=4){
       final r=result[i],g=result[i+1],b=result[i+2],a=result[i+3];
-      // Skip fully transparent pixels
       if(a==0)continue;
       final mx=max(r,max(g,b));final mn=min(r,min(g,b));
       final sat=mx==0?0:(mx-mn)*255~/mx;
-      // Grey/checker bg: low saturation AND brightness in grey range
-      // Threshold raised: sat<55 catches more greys, mx>60 avoids dark art
       if(sat<55&&mx>60&&mx<230){result[i+3]=0;continue;}
-      // Pure white/near-white bg
       if(r>215&&g>215&&b>215&&a>150){result[i+3]=0;continue;}
-      // Light grey checker (the typical AI-gen checkered bg ~128,128,128)
       if((r-g).abs()<12&&(g-b).abs()<12&&(r-b).abs()<12&&mx>90&&mx<200){result[i+3]=0;continue;}
     }
     final comp=Completer<ui.Image>();
@@ -400,143 +439,84 @@ void drawSprite(Canvas canvas,ui.Image img,Offset center,double size,{double fla
 }
 
 // ══════════════════════════════════════════════════════════
-// DOCK SCENE — animación de aterrizaje
-// Usa un Ticker propio para control preciso del tiempo
+// DOCK SCENE
 // ══════════════════════════════════════════════════════════
 class DockScene extends StatefulWidget {
   final VoidCallback onFinish;
   const DockScene({super.key,required this.onFinish});
   @override State<DockScene> createState()=>_DockSceneState();
 }
-
 class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMixin {
-  late Ticker _ticker;
-  Duration _last=Duration.zero;
-
-  // Animación de nave: va de 0.0 a 1.0 en ~6 segundos
-  // 0.0 = arriba de pantalla, 1.0 = en el dock
-  double _progress=0.0; // 0→1 progreso de aterrizaje
-  bool _landed=false,_armActive=false,_finishing=false;
-  double _fadeOut=0.0;
-  double _shakeX=0,_shakeY=0;
-  double _t=0; // tiempo total para animaciones
-
+  late Ticker _ticker;Duration _last=Duration.zero;
+  double _progress=0.0;bool _landed=false,_armActive=false,_finishing=false;
+  double _fadeOut=0.0,_shakeX=0,_shakeY=0,_t=0;
   final List<_DockParticle> _particles=[];
   final _rng=Random();
-
-  final _sndLanding=AudioPlayer();
-  final _sndSteam  =AudioPlayer();
-  final _sndSpark  =AudioPlayer();
-  final _sndCafe   =AudioPlayer();
-
-  // Brazos: angle progresa de -pi/2 hacia la nave cuando active
   double _armAngleL=0,_armAngleR=pi;
-
+  final _sndLanding=AudioPlayer(),_sndSteam=AudioPlayer(),
+        _sndSpark=AudioPlayer(),_sndCafe=AudioPlayer();
   @override void initState(){
     super.initState();
     _ticker=createTicker(_tick)..start();
     _playLanding();
   }
-
   Future<void> _playLanding() async {
     try{await _sndLanding.play(AssetSource('sounds/space_ship_landing.mp3'),volume:0.8);}catch(_){}
   }
-
   void _tick(Duration elapsed){
     final dt=((elapsed-_last).inMicroseconds/1e6).clamp(0.0,0.05).toDouble();
     _last=elapsed;if(dt==0||!mounted)return;
-    _t+=dt;
-
-    // Shake decay
-    _shakeX*=0.85;_shakeY*=0.85;
-
+    _t+=dt;_shakeX*=0.85;_shakeY*=0.85;
     if(!_landed){
-      // Progreso de aterrizaje: velocidad rápida al principio, frena al final
-      // Usamos easeOut: acceleration decreasing
-      final speed=_landed?0:max(0.04,0.4*(1-_progress));
+      final speed=max(0.04,0.4*(1-_progress));
       _progress=(_progress+speed*dt).clamp(0.0,1.0);
-
-      // Spawn humo mientras baja
-      if(_rng.nextDouble()<0.5){
-        _particles.add(_DockParticle(isSmoke:true,vx:(_rng.nextDouble()-0.5)*20,vy:-30-_rng.nextDouble()*25));
-      }
-      // Chispas cuando aún va rápido
-      if(_progress<0.7&&_rng.nextDouble()<0.4){
-        _particles.add(_DockParticle(isSmoke:false,vx:(_rng.nextDouble()-0.5)*150,vy:-_rng.nextDouble()*150));
-      }
-
+      if(_rng.nextDouble()<0.5)_particles.add(_DockParticle(isSmoke:true,vx:(_rng.nextDouble()-0.5)*20,vy:-30-_rng.nextDouble()*25));
+      if(_progress<0.7&&_rng.nextDouble()<0.4)_particles.add(_DockParticle(isSmoke:false,vx:(_rng.nextDouble()-0.5)*150,vy:-_rng.nextDouble()*150));
       if(_progress>=1.0&&!_landed){
-        _landed=true;
-        // Camera shake al impacto
-        _shakeX=12;_shakeY=8;
-        // Explosión de chispas
+        _landed=true;_shakeX=12;_shakeY=8;
         for(int i=0;i<40;i++){
-          final ang=_rng.nextDouble()*pi*2;
-          final spd=80+_rng.nextDouble()*200;
-          _particles.add(_DockParticle(isSmoke:false,
-              vx:cos(ang)*spd,vy:sin(ang)*spd-100,
+          final ang=_rng.nextDouble()*pi*2;final spd=80+_rng.nextDouble()*200;
+          _particles.add(_DockParticle(isSmoke:false,vx:cos(ang)*spd,vy:sin(ang)*spd-100,
               color:_rng.nextBool()?Colors.orangeAccent:Colors.white));
         }
         try{_sndSteam.play(AssetSource('sounds/steam.mp3'),volume:0.7);}catch(_){}
         try{_sndSpark.play(AssetSource('sounds/spark.mp3'),volume:0.6);}catch(_){}
-        // Activar brazos y programar salida
         Future.delayed(const Duration(milliseconds:500),(){if(mounted)setState(()=>_armActive=true);});
         Future.delayed(const Duration(seconds:3),(){
-          if(!mounted)return;
-          setState(()=>_finishing=true);
+          if(!mounted)return;setState(()=>_finishing=true);
           try{_sndCafe.play(AssetSource('sounds/cafeteria.mp3'),volume:0.5);}catch(_){}
         });
-        Future.delayed(const Duration(seconds:5),(){
-          if(mounted)widget.onFinish();
-        });
+        Future.delayed(const Duration(seconds:5),(){if(mounted)widget.onFinish();});
       }
     }
-
-    // Fade out
     if(_finishing)_fadeOut=(_fadeOut+dt*0.4).clamp(0.0,1.0);
-
-    // Brazos robóticos
     if(_armActive){
       _armAngleL=(_armAngleL-dt*1.2).clamp(-pi*0.9,-pi*0.1);
-      _armAngleR=(_armAngleR+dt*1.2).clamp(pi*0.1,pi*0.9+pi*0.8);
+      _armAngleR=(_armAngleR+dt*1.2).clamp(pi*0.1,pi*1.7);
     }
-
-    // Actualizar partículas
     for(final p in _particles)p.update(dt);
     _particles.removeWhere((p)=>p.dead);
-
     if(mounted)setState((){});
   }
-
   @override void dispose(){
     _ticker.dispose();
     _sndLanding.dispose();_sndSteam.dispose();_sndSpark.dispose();_sndCafe.dispose();
     super.dispose();
   }
-
   @override Widget build(BuildContext ctx){
     final sz=MediaQuery.of(ctx).size;
     return Scaffold(backgroundColor:Colors.black,
-      body:CustomPaint(
-        painter:_DockPainter(
-          sw:sz.width,sh:sz.height,
-          progress:_progress,landed:_landed,armActive:_armActive,
-          armAngleL:_armAngleL,armAngleR:_armAngleR,
-          particles:_particles,
-          shakeX:_shakeX,shakeY:_shakeY,
-          t:_t,fadeOut:_fadeOut),
+      body:CustomPaint(painter:_DockPainter(
+          sw:sz.width,sh:sz.height,progress:_progress,landed:_landed,armActive:_armActive,
+          armAngleL:_armAngleL,armAngleR:_armAngleR,particles:_particles,
+          shakeX:_shakeX,shakeY:_shakeY,t:_t,fadeOut:_fadeOut),
         child:const SizedBox.expand()));
   }
 }
-
-// Partícula simple para DockScene — sin depender de la clase Particle del juego
 class _DockParticle {
-  double x,y,vx,vy,life,maxLife,size;
-  Color color;bool isSmoke;bool dead=false;
+  double x,y,vx,vy,life,maxLife,size;Color color;bool isSmoke;bool dead=false;
   _DockParticle({required this.isSmoke,required this.vx,required this.vy,Color? color})
-      :x=0,y=0, // posición relativa al centro de la nave — el painter la convierte
-       life=isSmoke?1.4:0.6,
-       size=isSmoke?8:2.5,
+      :x=0,y=0,life=isSmoke?1.4:0.6,size=isSmoke?8:2.5,
        color=color??(isSmoke?Colors.grey.shade600:Colors.orangeAccent),
        maxLife=isSmoke?1.4:0.6;
   void update(double dt){
@@ -546,190 +526,105 @@ class _DockParticle {
     if(life<=0)dead=true;
   }
 }
-
 class _DockPainter extends CustomPainter {
   final double sw,sh,progress,armAngleL,armAngleR,shakeX,shakeY,t,fadeOut;
   final bool landed,armActive;
   final List<_DockParticle> particles;
-  // rng estático para que no tenga problemas en el painter
   static final _rng=Random(12345);
-
   _DockPainter({required this.sw,required this.sh,required this.progress,
       required this.landed,required this.armActive,required this.armAngleL,
       required this.armAngleR,required this.particles,required this.shakeX,
       required this.shakeY,required this.t,required this.fadeOut});
-
-  // Posición Y de la nave: interpolación easeOut de -120 a dockY
-  double get _dockY => sh*0.55;
-  double get _shipY {
-    // easeOut: t^2 inverso → llega rápido y frena
-    final ease=1-(1-progress)*(1-progress);
-    return -120 + ease*(_dockY+120);
-  }
-  double get _cx => sw/2;
-
+  double get _dockY=>sh*0.55;
+  double get _shipY{final ease=1-(1-progress)*(1-progress);return -120+ease*(_dockY+120);}
+  double get _cx=>sw/2;
   @override void paint(Canvas canvas,Size size){
-    // Camera shake
-    canvas.save();
-    canvas.translate(shakeX,shakeY);
-
-    _drawBg(canvas);
-    _drawDock(canvas);
-    _drawParticles(canvas);
-    _drawShip(canvas);
+    canvas.save();canvas.translate(shakeX,shakeY);
+    _drawBg(canvas);_drawDock(canvas);_drawParticles(canvas);_drawShip(canvas);
     if(armActive)_drawArms(canvas);
-
     canvas.restore();
-
-    // Texto (sin shake)
+    if(fadeOut>0)canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..color=Colors.black.withOpacity(fadeOut.clamp(0,1)));
     _drawText(canvas);
-
-    // Fade out
-    if(fadeOut>0){
-      canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
-          Paint()..color=Colors.black.withOpacity(fadeOut.clamp(0,1)));
-    }
   }
-
   void _drawBg(Canvas canvas){
-    canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
-        Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
-            colors:[const Color(0xFF000814),const Color(0xFF001824)])
-            .createShader(Rect.fromLTWH(0,0,sw,sh)));
-    // Estrellas (fijas, seed constante)
-    final sp=Paint()..color=Colors.white.withOpacity(0.55);
-    final rng=Random(99);
-    for(int i=0;i<55;i++){
-      canvas.drawCircle(Offset(rng.nextDouble()*sw,rng.nextDouble()*sh*0.7),
-          rng.nextDouble()*1.3,sp);
-    }
+    canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
+        colors:[const Color(0xFF000814),const Color(0xFF001824)]).createShader(Rect.fromLTWH(0,0,sw,sh)));
+    final rng=Random(99);final sp=Paint()..color=Colors.white.withOpacity(0.55);
+    for(int i=0;i<55;i++)canvas.drawCircle(Offset(rng.nextDouble()*sw,rng.nextDouble()*sh*0.7),rng.nextDouble()*1.3,sp);
   }
-
   void _drawDock(Canvas canvas){
     final dockY=_dockY;
-    // Plataforma
-    canvas.drawRect(Rect.fromLTWH(0,dockY,sw,sh-dockY),
-        Paint()..color=Colors.grey.shade900);
-    // Líneas del hangar
+    canvas.drawRect(Rect.fromLTWH(0,dockY,sw,sh-dockY),Paint()..color=Colors.grey.shade900);
     final lp=Paint()..color=Colors.blueGrey.withOpacity(0.3)..strokeWidth=1.2;
-    for(int i=0;i<=7;i++){
-      canvas.drawLine(Offset(sw*0.04+i*sw*0.135,dockY),Offset(sw*0.04+i*sw*0.135,sh),lp);
-    }
-    // Luces de pista
+    for(int i=0;i<=7;i++)canvas.drawLine(Offset(sw*0.04+i*sw*0.135,dockY),Offset(sw*0.04+i*sw*0.135,sh),lp);
     final lc=landed?cGreen:cFire;
-    for(int i=0;i<6;i++){
-      canvas.drawCircle(Offset(sw*0.1+i*sw*0.16,dockY+10),6,
-          Paint()..color=lc.withOpacity(0.8+sin(t*4+i)*0.2)..maskFilter=const MaskFilter.blur(BlurStyle.normal,8));
-    }
-    // Separador plataforma
-    canvas.drawLine(Offset(0,dockY),Offset(sw,dockY),
-        Paint()..color=Colors.blueGrey.withOpacity(0.5)..strokeWidth=2);
-    // Texto DOCK 7A
-    final tp=TextPainter(text:const TextSpan(text:'DOCK 7A',
-        style:TextStyle(color:Colors.white24,fontSize:12,fontFamily:'Orbitron',letterSpacing:2)),
-        textDirection:TextDirection.ltr)..layout();
+    for(int i=0;i<6;i++)canvas.drawCircle(Offset(sw*0.1+i*sw*0.16,dockY+10),6,
+        Paint()..color=lc.withOpacity(0.8+sin(t*4+i)*0.2)..maskFilter=const MaskFilter.blur(BlurStyle.normal,8));
+    canvas.drawLine(Offset(0,dockY),Offset(sw,dockY),Paint()..color=Colors.blueGrey.withOpacity(0.5)..strokeWidth=2);
+    final tp=TextPainter(text:const TextSpan(text:'DOCK 7A',style:TextStyle(color:Colors.white24,fontSize:12,fontFamily:'Orbitron',letterSpacing:2)),textDirection:TextDirection.ltr)..layout();
     tp.paint(canvas,Offset(_cx-tp.width/2,dockY+28));
   }
-
   void _drawShip(Canvas canvas){
-    final sy=_shipY;
-    canvas.save();
-    canvas.translate(_cx,sy);
-    // Ángulo leve de oscilación mientras baja
+    final sy=_shipY;canvas.save();canvas.translate(_cx,sy);
     if(!landed)canvas.rotate(sin(t*3)*0.03*(1-progress));
-
-    // Glow motor
     canvas.drawOval(Rect.fromCenter(center:const Offset(0,48),width:110,height:24),
-        Paint()..color=cFire.withOpacity((0.18+sin(t*8)*0.08)*(1-progress*0.7))
-          ..maskFilter=const MaskFilter.blur(BlurStyle.normal,20));
-    // Cuerpo
-    canvas.drawPath(Path()
-      ..moveTo(0,-55)..lineTo(22,24)..lineTo(0,40)..lineTo(-22,24)..close(),
+        Paint()..color=cFire.withOpacity((0.18+sin(t*8)*0.08)*(1-progress*0.7))..maskFilter=const MaskFilter.blur(BlurStyle.normal,20));
+    canvas.drawPath(Path()..moveTo(0,-55)..lineTo(22,24)..lineTo(0,40)..lineTo(-22,24)..close(),
         Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
-            colors:[Colors.blueGrey.shade300,Colors.blueGrey.shade800])
-            .createShader(Rect.fromCenter(center:Offset.zero,width:90,height:110)));
-    // Alas
-    canvas.drawPath(Path()..moveTo(-22,6)..lineTo(-68,26)..lineTo(-44,44)..lineTo(-22,30)..close(),
-        Paint()..color=Colors.blueGrey.shade700);
-    canvas.drawPath(Path()..moveTo(22,6)..lineTo(68,26)..lineTo(44,44)..lineTo(22,30)..close(),
-        Paint()..color=Colors.blueGrey.shade700);
-    // Cristal núcleo
-    canvas.drawCircle(Offset.zero,12,
-        Paint()..color=cIce.withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,8));
+            colors:[Colors.blueGrey.shade300,Colors.blueGrey.shade800]).createShader(Rect.fromCenter(center:Offset.zero,width:90,height:110)));
+    canvas.drawPath(Path()..moveTo(-22,6)..lineTo(-68,26)..lineTo(-44,44)..lineTo(-22,30)..close(),Paint()..color=Colors.blueGrey.shade700);
+    canvas.drawPath(Path()..moveTo(22,6)..lineTo(68,26)..lineTo(44,44)..lineTo(22,30)..close(),Paint()..color=Colors.blueGrey.shade700);
+    canvas.drawCircle(Offset.zero,12,Paint()..color=cIce.withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,8));
     canvas.drawCircle(Offset.zero,6,Paint()..color=Colors.white.withOpacity(0.95));
-    // Llama motor
     if(!landed){
       final flH=20+sin(t*14)*8;
-      canvas.drawPath(Path()..moveTo(-13,42)..lineTo(0,42+flH)..lineTo(13,42)..close(),
-          Paint()..color=cFire.withOpacity(0.8));
-      canvas.drawPath(Path()..moveTo(-7,42)..lineTo(0,42+flH*0.55)..lineTo(7,42)..close(),
-          Paint()..color=Colors.orange.withOpacity(0.95));
+      canvas.drawPath(Path()..moveTo(-13,42)..lineTo(0,42+flH)..lineTo(13,42)..close(),Paint()..color=cFire.withOpacity(0.8));
+      canvas.drawPath(Path()..moveTo(-7,42)..lineTo(0,42+flH*0.55)..lineTo(7,42)..close(),Paint()..color=Colors.orange.withOpacity(0.95));
     }
-    // Daños (cicatrices)
     final dp=Paint()..color=Colors.black54..strokeWidth=1.5;
     canvas.drawLine(const Offset(-10,-24),const Offset(-24,-8),dp);
     canvas.drawLine(const Offset(7,-34),const Offset(20,-18),dp);
     canvas.drawLine(const Offset(-18,4),const Offset(-30,18),dp);
     canvas.restore();
   }
-
   void _drawArms(Canvas canvas){
-    final sy=_shipY;
-    final len=65.0;
-    // Brazo izquierdo
-    final endLx=_cx-40+cos(armAngleL)*len;
-    final endLy=sy+40+sin(armAngleL)*len;
-    canvas.drawLine(Offset(_cx-40,sy+40),Offset(endLx,endLy),
-        Paint()..color=Colors.blueGrey..strokeWidth=7..strokeCap=StrokeCap.round);
+    final sy=_shipY;final len=65.0;
+    final endLx=_cx-40+cos(armAngleL)*len;final endLy=sy+40+sin(armAngleL)*len;
+    canvas.drawLine(Offset(_cx-40,sy+40),Offset(endLx,endLy),Paint()..color=Colors.blueGrey..strokeWidth=7..strokeCap=StrokeCap.round);
     canvas.drawCircle(Offset(endLx,endLy),8,Paint()..color=Colors.orange);
-    // Brazo derecho
-    final endRx=_cx+40+cos(armAngleR)*len;
-    final endRy=sy+40+sin(armAngleR)*len;
-    canvas.drawLine(Offset(_cx+40,sy+40),Offset(endRx,endRy),
-        Paint()..color=Colors.blueGrey..strokeWidth=7..strokeCap=StrokeCap.round);
+    final endRx=_cx+40+cos(armAngleR)*len;final endRy=sy+40+sin(armAngleR)*len;
+    canvas.drawLine(Offset(_cx+40,sy+40),Offset(endRx,endRy),Paint()..color=Colors.blueGrey..strokeWidth=7..strokeCap=StrokeCap.round);
     canvas.drawCircle(Offset(endRx,endRy),8,Paint()..color=Colors.orange);
   }
-
   void _drawParticles(Canvas canvas){
     final sy=_shipY;
     for(final p in particles){
       final alpha=(p.life/p.maxLife).clamp(0.0,1.0);
       final r=p.size.clamp(0.5,60.0);
-      // Las partículas tienen posición relativa al centro de la nave
-      final px=_cx+p.x;
-      final py=sy+50+p.y; // debajo del motor de la nave
-      if(p.isSmoke){
-        canvas.drawCircle(Offset(px,py),r,
-            Paint()..color=p.color.withOpacity(alpha*0.4)
-              ..maskFilter=MaskFilter.blur(BlurStyle.normal,r*0.6));
-      }else{
-        canvas.drawCircle(Offset(px,py),r,
-            Paint()..color=p.color.withOpacity(alpha));
-      }
+      final px=_cx+p.x;final py=sy+50+p.y;
+      if(p.isSmoke){canvas.drawCircle(Offset(px,py),r,Paint()..color=p.color.withOpacity(alpha*0.4)..maskFilter=MaskFilter.blur(BlurStyle.normal,r*0.6));}
+      else{canvas.drawCircle(Offset(px,py),r,Paint()..color=p.color.withOpacity(alpha));}
     }
   }
-
   void _drawText(Canvas canvas){
     if(fadeOut>0.3)return;
     final alpha=(1-fadeOut).clamp(0.0,1.0);
-    final tp=TextPainter(
-      text:TextSpan(text:'DOCK 7A — PHOENIX PROJECT\nUnidad Phoenix ha aterrizado… iniciando protocolo criogénico.',
-          style:TextStyle(color:Colors.white.withOpacity(alpha*0.75),fontSize:10,fontFamily:'Orbitron',height:1.6)),
-      textAlign:TextAlign.center,textDirection:TextDirection.ltr)..layout(maxWidth:sw*0.88);
+    final tp=TextPainter(text:TextSpan(text:'DOCK 7A — PHOENIX PROJECT\nUnidad Phoenix ha aterrizado… iniciando protocolo criogénico.',
+        style:TextStyle(color:Colors.white.withOpacity(alpha*0.75),fontSize:10,fontFamily:'Orbitron',height:1.6)),
+        textAlign:TextAlign.center,textDirection:TextDirection.ltr)..layout(maxWidth:sw*0.88);
     tp.paint(canvas,Offset((sw-tp.width)/2,sh*0.07));
   }
-
   @override bool shouldRepaint(covariant CustomPainter _)=>true;
 }
 
-// Polvo cinematic flotante
+// ── Polvo cinematic flotante ──────────────────────────────
 class _CinDust {
   double x,y,speed,size;
   _CinDust({required this.x,required this.y,required this.speed,required this.size});
 }
 
 // ══════════════════════════════════════════════════════════
-// CINEMATIC SCREEN — Zoom Ken Burns + TTS + vignette + dust
+// CINEMATIC SCREEN — Ken Burns + TTS + Vignette + Dust + Flash
 // ══════════════════════════════════════════════════════════
 class CinematicScreen extends StatefulWidget {
   final List<CinematicScene> scenes;final VoidCallback onDone;
@@ -738,37 +633,22 @@ class CinematicScreen extends StatefulWidget {
 }
 class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
   int _idx=0,_ci=0;String _disp='';bool _full=false;
-  late AnimationController _tc,_zoom;
+  late AnimationController _tc,_zoom,_dustCtrl;
   late Animation<double> _zoomAnim;
-  final _tts=FlutterTts();
-  bool _ttsReady=false;
-  // Flash de transición entre escenas
+  final _tts=FlutterTts();bool _ttsReady=false;
   double _flashAlpha=0.0;
-  bool _flashing=false;
-  // Partículas de polvo/estrellas sobre la imagen
   final List<_CinDust> _dust=[];
   final _rng=Random();
-  late AnimationController _dustCtrl;
-
-  @override void initState(){super.initState();
+  @override void initState(){
+    super.initState();
     _tc=AnimationController(vsync:this,duration:const Duration(milliseconds:32))..addListener(_tick);
     _zoom=AnimationController(vsync:this,duration:const Duration(seconds:8))..forward();
     _zoomAnim=Tween(begin:1.0,end:1.08).animate(CurvedAnimation(parent:_zoom,curve:Curves.easeInOut));
     _dustCtrl=AnimationController(vsync:this,duration:const Duration(milliseconds:16))..addListener(_updateDust)..repeat();
-    _spawnDust();
-    _initTts();_startScene();}
-
-  void _spawnDust(){
-    for(int i=0;i<18;i++){
-      _dust.add(_CinDust(x:_rng.nextDouble(),y:_rng.nextDouble(),speed:0.00008+_rng.nextDouble()*0.00015,size:1+_rng.nextDouble()*2.5));
-    }
+    for(int i=0;i<18;i++)_dust.add(_CinDust(x:_rng.nextDouble(),y:_rng.nextDouble(),speed:0.00008+_rng.nextDouble()*0.00015,size:1+_rng.nextDouble()*2.5));
+    _initTts();_startScene();
   }
-
-  void _updateDust(){
-    for(final d in _dust){d.y-=d.speed;if(d.y<0)d.y=1.0;}
-    if(mounted)setState((){});
-  }
-
+  void _updateDust(){for(final d in _dust){d.y-=d.speed;if(d.y<0)d.y=1.0;}if(mounted)setState((){});}
   Future<void> _initTts() async {
     try{await _tts.setLanguage('es-MX');await _tts.setSpeechRate(0.42);await _tts.setPitch(0.95);_ttsReady=true;}catch(_){}
   }
@@ -776,65 +656,52 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
     _ci=0;_disp='';_full=false;_zoom.reset();_zoom.forward();_tc.repeat();
     if(_ttsReady)_tts.speak(widget.scenes[_idx].dialogue.replaceAll('\n',' '));
   }
-  void _tick(){final f=widget.scenes[_idx].dialogue;
+  void _tick(){
+    final f=widget.scenes[_idx].dialogue;
     if(_ci<f.length){setState((){_ci++;_disp=f.substring(0,_ci);});}
     else{_tc.stop();setState(()=>_full=true);}
-    // Flash decay
     if(_flashAlpha>0)setState(()=>_flashAlpha=(_flashAlpha-0.05).clamp(0,1));
   }
   void _next(){
     if(!_full){_tc.stop();setState((){_disp=widget.scenes[_idx].dialogue;_full=true;});_tts.stop();return;}
     _tts.stop();
-    if(_idx<widget.scenes.length-1){
-      setState((){_flashAlpha=1.0;_idx++;});
-      _startScene();
-    } else widget.onDone();
+    if(_idx<widget.scenes.length-1){setState((){_flashAlpha=1.0;_idx++;});_startScene();}
+    else widget.onDone();
   }
   @override void dispose(){_tc.dispose();_zoom.dispose();_dustCtrl.dispose();_tts.stop();super.dispose();}
   Color _sc(String s)=>switch(s){'gold'=>cGold,'ice'=>cIce,'red'=>cDanger,_=>Colors.white};
-
   @override Widget build(BuildContext ctx){
     final s=widget.scenes[_idx];final sc=_sc(s.speakerColor);final sz=MediaQuery.of(ctx).size;
     return Scaffold(backgroundColor:Colors.black,
       body:GestureDetector(onTapDown:(_)=>_next(),
         child:Column(children:[
           Expanded(flex:55,child:Stack(children:[
-            // Imagen con zoom Ken Burns
             Positioned.fill(child:AnimatedBuilder(animation:_zoomAnim,
               builder:(_,__)=>Transform.scale(scale:_zoomAnim.value,
                 child:Image.asset(s.imageAsset,fit:BoxFit.cover,width:double.infinity,height:double.infinity,
                     errorBuilder:(_,__,___)=>Container(color:const Color(0xFF050A14),
                         child:const Center(child:Icon(Icons.image_not_supported,color:Colors.white24,size:48))))))),
-            // Overlay oscuro base
             Positioned.fill(child:Container(color:Colors.black.withOpacity(0.28))),
-            // VIGNETTE — oscurece los bordes como lens cinematic
+            // Vignette
             Positioned.fill(child:CustomPaint(painter:_VignettePainter())),
-            // POLVO FLOTANTE
+            // Dust
             Positioned.fill(child:CustomPaint(painter:_DustPainter(dust:_dust,sw:sz.width,sh:sz.height*0.55))),
-            // Degradado inferior para texto
             Positioned(bottom:0,left:0,right:0,height:110,child:Container(
-                decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,
-                    end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.black.withOpacity(0.97)])))),
-            // Barras negras cinematográficas (letterbox)
+                decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
+                    colors:[Colors.transparent,Colors.black.withOpacity(0.97)])))),
             Positioned(top:0,left:0,right:0,height:MediaQuery.of(ctx).padding.top+6,child:Container(color:Colors.black)),
-            // Location tag
             Positioned(top:MediaQuery.of(ctx).padding.top+10,left:12,right:80,
               child:Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),
                 decoration:BoxDecoration(color:Colors.black.withOpacity(0.75),
                     border:Border.all(color:cGold.withOpacity(0.6)),borderRadius:BorderRadius.circular(3)),
                 child:Text(s.location,style:const TextStyle(color:cGold,fontSize:9,fontFamily:'Orbitron',letterSpacing:1.5)))),
             Positioned(top:MediaQuery.of(ctx).padding.top+10,right:12,
-              child:Text('${_idx+1}/${widget.scenes.length}',
-                  style:const TextStyle(color:Colors.white38,fontSize:10,fontFamily:'Orbitron'))),
-            // FLASH de transición
-            if(_flashAlpha>0)
-              Positioned.fill(child:Container(color:Colors.white.withOpacity(_flashAlpha*0.7))),
+              child:Text('${_idx+1}/${widget.scenes.length}',style:const TextStyle(color:Colors.white38,fontSize:10,fontFamily:'Orbitron'))),
+            if(_flashAlpha>0)Positioned.fill(child:Container(color:Colors.white.withOpacity(_flashAlpha*0.7))),
           ])),
-          // Diálogo
           Container(constraints:BoxConstraints(minHeight:sz.height*0.32),
             padding:const EdgeInsets.fromLTRB(20,14,20,28),
-            decoration:BoxDecoration(color:Colors.black,
-                border:Border(top:BorderSide(color:sc.withOpacity(0.5),width:1.5))),
+            decoration:BoxDecoration(color:Colors.black,border:Border(top:BorderSide(color:sc.withOpacity(0.5),width:1.5))),
             child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
               if(s.speaker.isNotEmpty)...[
                 Row(children:[
@@ -850,35 +717,27 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
                   Text(_idx==widget.scenes.length-1?'CONTINUAR':'SIGUIENTE',
                       style:TextStyle(color:sc,fontSize:10,fontFamily:'Orbitron',letterSpacing:1.5)),
                   const SizedBox(width:6),Icon(Icons.arrow_forward_ios,color:sc,size:14),
-                ])else Text('toca para continuar',
-                    style:const TextStyle(color:Colors.white24,fontSize:9,fontFamily:'Orbitron')),
+                ])else Text('toca para continuar',style:const TextStyle(color:Colors.white24,fontSize:9,fontFamily:'Orbitron')),
               ]),
             ])),
         ])));
   }
 }
-
-// Vignette — oscurece bordes estilo lens
 class _VignettePainter extends CustomPainter {
   @override void paint(Canvas canvas,Size size){
     canvas.drawRect(Rect.fromLTWH(0,0,size.width,size.height),
-        Paint()..shader=RadialGradient(
-            center:Alignment.center,radius:0.85,
-            colors:[Colors.transparent,Colors.black.withOpacity(0.65)],
-            stops:const[0.55,1.0]).createShader(Rect.fromLTWH(0,0,size.width,size.height)));
+        Paint()..shader=RadialGradient(center:Alignment.center,radius:0.85,
+            colors:[Colors.transparent,Colors.black.withOpacity(0.65)],stops:const[0.55,1.0])
+            .createShader(Rect.fromLTWH(0,0,size.width,size.height)));
   }
   @override bool shouldRepaint(covariant CustomPainter _)=>false;
 }
-
-// Polvo flotante sobre la imagen
 class _DustPainter extends CustomPainter {
-  final List<_CinDust> dust; final double sw,sh;
+  final List<_CinDust> dust;final double sw,sh;
   _DustPainter({required this.dust,required this.sw,required this.sh});
   @override void paint(Canvas canvas,Size size){
     final p=Paint()..color=Colors.white.withOpacity(0.35);
-    for(final d in dust){
-      canvas.drawCircle(Offset(d.x*sw,d.y*sh),d.size,p);
-    }
+    for(final d in dust)canvas.drawCircle(Offset(d.x*sw,d.y*sh),d.size,p);
   }
   @override bool shouldRepaint(covariant CustomPainter _)=>true;
 }
@@ -898,15 +757,19 @@ class _AppRootState extends State<AppRoot> {
   int _score=0,_best=0,_currentStage=1;
   final _audio=AudioManager();final _sprites=SpriteCache();
   PlayerBuild? _carry;
-
-  @override void initState(){super.initState();
+  @override void initState(){
+    super.initState();
     SharedPreferences.getInstance().then((p)=>setState(()=>_best=p.getInt('best_v4')??0));
-    _sprites.load().then((_){if(mounted)setState((){});});}
+    _sprites.load().then((_){if(mounted)setState((){});});
+  }
   @override void dispose(){_audio.dispose();super.dispose();}
-
   void _onDockDone(){_audio.startAmbient();setState(()=>_screen=AppScreen.intro);}
   void _onIntroDone()=>setState(()=>_screen=AppScreen.menu);
-  void _start(){_currentStage=1;_carry=null;_score=0;_audio.playMissionStart();setState(()=>_screen=AppScreen.playing);}
+  void _start(){
+    _currentStage=1;_carry=null;_score=0;
+    _audio.stopAll().then((_){_audio.playMissionStart();_audio.startAmbient();});
+    setState(()=>_screen=AppScreen.playing);
+  }
   void _onStageClear(int score,PlayerBuild build){
     _score=score;_carry=build;
     if(_currentStage>=4){_save(_score);setState(()=>_screen=AppScreen.victory);}
@@ -937,7 +800,7 @@ class _AppRootState extends State<AppRoot> {
   };
 }
 
-// ── STAGE CLEAR ──────────────────────────────────────────
+// ── STAGE CLEAR / VICTORY ────────────────────────────────
 class StageClearScreen extends StatefulWidget {
   final int stageNum;final VoidCallback onContinue;
   const StageClearScreen({super.key,required this.stageNum,required this.onContinue});
@@ -945,25 +808,18 @@ class StageClearScreen extends StatefulWidget {
 }
 class _SCState extends State<StageClearScreen> with SingleTickerProviderStateMixin {
   late AnimationController _c;late Animation<double> _a;
-  @override void initState(){super.initState();
-    _c=AnimationController(vsync:this,duration:const Duration(milliseconds:800))..forward();
-    _a=CurvedAnimation(parent:_c,curve:Curves.elasticOut);hapticHeavy();}
+  @override void initState(){super.initState();_c=AnimationController(vsync:this,duration:const Duration(milliseconds:800))..forward();_a=CurvedAnimation(parent:_c,curve:Curves.elasticOut);hapticHeavy();}
   @override void dispose(){_c.dispose();super.dispose();}
   @override Widget build(BuildContext ctx)=>Scaffold(backgroundColor:cBg,
-    body:SafeArea(child:Center(child:ScaleTransition(scale:_a,child:Column(
-      mainAxisAlignment:MainAxisAlignment.center,children:[
-        const Text('✦',style:TextStyle(color:cGold,fontSize:64,shadows:[Shadow(color:cGold,blurRadius:30)])),
-        const SizedBox(height:16),
-        _GlowText('STAGE ${widget.stageNum}',color:cIce,size:22),const SizedBox(height:8),
-        _GlowText('COMPLETADO',color:cGold,size:38),const SizedBox(height:8),
-        _GlowText(_stages[widget.stageNum-1].name,color:Colors.white54,size:13),
-        const SizedBox(height:48),
-        _GlowText('PREPARANDO STAGE ${widget.stageNum+1}',color:cIce,size:14),const SizedBox(height:8),
-        _GlowText(_stages[widget.stageNum].name,color:cFire,size:16),
-        const SizedBox(height:48),_Btn(label:'VER BRIEFING',color:cGold,onTap:widget.onContinue),
-      ])))));
+    body:SafeArea(child:Center(child:ScaleTransition(scale:_a,child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+      const Text('✦',style:TextStyle(color:cGold,fontSize:64,shadows:[Shadow(color:cGold,blurRadius:30)])),
+      const SizedBox(height:16),_GlowText('STAGE ${widget.stageNum}',color:cIce,size:22),const SizedBox(height:8),
+      _GlowText('COMPLETADO',color:cGold,size:38),const SizedBox(height:8),
+      _GlowText(_stages[widget.stageNum-1].name,color:Colors.white54,size:13),const SizedBox(height:48),
+      _GlowText('PREPARANDO STAGE ${widget.stageNum+1}',color:cIce,size:14),const SizedBox(height:8),
+      _GlowText(_stages[widget.stageNum].name,color:cFire,size:16),const SizedBox(height:48),
+      _Btn(label:'VER BRIEFING',color:cGold,onTap:widget.onContinue)])))));
 }
-
 class VictoryScreen extends StatelessWidget {
   final int score,best;final VoidCallback onMenu;
   const VictoryScreen({super.key,required this.score,required this.best,required this.onMenu});
@@ -973,20 +829,18 @@ class VictoryScreen extends StatelessWidget {
       _GlowText('VICTORIA GALÁCTICA',color:cGold,size:26),const SizedBox(height:8),
       _GlowText('La puerta dimensional fue cerrada…',color:Colors.white70,size:13),
       _GlowText('por ahora.',color:cIce,size:16),const SizedBox(height:8),
-      _GlowText('COMANDANTE DE LAS FUERZAS GALÁCTICAS',color:cGold,size:11),
-      const SizedBox(height:32),_GlowText('SCORE FINAL: $score',color:cGold,size:24),
-      _GlowText('MEJOR: $best',color:Colors.white38,size:13),
-      const SizedBox(height:48),_Btn(label:'MENÚ PRINCIPAL',color:cIce,onTap:onMenu),
-    ]))));
+      _GlowText('COMANDANTE DE LAS FUERZAS GALÁCTICAS',color:cGold,size:11),const SizedBox(height:32),
+      _GlowText('SCORE FINAL: $score',color:cGold,size:24),
+      _GlowText('MEJOR: $best',color:Colors.white38,size:13),const SizedBox(height:48),
+      _Btn(label:'MENÚ PRINCIPAL',color:cIce,onTap:onMenu)]))));
 }
 
 // ══════════════════════════════════════════════════════════
-// GAME SCREEN
+// GAME SCREEN — con Pausa, Anti-Phoenix IA, fragmentación
 // ══════════════════════════════════════════════════════════
 class GameScreen extends StatefulWidget {
   final StageConfig stageConfig;final PlayerBuild? initialBuild;final int initialScore;
-  final void Function(int,PlayerBuild) onStageClear;
-  final void Function(int) onGameOver;
+  final void Function(int,PlayerBuild) onStageClear;final void Function(int) onGameOver;
   final AudioManager audio;final SpriteCache sprites;
   const GameScreen({super.key,required this.stageConfig,required this.initialBuild,
       required this.initialScore,required this.onStageClear,required this.onGameOver,
@@ -1010,23 +864,37 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   double _gravTimer=75.0;bool _gravActive=false,_gravWarn=false;
   double _portal=0.0;bool _mirrorWin=false;double _mirrorT=0;
   double _asteroidTimer=0;
+  // Pausa
+  bool _paused=false;
+  // Anti-Phoenix IA
+  final _tracker=PlayerTracker();
+  final _profile=PlayerProfile();
+  bool _antiPatternTriggered=false,_antiFinalTriggered=false;
+  double _diffMult=1.0,_decayTimer=15.0;
+  // Glitch visual
+  double _glitchT=0;bool _glitchActive=false;
   final _mg=ChargeIndicator(icon:'⚡',color:cGold,chargeTime:28.0,activeDuration:8.0);
   final _fr=ChargeIndicator(icon:'❄',color:cIce,chargeTime:38.0,activeDuration:6.0);
   Ticker? _ticker;Duration _last=Duration.zero;
 
-  @override void initState(){super.initState();_score=widget.initialScore;_ai=AIAdapt();
+  @override void initState(){
+    super.initState();_score=widget.initialScore;_ai=AIAdapt();
     WidgetsBinding.instance.addPostFrameCallback((_){
       final sz=MediaQuery.of(context).size;_sw=sz.width;_sh=sz.height;
       final b=widget.initialBuild??PlayerBuild();
       _player=Player(_sw/2,b:b);_res.energy=_player.build.maxEnergy;
-      _ticker=createTicker(_tick)..start();});}
+      _ticker=createTicker(_tick)..start();
+    });
+  }
   @override void dispose(){_ticker?.dispose();super.dispose();}
 
   void _tick(Duration elapsed){
     final dt=((elapsed-_last).inMicroseconds/1e6).clamp(0.0,0.05).toDouble();
-    _last=elapsed;if(dt==0||!mounted)return;_update(dt);}
+    _last=elapsed;if(dt==0||!mounted)return;_update(dt);
+  }
 
   void _update(double dt){
+    if(_paused){if(mounted)setState((){});return;}
     if(_mirrorWin){_mirrorT+=dt;_updateParticles(dt);if(_mirrorT>3.0)widget.onStageClear(_score,_player.build);if(mounted)setState((){});return;}
     if(_quenching){_quenchT+=dt;_updateParticles(dt);if(_quenchT>2.5)widget.onGameOver(_score);if(mounted)setState((){});return;}
     if(_frosting){_frostT+=dt*0.55;_spawnFrost();_updateParticles(dt);_updateFloats(dt);
@@ -1040,14 +908,34 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if(_niFrame>0)_niFrame=(_niFrame-dt).clamp(0,kNucleusIFrame);
     _mg.update(dt);_fr.update(dt);
 
+    // Tracker de movimiento para Anti-Phoenix
+    final mv=_touching?(_touchX<_player.x?MoveType.left:MoveType.right):
+             (_touching&&_res.energy>0?MoveType.shoot:MoveType.idle);
+    _tracker.add(mv);_profile.register(mv);
+    // Decay del perfil cada 15 segundos
+    _decayTimer-=dt;if(_decayTimer<=0){_decayTimer=15.0;_profile.decay();}
+
+    // Glitch foreshadowing stage 4
+    if(_stage.stageNum==4&&!_bossAlive&&_phase.cycleCount>=2){
+      if(_rng.nextDouble()<0.003){_glitchActive=true;_glitchT=0.4;}
+    }
+    if(_glitchActive){_glitchT-=dt;if(_glitchT<=0)_glitchActive=false;}
+
+    // Modo predictibilidad alta — frase final
+    if(_stage.stageNum==4&&_bossAlive&&!_antiFinalTriggered&&_profile.predictability()>0.8){
+      _antiFinalTriggered=true;_glitchActive=true;_glitchT=0.8;hapticHeavy();
+      if(_boss!=null)_addFloat(_boss!.x,_boss!.y-kBossR-30,'Eres yo… pero sin evolución.',cRed);
+    }
+
     if(_stage.hazard==StageHazard.gravityTimer&&_gravActive){
       _gravTimer-=dt;_gravWarn=_gravTimer<30;if(_gravTimer<=0)_beginFrost();}
     if(_stage.hazard==StageHazard.mirrorPortal){
       if(_bossAlive)_portal+=dt*0.004;if(_portal>=1.0)_beginFrost();}
     if(_stage.hazard==StageHazard.asteroids){
       _asteroidTimer-=dt;
-      if(_asteroidTimer<=0){_asteroidTimer=4+_rng.nextDouble()*4;_spawnAsteroid(false);}
-      _updateAsteroids(dt);}
+      if(_asteroidTimer<=0){_asteroidTimer=4+_rng.nextDouble()*4;_spawnAsteroid(2);}
+      _updateAsteroids(dt);
+    }
 
     if(_res.heatFrac>=0.8&&!_alarmOn){_alarmOn=true;_audio.startAlarm();}
     else if(_res.heatFrac<0.75&&_alarmOn){_alarmOn=false;_audio.stopAlarm();}
@@ -1058,7 +946,9 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       _shootTimer-=dt;
       if(_shootTimer<=0){
         final rate=_mg.active?_player.build.fireRate*1.7:_player.build.fireRate;
-        _shootTimer=_res.shootInterval(rate);_fireLaser();}}
+        _shootTimer=_res.shootInterval(rate);_fireLaser();
+      }
+    }
 
     for(final b in _bullets){
       if(b.isEnemy){b.y+=360*dt;}else{b.x+=sin(b.angle)*560*dt;b.y-=cos(b.angle)*560*dt;}}
@@ -1074,7 +964,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
 
     _updateEnemies(dt);if(_bossAlive&&_boss!=null)_updateBoss(dt);_resolveCollisions();
     _coreTemp=(_coreTemp-0.004*dt).clamp(0,1);if(_coreTemp>=1.0&&!_frosting&&!_quenching)_beginFrost();
-    _updateParticles(dt);_updateFloats(dt);if(mounted)setState((){});}
+    _updateParticles(dt);_updateFloats(dt);if(mounted)setState((){});
+  }
 
   void _fireLaser(){
     _res.applyShoot(_player.build);
@@ -1084,22 +975,28 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       _bullets.add(Bullet(_player.x,py,_player.build.damage,angle:0));
       _bullets.add(Bullet(_player.x,py,_player.build.damage*0.7,angle:-0.13));
       _bullets.add(Bullet(_player.x,py,_player.build.damage*0.7,angle:0.13));
-    }else{_bullets.add(Bullet(_player.x,py,_player.build.damage));}}
+    }else{_bullets.add(Bullet(_player.x,py,_player.build.damage));}
+  }
 
-  void _spawnAsteroid(bool small,{double? ox,double? oy,double? ovx,double? ovy}){
-    final r=small?7+_rng.nextDouble()*10:18+_rng.nextDouble()*22;
+  // SPAWN ASTEROIDE CON NIVEL (2=grande, 1=mediano, 0=pequeño)
+  void _spawnAsteroid(int level,{double? ox,double? oy,double? ovx,double? ovy}){
+    final r=level==2?18+_rng.nextDouble()*20:level==1?10+_rng.nextDouble()*8:5+_rng.nextDouble()*5;
     _asteroids.add(Asteroid(x:ox??20+_rng.nextDouble()*(_sw-40),y:oy??-r,
         vx:ovx??(_rng.nextBool()?1:-1)*(20+_rng.nextDouble()*40),
-        vy:ovy??60+_rng.nextDouble()*50,r:r,small:small));}
+        vy:ovy??60+_rng.nextDouble()*50,r:r,level:level));
+  }
 
+  // FRAGMENTACIÓN CONTROLADA — pequeño=0 MUERE, sin recursión infinita
   void _splitAsteroid(Asteroid a){
-    if(a.r<11)return;
-    final count=2+_rng.nextInt(3);
+    if(a.level<=0)return; // level 0 → muere sin fragmentar
+    final nextLevel=a.level-1;
+    final count=nextLevel==1?3:2; // grande→3med, mediano→2peq
     for(int i=0;i<count;i++){
-      final ang=(pi*2/count)*i+_rng.nextDouble()*0.5;
-      _spawnAsteroid(true,ox:a.x,oy:a.y,
-          ovx:cos(ang)*(50+_rng.nextDouble()*60),
-          ovy:sin(ang)*(50+_rng.nextDouble()*60)-20);}}
+      final ang=(pi*2/count)*i+_rng.nextDouble()*0.4;
+      final spd=nextLevel==1?55+_rng.nextDouble()*45:70+_rng.nextDouble()*50;
+      _spawnAsteroid(nextLevel,ox:a.x,oy:a.y,ovx:cos(ang)*spd,ovy:sin(ang)*spd-15);
+    }
+  }
 
   void _updateAsteroids(double dt){
     for(final a in _asteroids){
@@ -1115,12 +1012,10 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       final nx=_sw/2,ny=_sh*0.87;
       if((a.x-nx).abs()<a.r+kNucleusR&&(a.y-ny).abs()<a.r+kNucleusR){
         a.dead=true;
-        if(_niFrame<=0){_niFrame=kNucleusIFrame;
-          _res.applyDamageHeat(kCoreHeatPerHit*1.5);_coreTemp+=kCoreHeatPerHit*1.5;
+        if(_niFrame<=0){_niFrame=kNucleusIFrame;_res.applyDamageHeat(kCoreHeatPerHit*1.5);_coreTemp+=kCoreHeatPerHit*1.5;
           hapticHeavy();_addFloat(nx,ny-20,'NÚCLEO HIT!',cDanger);_spawnBurst(nx,ny,cDanger,8);}}
       if(!a.dead){
-        for(final e in _enemies){
-          if(e.dead)continue;
+        for(final e in _enemies){if(e.dead)continue;
           if((a.x-e.x).abs()<a.r+kEnemyR*0.7&&(a.y-e.y).abs()<a.r+kEnemyR*0.7){
             a.dead=true;e.hp-=15;e.hitFlash=0.8;_spawnBurst(a.x,a.y,Colors.grey,6);_audio.playExplosion(isAsteroid:true);
             if(e.hp<=0){e.dead=true;_score+=_eScore(e.kind)~/2;_spawnBurst(e.x,e.y,_eColor(e.kind),10);_audio.playExplosion();}
@@ -1130,26 +1025,26 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     for(final b in _bullets){if(b.isEnemy)continue;
       for(final a in _asteroids){if(a.dead)continue;
         if((b.x-a.x).abs()<a.r&&(b.y-a.y).abs()<a.r){
-          remB.add(b);_splitAsteroid(a);a.dead=true;_score+=a.r>15?25:10;
-          _spawnBurst(a.x,a.y,Colors.grey.shade400,a.r>15?12:5);
-          _addFloat(a.x,a.y-10,'+${a.r>15?25:10}',Colors.grey.shade300);
+          remB.add(b);_splitAsteroid(a);a.dead=true;
+          final pts=a.level==2?30:a.level==1?15:8;_score+=pts;
+          _spawnBurst(a.x,a.y,Colors.grey.shade400,a.level==2?12:a.level==1?7:4);
+          _addFloat(a.x,a.y-10,'+$pts',Colors.grey.shade300);
           _audio.playExplosion(isAsteroid:true);break;}}}
     final remE=<Bullet>{};
     for(final b in _bullets){if(!b.isEnemy)continue;
       for(final a in _asteroids){if(a.dead)continue;
         if((b.x-a.x).abs()<a.r&&(b.y-a.y).abs()<a.r){remE.add(b);break;}}}
     _bullets.removeWhere((b)=>remB.contains(b)||remE.contains(b));
-    _asteroids.removeWhere((a)=>a.dead);}
+    _asteroids.removeWhere((a)=>a.dead);
+  }
 
   void _spawnPowerUp(){
     final c=_phase.cycleCount;final av=[PowerUpKind.energyBoost];
     if(c>=1)av.add(PowerUpKind.shield);if(c>=2)av.add(PowerUpKind.rapidFire);
     if(c>=3)av.add(PowerUpKind.coreArmor);if(c>=4)av.add(PowerUpKind.tripleShot);
     _powerUps.add(PowerUp(20+_rng.nextDouble()*(_sw-40),-30,av[_rng.nextInt(av.length)]));}
-
   void _updatePowerUps(double dt){
-    for(final p in _powerUps){
-      p.y+=65*dt;p.animT+=dt*3;
+    for(final p in _powerUps){p.y+=65*dt;p.animT+=dt*3;
       if(!p.collected&&(p.x-_player.x).abs()<40&&(p.y-_sh*0.72).abs()<40){
         p.collected=true;_applyPU(p.kind);hapticLight();
         _spawnBurst(p.x,p.y,_puC(p.kind),18);_addFloat(p.x,p.y-10,_puL(p.kind),_puC(p.kind));}}
@@ -1183,9 +1078,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       switch(e.kind){
         case EnemyKind.interceptor:e.x+=e.vx*dt;e.y+=e.vy*dt;if(e.x<kEnemyR||e.x>_sw-kEnemyR)e.vx*=-1;
         case EnemyKind.frigate:
-          e.y=(e.y+e.vy*dt*0.4).clamp(-kEnemyR,_sh*0.25);e.x+=e.vx*dt;
-          if(e.x<kEnemyR||e.x>_sw-kEnemyR)e.vx*=-1;e.actionTimer+=dt;
-          if(e.actionTimer>1.5/_ai.counterFire){e.actionTimer=0;_bullets.add(Bullet(e.x,e.y+kEnemyR,9,isEnemy:true));}
+          e.y=(e.y+e.vy*dt*0.4).clamp(-kEnemyR,_sh*0.25);e.x+=e.vx*dt;if(e.x<kEnemyR||e.x>_sw-kEnemyR)e.vx*=-1;
+          e.actionTimer+=dt;if(e.actionTimer>1.5/_ai.counterFire){e.actionTimer=0;_bullets.add(Bullet(e.x,e.y+kEnemyR,9,isEnemy:true));}
         case EnemyKind.parasite:
           e.x+=(_player.x-e.x).sign*48*dt;e.y+=e.vy*dt*0.6;
           if((e.x-_player.x).abs()<40&&(e.y-_sh*0.72).abs()<40){_res.energy-=11*dt;
@@ -1201,14 +1095,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   void _updateBoss(double dt){
     final b=_boss!;if(b.dead)return;
     if(b.hitFlash>0)b.hitFlash-=dt*3;b.animT+=dt;
-    // Escudo de fase: cuenta regresiva
-    if(b.phaseShieldActive){
-      b.phaseShieldTimer-=dt;
-      if(b.phaseShieldTimer<=0){
-        b.phaseShieldActive=false;
-        _addFloat(b.x,b.y-kBossR-20,'ESCUDO CAÍDO',cDanger);
-      }
-    }
+    if(b.phaseShieldActive){b.phaseShieldTimer-=dt;
+      if(b.phaseShieldTimer<=0){b.phaseShieldActive=false;_addFloat(b.x,b.y-kBossR-20,'ESCUDO CAÍDO',cDanger);}}
     if(_stage.stageNum==4){
       b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*24;
       if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;
@@ -1216,9 +1104,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
         _spawnBurst(b.x,b.y,cRed,50);_spawnBurst(_sw/2,_sh/2,cGold,40);
         _addFloat(_sw/2,_sh*0.4,'PORTAL CERRADO!',cGold);
         _audio.playExplosion(isBoss:true);_audio.switchToAmbient();}}
-    // Cuando escudo activo: reducir moveTime (más agresivo)
     final effectiveMoveTime=b.phaseShieldActive?1.5:Boss.moveTime;
-    final effectiveBurstLimit=b.phaseShieldActive?4:3; // 4 ráfagas con escudo
+    final effectiveBurstLimit=b.phaseShieldActive?4:3;
     switch(b.state){
       case BossState.moving:b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*24;if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;b.stateTimer+=dt;
         if(b.stateTimer>=effectiveMoveTime){b.state=BossState.charging;b.stateTimer=0;b.chargeGlow=0;}
@@ -1234,7 +1121,34 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   void _fireBoss(Boss b){
     final ba=atan2(_player.x-b.x,_sh*0.5)*0.35;const sp=0.31;
     final offsets=_stage.stageNum>=3?[0.0,-sp,sp,-sp*0.5]:[0.0,-sp,sp];
-    for(final off in offsets){_bullets.add(Bullet(b.x,b.y+kBossR,14+(_stage.stageNum-1)*3,isEnemy:true,fromBoss:true,angle:ba+off));}}
+    // ANTI-PHOENIX: ataque adaptativo basado en perfil del jugador
+    if(_stage.stageNum==4&&_rng.nextDouble()<0.70){
+      final predict=_profile.predictability();
+      if(predict>0.6){
+        // Disparo predictivo según movimiento dominante
+        double targetX=_player.x;
+        final dom=_profile.dominantMove();
+        if(dom==MoveType.right)targetX=(_player.x+60*_diffMult).clamp(0,_sw);
+        else if(dom==MoveType.left)targetX=(_player.x-60*_diffMult).clamp(0,_sw);
+        final predAngle=atan2(targetX-b.x,_sh*0.5)*0.45;
+        _bullets.add(Bullet(b.x,b.y+kBossR,17,isEnemy:true,fromBoss:true,angle:predAngle));
+        _bullets.add(Bullet(b.x,b.y+kBossR,17,isEnemy:true,fromBoss:true,angle:predAngle-0.18));
+        // Frases dinámicas por predictibilidad
+        if(!_antiPatternTriggered&&_rng.nextDouble()<0.3){
+          _antiPatternTriggered=true;
+          final msg=predict>0.75?'Eres completamente predecible…':predict>0.6?'Empiezo a entenderte…':'Interesante… estás cambiando.';
+          _addFloat(b.x,b.y-kBossR-24,msg,cRed);
+          _glitchActive=true;_glitchT=0.5;
+          Future.delayed(const Duration(seconds:4),()=>_antiPatternTriggered=false);
+        }
+        _diffMult=(_diffMult+0.05).clamp(1.0,2.2);
+      } else {
+        for(final off in offsets)_bullets.add(Bullet(b.x,b.y+kBossR,14,isEnemy:true,fromBoss:true,angle:ba+off));
+      }
+    } else {
+      for(final off in offsets)_bullets.add(Bullet(b.x,b.y+kBossR,14+(_stage.stageNum-1)*3,isEnemy:true,fromBoss:true,angle:ba+off));
+    }
+  }
 
   void _resolveCollisions(){
     final rem=<Bullet>{};
@@ -1264,22 +1178,18 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
             rem.add(bul);final dmg=_fr.active?bul.damage*1.5:bul.damage;
             if(_stage.stageNum==4){bo.repelMeter=(bo.repelMeter+dmg/800).clamp(0,1);_score+=5;}
             else{
-              // Escudo de fase stage 1: absorbe 65% del daño
               final actualDmg=bo.phaseShieldActive?dmg*0.35:dmg;
               bo.hp-=actualDmg;bo.hitFlash=1.0;_score+=_fr.active?7:5;
-              if(bo.phaseShieldActive){_spawnBurst(bo.x,bo.y,cShield.withOpacity(0.4),4);}
-              // Trigger escudo al 50% HP (solo stage 1, solo una vez)
+              if(bo.phaseShieldActive)_spawnBurst(bo.x,bo.y,cShield.withOpacity(0.4),4);
               if(_stage.stageNum==1&&!bo.phaseTriggered&&bo.hp/bo.maxHp<=0.5){
                 bo.phaseTriggered=true;bo.phaseShieldActive=true;bo.phaseShieldTimer=8.0;
-                _addFloat(bo.x,bo.y-kBossR-20,'⚡ ESCUDO ACTIVO!',cShield);
-                _spawnBurst(bo.x,bo.y,cShield,30);hapticHeavy();
-              }
+                _addFloat(bo.x,bo.y-kBossR-20,'⚡ ESCUDO ACTIVO!',cShield);_spawnBurst(bo.x,bo.y,cShield,30);hapticHeavy();}
               if(bo.hp<=0){bo.dead=true;_bossAlive=false;_score+=500+(_stage.stageNum-1)*200;
                 _spawnBurst(bo.x,bo.y,cGold,40);_spawnBurst(bo.x-30,bo.y+20,cFire,20);
                 _audio.playExplosion(isBoss:true);hapticHeavy();
                 _addFloat(bo.x,bo.y,'+${500+(_stage.stageNum-1)*200} BOSS!',cGold);
                 _phase.endBoss();_ai.analyze(_player.build,_stage.stageNum);_audio.switchToAmbient();
-                if(_phase.cycleCount>=3)_stageClear();}}}}}}
+                if(_phase.cycleCount>=3)_stageClear();}}}}}
     _bullets.removeWhere((b)=>rem.contains(b));}
 
   int   _eScore(EnemyKind k)=>switch(k){EnemyKind.interceptor=>100,EnemyKind.frigate=>150,EnemyKind.parasite=>200,EnemyKind.corrupter=>175};
@@ -1336,29 +1246,46 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
               frosting:_frosting,frostT:_frostT,quenching:_quenching,quenchT:_quenchT,
               touching:_touching,sprites:_spr,nucleusIFrame:_niFrame,
               freezeActive:_fr.active,machineGunActive:_mg.active,
-              stageNum:_stage.stageNum,bossColor:_stage.bossColor,
-              asteroids:_asteroids,gravityTimer:_gravActive?_gravTimer:-1,
+              stageNum:_stage.stageNum,bossColor:_stage.bossColor,asteroids:_asteroids,
+              gravityTimer:_gravActive?_gravTimer:-1,
               portalGrow:_stage.hazard==StageHazard.mirrorPortal?_portal:-1,
               mirrorVictory:_mirrorWin,mirrorVictoryT:_mirrorT,
-              repelMeter:_boss?.repelMeter??0,stageName:_stage.name),
+              repelMeter:_boss?.repelMeter??0,stageName:_stage.name,
+              glitchActive:_glitchActive,paused:_paused),
             child:const SizedBox.expand())),
+        // Botón PAUSA
+        Positioned(top:8,right:8,child:GestureDetector(
+          onTap:(){setState(()=>_paused=!_paused);hapticLight();},
+          child:Container(width:40,height:40,
+            decoration:BoxDecoration(color:Colors.black.withOpacity(0.6),shape:BoxShape.circle,
+                border:Border.all(color:Colors.white24)),
+            child:Icon(_paused?Icons.play_arrow:Icons.pause,color:Colors.white60,size:22)))),
+        // Anillos de carga
         Positioned(right:8,top:_sh*0.38,child:Column(children:[
           _ChargeRing(indicator:_mg,onTap:()=>_onTap(true)),const SizedBox(height:12),
-          _ChargeRing(indicator:_fr,onTap:()=>_onTap(false)),])),
+          _ChargeRing(indicator:_fr,onTap:()=>_onTap(false))])),
+        // Overlay de pausa
+        if(_paused)Container(color:Colors.black.withOpacity(0.75),
+          child:Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
+            _GlowText('PAUSA',color:cGold,size:38),const SizedBox(height:32),
+            _Btn(label:'REANUDAR',color:cIce,onTap:(){setState(()=>_paused=false);}),
+            const SizedBox(height:16),
+          ]))),
         if(_showDec)_DecisionOverlay(options:_opts,cycle:_phase.cycleCount,stageNum:_stage.stageNum,onSelect:_selectUpg),
         if(_phase.phase==GamePhase.boss&&_bossAlive)
-          Positioned(top:8,left:0,right:0,child:Center(child:_GlowText('⚠ ${_stage.bossName} ⚠',color:_stage.bossColor,size:13))),
-        if(isTriple)Positioned(bottom:_sh*0.14,right:20,child:_GlowText('💥 TRIPLE',color:cGold,size:11)),
+          Positioned(top:52,left:0,right:0,child:Center(child:_GlowText('⚠ ${_stage.bossName} ⚠',color:_stage.bossColor,size:13))),
+        if(isTriple)Positioned(bottom:_sh*0.14,right:60,child:_GlowText('💥 TRIPLE',color:cGold,size:11)),
         if(_mg.active)Positioned(bottom:_sh*0.16,left:20,child:_GlowText('⚡ RÁFAGA ${_mg.activeTimer.toStringAsFixed(1)}s',color:cGold,size:11)),
         if(_fr.active)Positioned(bottom:_sh*0.18,left:20,child:_GlowText('❄ FREEZE ${_fr.activeTimer.toStringAsFixed(1)}s',color:cIce,size:11)),
         if(_gravWarn)Positioned(top:_sh*0.3,left:0,right:0,child:Center(child:_GlowText('⚠ GRAVEDAD: ${_gravTimer.toInt()}s',color:cDanger,size:16))),
         if(_stage.stageNum==4&&_bossAlive&&_boss!=null)
           Positioned(bottom:_sh*0.22,left:20,right:20,child:Column(children:[
-            _GlowText('REPELER PORTAL ${(_boss!.repelMeter*100).toInt()}%',color:cRed,size:12),
-            const SizedBox(height:4),
+            _GlowText('REPELER PORTAL ${(_boss!.repelMeter*100).toInt()}%',color:cRed,size:12),const SizedBox(height:4),
             ClipRRect(borderRadius:BorderRadius.circular(4),child:LinearProgressIndicator(
                 value:_boss!.repelMeter,backgroundColor:Colors.white12,
-                valueColor:AlwaysStoppedAnimation(cRed),minHeight:8)),]))]));}
+                valueColor:AlwaysStoppedAnimation(cRed),minHeight:8))])),
+      ]));
+  }
 }
 
 // ── GAME PAINTER ─────────────────────────────────────────
@@ -1366,28 +1293,42 @@ class GamePainter extends CustomPainter {
   final double sw,sh,coreTemp,corePulse,frostT,quenchT,nucleusIFrame;
   final double gravityTimer,portalGrow,mirrorVictoryT,repelMeter;
   final bool frosting,quenching,touching,isTriple,freezeActive,machineGunActive,mirrorVictory;
+  final bool glitchActive,paused;
   final Color laserColor,bossColor;final int stageNum;final String stageName;
   final Player player;final List<Enemy> enemies;final List<Bullet> bullets;final List<PowerUp> powerUps;
   final List<Asteroid> asteroids;final Boss? boss;final List<Particle> particles;final List<FloatingText> floats;
   final int score;final ResourceSystem res;final PhaseEngine phase;final SpriteCache sprites;
   const GamePainter({required this.sw,required this.sh,required this.player,required this.enemies,
-      required this.bullets,required this.powerUps,required this.boss,required this.particles,required this.floats,
-      required this.score,required this.res,required this.phase,required this.coreTemp,required this.corePulse,
-      required this.laserColor,required this.isTriple,required this.frosting,required this.frostT,
-      required this.quenching,required this.quenchT,required this.touching,required this.sprites,
-      required this.nucleusIFrame,required this.freezeActive,required this.machineGunActive,
-      required this.stageNum,required this.bossColor,required this.asteroids,required this.gravityTimer,
+      required this.bullets,required this.powerUps,required this.boss,required this.particles,
+      required this.floats,required this.score,required this.res,required this.phase,
+      required this.coreTemp,required this.corePulse,required this.laserColor,required this.isTriple,
+      required this.frosting,required this.frostT,required this.quenching,required this.quenchT,
+      required this.touching,required this.sprites,required this.nucleusIFrame,
+      required this.freezeActive,required this.machineGunActive,required this.stageNum,
+      required this.bossColor,required this.asteroids,required this.gravityTimer,
       required this.portalGrow,required this.mirrorVictory,required this.mirrorVictoryT,
-      required this.repelMeter,required this.stageName});
+      required this.repelMeter,required this.stageName,required this.glitchActive,required this.paused});
 
   @override void paint(Canvas canvas,Size size){
+    if(glitchActive){canvas.save();canvas.translate((Random().nextDouble()-0.5)*8,0);}
     _bg(canvas);if(portalGrow>0)_portal(canvas);
     _drawNucleus(canvas);_drawPowerUps(canvas);_drawAsteroids(canvas);
     _drawEnemies(canvas);if(boss!=null)_drawBoss(canvas,boss!);
     _drawBullets(canvas);_drawPhoenix(canvas);
     _drawParticles(canvas);_drawFloats(canvas);_drawHUD(canvas);
     if(frosting)_drawFrost(canvas);if(quenching)_drawQuench(canvas);
-    if(mirrorVictory)_drawMirrorWin(canvas);}
+    if(mirrorVictory)_drawMirrorWin(canvas);
+    if(glitchActive){
+      canvas.restore();
+      // Scanlines de glitch
+      for(int i=0;i<sh.toInt();i+=6){
+        canvas.drawRect(Rect.fromLTWH(0,i.toDouble(),sw,2),
+            Paint()..color=cRed.withOpacity(0.06));
+      }
+      canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
+          Paint()..color=cRed.withOpacity(0.08));
+    }
+  }
 
   void _bg(Canvas canvas){
     final sa=switch(stageNum){2=>const Color(0xFF001A00),3=>const Color(0xFF0A001A),4=>const Color(0xFF1A0000),_=>const Color(0xFF001022)};
@@ -1410,12 +1351,14 @@ class GamePainter extends CustomPainter {
   void _drawAsteroids(Canvas canvas){
     for(final a in asteroids){if(a.dead)continue;
       canvas.save();canvas.translate(a.x,a.y);canvas.rotate(a.angle);
+      // Color diferente por nivel
+      final col=a.level==2?const Color(0xFF665544):a.level==1?const Color(0xFF887755):const Color(0xFFAA9966);
+      final colB=a.level==2?const Color(0xFF887766):a.level==1?const Color(0xFFAA9977):const Color(0xFFCCBB88);
       final path=Path();
       for(int i=0;i<8;i++){final ang=i*pi/4;final r2=a.r*(0.7+0.3*(i%2==0?1:0.6));
         if(i==0)path.moveTo(cos(ang)*r2,sin(ang)*r2);else path.lineTo(cos(ang)*r2,sin(ang)*r2);}
-      path.close();
-      canvas.drawPath(path,Paint()..color=const Color(0xFF665544));
-      canvas.drawPath(path,Paint()..color=const Color(0xFF887766)..style=PaintingStyle.stroke..strokeWidth=1.5);
+      path.close();canvas.drawPath(path,Paint()..color=col);
+      canvas.drawPath(path,Paint()..color=colB..style=PaintingStyle.stroke..strokeWidth=1.5);
       canvas.restore();}}
 
   void _drawNucleus(Canvas canvas){
@@ -1482,19 +1425,12 @@ class GamePainter extends CustomPainter {
 
   void _drawBoss(Canvas canvas,Boss b){
     final isCharging=b.state==BossState.charging;
-    // Escudo de fase — anillo pulsante
     if(b.phaseShieldActive){
       final pulse=0.7+sin(b.animT*8)*0.3;
-      canvas.drawCircle(Offset(b.x,b.y),kBossR*1.6,
-          Paint()..color=cShield.withOpacity(0.35*pulse)..maskFilter=const MaskFilter.blur(BlurStyle.normal,18));
-      canvas.drawCircle(Offset(b.x,b.y),kBossR*1.6,
-          Paint()..color=cShield.withOpacity(0.8*pulse)..style=PaintingStyle.stroke..strokeWidth=3);
-      // Temporizador del escudo
+      canvas.drawCircle(Offset(b.x,b.y),kBossR*1.6,Paint()..color=cShield.withOpacity(0.35*pulse)..maskFilter=const MaskFilter.blur(BlurStyle.normal,18));
+      canvas.drawCircle(Offset(b.x,b.y),kBossR*1.6,Paint()..color=cShield.withOpacity(0.8*pulse)..style=PaintingStyle.stroke..strokeWidth=3);
       final shieldFrac=(b.phaseShieldTimer/8.0).clamp(0.0,1.0);
-      canvas.drawArc(Rect.fromCircle(center:Offset(b.x,b.y),radius:kBossR*1.7),
-          -pi/2, pi*2*shieldFrac, false,
-          Paint()..color=cShield..style=PaintingStyle.stroke..strokeWidth=2..strokeCap=StrokeCap.round);
-    }
+      canvas.drawArc(Rect.fromCircle(center:Offset(b.x,b.y),radius:kBossR*1.7),-pi/2,pi*2*shieldFrac,false,Paint()..color=cShield..style=PaintingStyle.stroke..strokeWidth=2..strokeCap=StrokeCap.round);}
     if(isCharging){canvas.drawCircle(Offset(b.x,b.y),kBossR*2.2,Paint()..color=bossColor.withOpacity(b.chargeGlow*0.35)..maskFilter=const MaskFilter.blur(BlurStyle.normal,30));
       for(int i=1;i<=3;i++)canvas.drawCircle(Offset(b.x,b.y),kBossR*(1.0+i*0.4*b.chargeGlow),Paint()..color=bossColor.withOpacity((1-b.chargeGlow)*0.3/(i*0.8))..style=PaintingStyle.stroke..strokeWidth=1.5);}
     final img=sprites.bossImg(stageNum);
@@ -1576,7 +1512,8 @@ class GamePainter extends CustomPainter {
 class _ChargeRing extends StatelessWidget {
   final ChargeIndicator indicator;final VoidCallback onTap;
   const _ChargeRing({required this.indicator,required this.onTap});
-  @override Widget build(BuildContext ctx){final c=indicator.color;final ready=indicator.ready&&!indicator.active;final active=indicator.active;
+  @override Widget build(BuildContext ctx){
+    final c=indicator.color;final ready=indicator.ready&&!indicator.active;final active=indicator.active;
     return GestureDetector(onTap:onTap,child:SizedBox(width:48,height:48,child:CustomPaint(painter:_RingPainter(fraction:indicator.fraction,color:c,ready:ready,active:active,icon:indicator.icon))));}
 }
 class _RingPainter extends CustomPainter {
@@ -1626,8 +1563,8 @@ class _MState extends State<MenuScreen> with SingleTickerProviderStateMixin {
     body:SafeArea(child:Center(child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       _GlowText('PHOENIX CORE',color:cFire,size:38),const SizedBox(height:4),
       _GlowText('CRYO BALANCE  V4',color:cIce,size:16),const SizedBox(height:6),
-      _GlowText('BEST: ${widget.best}',color:cGold,size:14),
-      const SizedBox(height:32),_FleetLegend(sprites:widget.sprites),const SizedBox(height:32),
+      _GlowText('BEST: ${widget.best}',color:cGold,size:14),const SizedBox(height:32),
+      _FleetLegend(sprites:widget.sprites),const SizedBox(height:32),
       AnimatedBuilder(animation:_p,builder:(_,__)=>Transform.scale(scale:1+_p.value*0.05,
         child:GestureDetector(onTap:widget.onStart,child:Container(
           padding:const EdgeInsets.symmetric(horizontal:52,vertical:18),
