@@ -72,7 +72,7 @@ class CinematicScene {
 const _stages = [
   StageConfig(stageNum:1,name:'NEBULOSA DE ORIÓN',
     bossName:'THE FROZEN WARLORD',bossAsset:'assets/images/boss.png',
-    bossColor:cWarlord,hazard:StageHazard.none,bossHpBase:110,bossHpPerCycle:25,scenes:[]),
+    bossColor:cWarlord,hazard:StageHazard.none,bossHpBase:180,bossHpPerCycle:35,scenes:[]),
   StageConfig(stageNum:2,name:'ASTEROIDES DE KHAROS',
     bossName:'EL SEGADOR DE ALMAS',bossAsset:'assets/images/jefe2.png',
     bossColor:cGreen,hazard:StageHazard.asteroids,bossHpBase:160,bossHpPerCycle:30,
@@ -235,6 +235,9 @@ class Boss {
   double x,y,hp,maxHp,vx;bool dead=false;
   double hitFlash=0,animT=0,stateTimer=0,chargeGlow=0,burstTimer=0;
   int burstCount=0;BossState state=BossState.moving;double repelMeter=0;
+  // Escudo de fase: se activa cuando HP cae al 50%
+  bool phaseShieldActive=false;double phaseShieldTimer=0;
+  bool phaseTriggered=false; // solo se activa una vez
   static const double moveTime=3.0,chargeTime=kBossChargeTime,cooldownTime=2.8;
   Boss({required this.x,required this.y,required this.hp,this.vx=75}):maxHp=hp;
 }
@@ -362,10 +365,17 @@ class SpriteCache {
     final result=Uint8List.fromList(pixels);
     for(int i=0;i<result.length;i+=4){
       final r=result[i],g=result[i+1],b=result[i+2],a=result[i+3];
+      // Skip fully transparent pixels
+      if(a==0)continue;
       final mx=max(r,max(g,b));final mn=min(r,min(g,b));
       final sat=mx==0?0:(mx-mn)*255~/mx;
-      if(sat<35&&mx>80){result[i+3]=0;continue;}
-      if(r>220&&g>220&&b>220&&a>200)result[i+3]=0;
+      // Grey/checker bg: low saturation AND brightness in grey range
+      // Threshold raised: sat<55 catches more greys, mx>60 avoids dark art
+      if(sat<55&&mx>60&&mx<230){result[i+3]=0;continue;}
+      // Pure white/near-white bg
+      if(r>215&&g>215&&b>215&&a>150){result[i+3]=0;continue;}
+      // Light grey checker (the typical AI-gen checkered bg ~128,128,128)
+      if((r-g).abs()<12&&(g-b).abs()<12&&(r-b).abs()<12&&mx>90&&mx<200){result[i+3]=0;continue;}
     }
     final comp=Completer<ui.Image>();
     ui.decodeImageFromPixels(result,w,h,ui.PixelFormat.rgba8888,comp.complete);
@@ -712,8 +722,14 @@ class _DockPainter extends CustomPainter {
   @override bool shouldRepaint(covariant CustomPainter _)=>true;
 }
 
+// Polvo cinematic flotante
+class _CinDust {
+  double x,y,speed,size;
+  _CinDust({required this.x,required this.y,required this.speed,required this.size});
+}
+
 // ══════════════════════════════════════════════════════════
-// CINEMATIC SCREEN — Zoom Ken Burns + TTS
+// CINEMATIC SCREEN — Zoom Ken Burns + TTS + vignette + dust
 // ══════════════════════════════════════════════════════════
 class CinematicScreen extends StatefulWidget {
   final List<CinematicScene> scenes;final VoidCallback onDone;
@@ -726,12 +742,32 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
   late Animation<double> _zoomAnim;
   final _tts=FlutterTts();
   bool _ttsReady=false;
+  // Flash de transición entre escenas
+  double _flashAlpha=0.0;
+  bool _flashing=false;
+  // Partículas de polvo/estrellas sobre la imagen
+  final List<_CinDust> _dust=[];
+  final _rng=Random();
+  late AnimationController _dustCtrl;
 
   @override void initState(){super.initState();
     _tc=AnimationController(vsync:this,duration:const Duration(milliseconds:32))..addListener(_tick);
     _zoom=AnimationController(vsync:this,duration:const Duration(seconds:8))..forward();
     _zoomAnim=Tween(begin:1.0,end:1.08).animate(CurvedAnimation(parent:_zoom,curve:Curves.easeInOut));
+    _dustCtrl=AnimationController(vsync:this,duration:const Duration(milliseconds:16))..addListener(_updateDust)..repeat();
+    _spawnDust();
     _initTts();_startScene();}
+
+  void _spawnDust(){
+    for(int i=0;i<18;i++){
+      _dust.add(_CinDust(x:_rng.nextDouble(),y:_rng.nextDouble(),speed:0.00008+_rng.nextDouble()*0.00015,size:1+_rng.nextDouble()*2.5));
+    }
+  }
+
+  void _updateDust(){
+    for(final d in _dust){d.y-=d.speed;if(d.y<0)d.y=1.0;}
+    if(mounted)setState((){});
+  }
 
   Future<void> _initTts() async {
     try{await _tts.setLanguage('es-MX');await _tts.setSpeechRate(0.42);await _tts.setPitch(0.95);_ttsReady=true;}catch(_){}
@@ -742,14 +778,19 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
   }
   void _tick(){final f=widget.scenes[_idx].dialogue;
     if(_ci<f.length){setState((){_ci++;_disp=f.substring(0,_ci);});}
-    else{_tc.stop();setState(()=>_full=true);}}
+    else{_tc.stop();setState(()=>_full=true);}
+    // Flash decay
+    if(_flashAlpha>0)setState(()=>_flashAlpha=(_flashAlpha-0.05).clamp(0,1));
+  }
   void _next(){
     if(!_full){_tc.stop();setState((){_disp=widget.scenes[_idx].dialogue;_full=true;});_tts.stop();return;}
     _tts.stop();
-    if(_idx<widget.scenes.length-1){setState(()=>_idx++);_startScene();}
-    else widget.onDone();
+    if(_idx<widget.scenes.length-1){
+      setState((){_flashAlpha=1.0;_idx++;});
+      _startScene();
+    } else widget.onDone();
   }
-  @override void dispose(){_tc.dispose();_zoom.dispose();_tts.stop();super.dispose();}
+  @override void dispose(){_tc.dispose();_zoom.dispose();_dustCtrl.dispose();_tts.stop();super.dispose();}
   Color _sc(String s)=>switch(s){'gold'=>cGold,'ice'=>cIce,'red'=>cDanger,_=>Colors.white};
 
   @override Widget build(BuildContext ctx){
@@ -758,15 +799,25 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
       body:GestureDetector(onTapDown:(_)=>_next(),
         child:Column(children:[
           Expanded(flex:55,child:Stack(children:[
+            // Imagen con zoom Ken Burns
             Positioned.fill(child:AnimatedBuilder(animation:_zoomAnim,
               builder:(_,__)=>Transform.scale(scale:_zoomAnim.value,
                 child:Image.asset(s.imageAsset,fit:BoxFit.cover,width:double.infinity,height:double.infinity,
                     errorBuilder:(_,__,___)=>Container(color:const Color(0xFF050A14),
                         child:const Center(child:Icon(Icons.image_not_supported,color:Colors.white24,size:48))))))),
-            Positioned.fill(child:Container(color:Colors.black.withOpacity(0.3))),
-            Positioned(bottom:0,left:0,right:0,height:100,child:Container(
+            // Overlay oscuro base
+            Positioned.fill(child:Container(color:Colors.black.withOpacity(0.28))),
+            // VIGNETTE — oscurece los bordes como lens cinematic
+            Positioned.fill(child:CustomPaint(painter:_VignettePainter())),
+            // POLVO FLOTANTE
+            Positioned.fill(child:CustomPaint(painter:_DustPainter(dust:_dust,sw:sz.width,sh:sz.height*0.55))),
+            // Degradado inferior para texto
+            Positioned(bottom:0,left:0,right:0,height:110,child:Container(
                 decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,
-                    end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.black.withOpacity(0.95)])))),
+                    end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.black.withOpacity(0.97)])))),
+            // Barras negras cinematográficas (letterbox)
+            Positioned(top:0,left:0,right:0,height:MediaQuery.of(ctx).padding.top+6,child:Container(color:Colors.black)),
+            // Location tag
             Positioned(top:MediaQuery.of(ctx).padding.top+10,left:12,right:80,
               child:Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),
                 decoration:BoxDecoration(color:Colors.black.withOpacity(0.75),
@@ -775,7 +826,11 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
             Positioned(top:MediaQuery.of(ctx).padding.top+10,right:12,
               child:Text('${_idx+1}/${widget.scenes.length}',
                   style:const TextStyle(color:Colors.white38,fontSize:10,fontFamily:'Orbitron'))),
+            // FLASH de transición
+            if(_flashAlpha>0)
+              Positioned.fill(child:Container(color:Colors.white.withOpacity(_flashAlpha*0.7))),
           ])),
+          // Diálogo
           Container(constraints:BoxConstraints(minHeight:sz.height*0.32),
             padding:const EdgeInsets.fromLTRB(20,14,20,28),
             decoration:BoxDecoration(color:Colors.black,
@@ -801,6 +856,31 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
             ])),
         ])));
   }
+}
+
+// Vignette — oscurece bordes estilo lens
+class _VignettePainter extends CustomPainter {
+  @override void paint(Canvas canvas,Size size){
+    canvas.drawRect(Rect.fromLTWH(0,0,size.width,size.height),
+        Paint()..shader=RadialGradient(
+            center:Alignment.center,radius:0.85,
+            colors:[Colors.transparent,Colors.black.withOpacity(0.65)],
+            stops:const[0.55,1.0]).createShader(Rect.fromLTWH(0,0,size.width,size.height)));
+  }
+  @override bool shouldRepaint(covariant CustomPainter _)=>false;
+}
+
+// Polvo flotante sobre la imagen
+class _DustPainter extends CustomPainter {
+  final List<_CinDust> dust; final double sw,sh;
+  _DustPainter({required this.dust,required this.sw,required this.sh});
+  @override void paint(Canvas canvas,Size size){
+    final p=Paint()..color=Colors.white.withOpacity(0.35);
+    for(final d in dust){
+      canvas.drawCircle(Offset(d.x*sw,d.y*sh),d.size,p);
+    }
+  }
+  @override bool shouldRepaint(covariant CustomPainter _)=>true;
 }
 
 // ── APP ROOT ─────────────────────────────────────────────
@@ -1121,6 +1201,14 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   void _updateBoss(double dt){
     final b=_boss!;if(b.dead)return;
     if(b.hitFlash>0)b.hitFlash-=dt*3;b.animT+=dt;
+    // Escudo de fase: cuenta regresiva
+    if(b.phaseShieldActive){
+      b.phaseShieldTimer-=dt;
+      if(b.phaseShieldTimer<=0){
+        b.phaseShieldActive=false;
+        _addFloat(b.x,b.y-kBossR-20,'ESCUDO CAÍDO',cDanger);
+      }
+    }
     if(_stage.stageNum==4){
       b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*24;
       if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;
@@ -1128,15 +1216,18 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
         _spawnBurst(b.x,b.y,cRed,50);_spawnBurst(_sw/2,_sh/2,cGold,40);
         _addFloat(_sw/2,_sh*0.4,'PORTAL CERRADO!',cGold);
         _audio.playExplosion(isBoss:true);_audio.switchToAmbient();}}
+    // Cuando escudo activo: reducir moveTime (más agresivo)
+    final effectiveMoveTime=b.phaseShieldActive?1.5:Boss.moveTime;
+    final effectiveBurstLimit=b.phaseShieldActive?4:3; // 4 ráfagas con escudo
     switch(b.state){
       case BossState.moving:b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*24;if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;b.stateTimer+=dt;
-        if(b.stateTimer>=Boss.moveTime){b.state=BossState.charging;b.stateTimer=0;b.chargeGlow=0;}
+        if(b.stateTimer>=effectiveMoveTime){b.state=BossState.charging;b.stateTimer=0;b.chargeGlow=0;}
       case BossState.charging:b.stateTimer+=dt;b.chargeGlow=(b.stateTimer/Boss.chargeTime).clamp(0,1);
         b.y=_sh*0.16+sin(b.animT*12)*3*b.chargeGlow;
         if(b.stateTimer>=Boss.chargeTime){b.state=BossState.firing;b.stateTimer=0;b.burstCount=0;b.burstTimer=0;}
       case BossState.firing:b.burstTimer+=dt;
-        if(b.burstTimer>=0.5&&b.burstCount<3){b.burstTimer=0;b.burstCount++;_fireBoss(b);}
-        if(b.burstCount>=3){b.state=BossState.cooldown;b.stateTimer=0;}
+        if(b.burstTimer>=0.45&&b.burstCount<effectiveBurstLimit){b.burstTimer=0;b.burstCount++;_fireBoss(b);}
+        if(b.burstCount>=effectiveBurstLimit){b.state=BossState.cooldown;b.stateTimer=0;}
       case BossState.cooldown:b.x+=b.vx*dt;b.y=_sh*0.16;if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;b.stateTimer+=dt;b.chargeGlow=0;
         if(b.stateTimer>=Boss.cooldownTime){b.state=BossState.moving;b.stateTimer=0;}}}
 
@@ -1172,7 +1263,17 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
           if((bul.x-bo.x).abs()<kBossR&&(bul.y-bo.y).abs()<kBossR){
             rem.add(bul);final dmg=_fr.active?bul.damage*1.5:bul.damage;
             if(_stage.stageNum==4){bo.repelMeter=(bo.repelMeter+dmg/800).clamp(0,1);_score+=5;}
-            else{bo.hp-=dmg;bo.hitFlash=1.0;_score+=_fr.active?7:5;
+            else{
+              // Escudo de fase stage 1: absorbe 65% del daño
+              final actualDmg=bo.phaseShieldActive?dmg*0.35:dmg;
+              bo.hp-=actualDmg;bo.hitFlash=1.0;_score+=_fr.active?7:5;
+              if(bo.phaseShieldActive){_spawnBurst(bo.x,bo.y,cShield.withOpacity(0.4),4);}
+              // Trigger escudo al 50% HP (solo stage 1, solo una vez)
+              if(_stage.stageNum==1&&!bo.phaseTriggered&&bo.hp/bo.maxHp<=0.5){
+                bo.phaseTriggered=true;bo.phaseShieldActive=true;bo.phaseShieldTimer=8.0;
+                _addFloat(bo.x,bo.y-kBossR-20,'⚡ ESCUDO ACTIVO!',cShield);
+                _spawnBurst(bo.x,bo.y,cShield,30);hapticHeavy();
+              }
               if(bo.hp<=0){bo.dead=true;_bossAlive=false;_score+=500+(_stage.stageNum-1)*200;
                 _spawnBurst(bo.x,bo.y,cGold,40);_spawnBurst(bo.x-30,bo.y+20,cFire,20);
                 _audio.playExplosion(isBoss:true);hapticHeavy();
@@ -1381,6 +1482,19 @@ class GamePainter extends CustomPainter {
 
   void _drawBoss(Canvas canvas,Boss b){
     final isCharging=b.state==BossState.charging;
+    // Escudo de fase — anillo pulsante
+    if(b.phaseShieldActive){
+      final pulse=0.7+sin(b.animT*8)*0.3;
+      canvas.drawCircle(Offset(b.x,b.y),kBossR*1.6,
+          Paint()..color=cShield.withOpacity(0.35*pulse)..maskFilter=const MaskFilter.blur(BlurStyle.normal,18));
+      canvas.drawCircle(Offset(b.x,b.y),kBossR*1.6,
+          Paint()..color=cShield.withOpacity(0.8*pulse)..style=PaintingStyle.stroke..strokeWidth=3);
+      // Temporizador del escudo
+      final shieldFrac=(b.phaseShieldTimer/8.0).clamp(0.0,1.0);
+      canvas.drawArc(Rect.fromCircle(center:Offset(b.x,b.y),radius:kBossR*1.7),
+          -pi/2, pi*2*shieldFrac, false,
+          Paint()..color=cShield..style=PaintingStyle.stroke..strokeWidth=2..strokeCap=StrokeCap.round);
+    }
     if(isCharging){canvas.drawCircle(Offset(b.x,b.y),kBossR*2.2,Paint()..color=bossColor.withOpacity(b.chargeGlow*0.35)..maskFilter=const MaskFilter.blur(BlurStyle.normal,30));
       for(int i=1;i<=3;i++)canvas.drawCircle(Offset(b.x,b.y),kBossR*(1.0+i*0.4*b.chargeGlow),Paint()..color=bossColor.withOpacity((1-b.chargeGlow)*0.3/(i*0.8))..style=PaintingStyle.stroke..strokeWidth=1.5);}
     final img=sprites.bossImg(stageNum);
