@@ -1189,8 +1189,15 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
                 _audio.playExplosion(isBoss:true);hapticHeavy();
                 _addFloat(bo.x,bo.y,'+${500+(_stage.stageNum-1)*200} BOSS!',cGold);
                 _phase.endBoss();_ai.analyze(_player.build,_stage.stageNum);_audio.switchToAmbient();
-                if(_phase.cycleCount>=3)_stageClear();}}}}}
-    _bullets.removeWhere((b)=>rem.contains(b));}
+                if(_phase.cycleCount>=3)_stageClear();
+              }
+            }
+          }
+        }
+      }
+    } // end for(bul)
+    _bullets.removeWhere((b)=>rem.contains(b));
+  }
 
   int   _eScore(EnemyKind k)=>switch(k){EnemyKind.interceptor=>100,EnemyKind.frigate=>150,EnemyKind.parasite=>200,EnemyKind.corrupter=>175};
   Color _eColor(EnemyKind k)=>switch(k){EnemyKind.interceptor=>cWarlord,EnemyKind.frigate=>cGreen,EnemyKind.parasite=>cShield,EnemyKind.corrupter=>const Color(0xFFFF6600)};
@@ -1203,11 +1210,24 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _addFloat(_sw/2,_sh*0.3,'⚠ ${_stage.bossName}',_stage.bossColor);}
   void _stageClear(){_audio.stopAlarm();widget.onStageClear(_score,_player.build);}
   void _beginFrost(){if(_frosting||_quenching)return;_frosting=true;_coreTemp=1.0;_audio.stopAlarm();}
-  void _quenchExp(){for(int i=0;i<80;i++){final a=_rng.nextDouble()*pi*2;final s=100+_rng.nextDouble()*320;
-    _particles.add(Particle(x:_sw/2,y:_sh*0.87,vx:cos(a)*s,vy:sin(a)*s,life:1.2+_rng.nextDouble(),color:_rng.nextBool()?cFire:cIce,size:5+_rng.nextDouble()*12));}}
-  void _spawnFrost(){if(_rng.nextDouble()>0.3)return;final a=_rng.nextDouble()*pi*2;final r=kNucleusR+_rng.nextDouble()*60;
-    _particles.add(Particle(x:_sw/2+cos(a)*r,y:_sh*0.87+sin(a)*r,vx:cos(a+pi)*40,vy:sin(a+pi)*40,life:0.8+_rng.nextDouble()*0.6,color:cFrost,size:3+_rng.nextDouble()*6,isFrost:true));}
-  void _selectUpg(UpgradeOption o){o.apply(_player.build);_res.energy=(_res.energy+20).clamp(0,_player.build.maxEnergy);_showDec=false;_phase.endDecision();if(!_bossAlive&&_phase.cycleCount>=3)_stageClear();}
+  void _quenchExp(){
+    for(int i=0;i<80;i++){
+      final a=_rng.nextDouble()*pi*2;final s=100+_rng.nextDouble()*320;
+      _particles.add(Particle(x:_sw/2,y:_sh*0.87,vx:cos(a)*s,vy:sin(a)*s,
+          life:1.2+_rng.nextDouble(),color:_rng.nextBool()?cFire:cIce,size:5+_rng.nextDouble()*12));
+    }
+  }
+  void _spawnFrost(){
+    if(_rng.nextDouble()>0.3)return;
+    final a=_rng.nextDouble()*pi*2;final r=kNucleusR+_rng.nextDouble()*60;
+    _particles.add(Particle(x:_sw/2+cos(a)*r,y:_sh*0.87+sin(a)*r,
+        vx:cos(a+pi)*40,vy:sin(a+pi)*40,life:0.8+_rng.nextDouble()*0.6,
+        color:cFrost,size:3+_rng.nextDouble()*6,isFrost:true));
+  }
+  void _selectUpg(UpgradeOption o){
+    o.apply(_player.build);_res.energy=(_res.energy+20).clamp(0,_player.build.maxEnergy);
+    _showDec=false;_phase.endDecision();if(!_bossAlive&&_phase.cycleCount>=3)_stageClear();
+  }
   List<UpgradeOption> _buildOpts(){
     final all=[
       UpgradeOption(title:'Plasma Overload',   description:'+40% daño',              emoji:'🔥',color:cFire,  apply:(b)=>b.damage*=1.4),
@@ -1219,9 +1239,15 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       UpgradeOption(title:'Core Armor',        description:'Blindaje del núcleo',    emoji:'🔮',color:cShield,apply:(b)=>b.modules.add('core_armor')),
       UpgradeOption(title:'Phoenix Overdrive', description:'+20% daño,+10% cadencia',emoji:'🦅',color:cGold, apply:(b){b.damage*=1.2;b.fireRate=(b.fireRate*1.1).clamp(1,2.0);}),
     ];
-    all.shuffle(_rng);return all.take(3).toList();}
-  void _spawnBurst(double x,double y,Color c,int n){for(int i=0;i<n;i++){final a=_rng.nextDouble()*pi*2;final s=40+_rng.nextDouble()*200;
-    _particles.add(Particle(x:x,y:y,vx:cos(a)*s,vy:sin(a)*s,life:0.3+_rng.nextDouble()*0.6,color:c,size:2+_rng.nextDouble()*6));}}
+    all.shuffle(_rng);return all.take(3).toList();
+  }
+  void _spawnBurst(double x,double y,Color c,int n){
+    for(int i=0;i<n;i++){
+      final a=_rng.nextDouble()*pi*2;final s=40+_rng.nextDouble()*200;
+      _particles.add(Particle(x:x,y:y,vx:cos(a)*s,vy:sin(a)*s,
+          life:0.3+_rng.nextDouble()*0.6,color:c,size:2+_rng.nextDouble()*6));
+    }
+  }
   void _addFloat(double x,double y,String t,Color c)=>_floats.add(FloatingText(x,y,t,c));
   void _updateParticles(double dt){for(final p in _particles){p.x+=p.vx*dt;p.y+=p.vy*dt;if(!p.isFrost)p.vy+=40*dt;p.life-=dt;}_particles.removeWhere((p)=>p.life<=0);}
   void _updateFloats(double dt){for(final f in _floats){f.y-=55*dt;f.life-=dt*1.5;}_floats.removeWhere((f)=>f.life<=0);}
