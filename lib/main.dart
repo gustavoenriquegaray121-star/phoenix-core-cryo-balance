@@ -855,6 +855,9 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   final _enemies=<Enemy>[];final _bullets=<Bullet>[];final _powerUps=<PowerUp>[];
   final _particles=<Particle>[];final _floats=<FloatingText>[];final _asteroids=<Asteroid>[];
   Boss? _boss;bool _bossAlive=false;
+  // Muerte épica del boss
+  bool _bossDying=false;double _bossDeathTimer=0;double _timeScale=1.0;
+  double _bossShakeX=0,_bossShakeY=0,_bossShakeIntensity=0;
   int _score=0;double _coreTemp=0,_niFrame=0;
   double _shootTimer=0,_spawnTimer=0,_puTimer=35.0;
   bool _touching=false,_alarmOn=false;double _touchX=0;
@@ -871,6 +874,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   final _profile=PlayerProfile();
   bool _antiPatternTriggered=false,_antiFinalTriggered=false;
   double _diffMult=1.0,_decayTimer=15.0;
+  // Triple shot temporal
+  double _tripleTimer=0.0; // >0 = activo, 0 = expiró
   // Glitch visual
   double _glitchT=0;bool _glitchActive=false;
   final _mg=ChargeIndicator(icon:'⚡',color:cGold,chargeTime:28.0,activeDuration:8.0);
@@ -895,12 +900,51 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
 
   void _update(double dt){
     if(_paused){if(mounted)setState((){});return;}
+
+    // MUERTE ÉPICA DEL BOSS — estado especial con delay cinematográfico
+    if(_bossDying){
+      final scaledDt=dt*_timeScale;
+      _bossDeathTimer+=dt; // timer sin escalar para el delay real
+      // Shake de cámara que decae
+      _bossShakeIntensity*=0.92;
+      _bossShakeX=(_rng.nextDouble()-0.5)*_bossShakeIntensity;
+      _bossShakeY=(_rng.nextDouble()-0.5)*_bossShakeIntensity;
+      // Micro explosiones continuas mientras muere
+      if(_rng.nextDouble()<0.35&&_boss!=null){
+        _particles.add(Particle(
+          x:_boss!.x+(_rng.nextDouble()-0.5)*80,
+          y:_boss!.y+(_rng.nextDouble()-0.5)*80,
+          vx:(_rng.nextDouble()-0.5)*220,vy:(_rng.nextDouble()-0.5)*220,
+          life:0.6+_rng.nextDouble()*0.4,
+          color:_rng.nextBool()?Colors.orangeAccent:cFire,size:3+_rng.nextDouble()*5));
+      }
+      // Escala de tiempo vuelve a 1 después de 0.3s
+      if(_bossDeathTimer>0.3&&_timeScale<1.0)_timeScale=(_timeScale+dt*3).clamp(0,1);
+      _updateParticles(dt);_updateFloats(dt);
+      // Después de 2.5s → siguiente stage
+      if(_bossDeathTimer>2.5){
+        _bossDying=false;_timeScale=1.0;_bossShakeIntensity=0;
+        _resetPlayerForStage();
+        _stageClear();
+      }
+      if(mounted)setState((){});return;
+    }
+
     if(_mirrorWin){_mirrorT+=dt;_updateParticles(dt);if(_mirrorT>3.0)widget.onStageClear(_score,_player.build);if(mounted)setState((){});return;}
     if(_quenching){_quenchT+=dt;_updateParticles(dt);if(_quenchT>2.5)widget.onGameOver(_score);if(mounted)setState((){});return;}
     if(_frosting){_frostT+=dt*0.55;_spawnFrost();_updateParticles(dt);_updateFloats(dt);
       if(_frostT>=1.0){_frosting=false;_quenching=true;_audio.stopAlarm();_audio.playQuench();_quenchExp();}
       if(mounted)setState((){});return;}
     if(_showDec){if(mounted)setState((){});return;}
+
+    // Triple shot temporal — expira en 12 segundos
+    if(_tripleTimer>0){
+      _tripleTimer-=dt;
+      if(_tripleTimer<=0){
+        _tripleTimer=0;_player.build.hasTripleShot=false;
+        _addFloat(_player.x,_sh*0.72-40,'TRIPLE EXPIRÓ',cGold);
+      }
+    }
 
     _pulse+=_pDir*dt*2.2;if(_pulse>1)_pDir=-1;if(_pulse<0)_pDir=1;
     _phase.update(dt,onDecision:_triggerDec,onBoss:_triggerBoss);
@@ -1052,7 +1096,10 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   void _applyPU(PowerUpKind k){
     switch(k){
       case PowerUpKind.rapidFire:_player.build.fireRate=(_player.build.fireRate*1.3).clamp(1.0,2.0);
-      case PowerUpKind.tripleShot:_player.build.hasTripleShot=true;_player.build.fireRate=(_player.build.fireRate*1.1).clamp(1.0,2.0);
+      case PowerUpKind.tripleShot:
+        _player.build.hasTripleShot=true;
+        _tripleTimer=12.0; // 12 segundos temporales
+        _player.build.fireRate=(_player.build.fireRate*1.1).clamp(1.0,2.0);
       case PowerUpKind.shield:_player.shieldActive=true;_player.shieldTimer=10.0;_audio.playShieldCharge();
       case PowerUpKind.coreArmor:_coreTemp=(_coreTemp-0.22).clamp(0,1);_res.heat=(_res.heat-30).clamp(0,100);
       case PowerUpKind.energyBoost:_res.energy=(_res.energy+35).clamp(0,_player.build.maxEnergy);_res.heat=(_res.heat-25).clamp(0,100);}}
@@ -1184,12 +1231,28 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
               if(_stage.stageNum==1&&!bo.phaseTriggered&&bo.hp/bo.maxHp<=0.5){
                 bo.phaseTriggered=true;bo.phaseShieldActive=true;bo.phaseShieldTimer=8.0;
                 _addFloat(bo.x,bo.y-kBossR-20,'⚡ ESCUDO ACTIVO!',cShield);_spawnBurst(bo.x,bo.y,cShield,30);hapticHeavy();}
-              if(bo.hp<=0){bo.dead=true;_bossAlive=false;_score+=500+(_stage.stageNum-1)*200;
-                _spawnBurst(bo.x,bo.y,cGold,40);_spawnBurst(bo.x-30,bo.y+20,cFire,20);
+              if(bo.hp<=0&&!_bossDying){
+                // INICIO DE MUERTE ÉPICA
+                _bossDying=true;_bossDeathTimer=0;
+                _bossShakeIntensity=18;
+                _timeScale=0.3; // slow motion al impacto
+                _score+=500+(_stage.stageNum-1)*200;
+                // Explosión inicial masiva
+                for(int i=0;i<60;i++){
+                  final a=_rng.nextDouble()*pi*2;
+                  final s=80+_rng.nextDouble()*350;
+                  _particles.add(Particle(
+                    x:bo.x+(_rng.nextDouble()-0.5)*40,
+                    y:bo.y+(_rng.nextDouble()-0.5)*40,
+                    vx:cos(a)*s,vy:sin(a)*s,
+                    life:0.8+_rng.nextDouble()*1.0,
+                    color:_rng.nextBool()?cGold:(_rng.nextBool()?cFire:Colors.white),
+                    size:4+_rng.nextDouble()*8));
+                }
                 _audio.playExplosion(isBoss:true);hapticHeavy();
                 _addFloat(bo.x,bo.y,'+${500+(_stage.stageNum-1)*200} BOSS!',cGold);
-                _phase.endBoss();_ai.analyze(_player.build,_stage.stageNum);_audio.switchToAmbient();
-                if(_phase.cycleCount>=3)_stageClear();
+                _addFloat(bo.x,bo.y-50,'★ ELIMINADO ★',_stage.bossColor);
+                _ai.analyze(_player.build,_stage.stageNum);_audio.switchToAmbient();
               }
             }
           }
@@ -1208,7 +1271,16 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _bossAlive=true;_audio.switchToBoss();
     if(_stage.hazard==StageHazard.gravityTimer){_gravActive=true;_gravTimer=75.0;}
     _addFloat(_sw/2,_sh*0.3,'⚠ ${_stage.bossName}',_stage.bossColor);}
-  void _stageClear(){_audio.stopAlarm();widget.onStageClear(_score,_player.build);}
+  void _stageClear(){_audio.stopAlarm();_phase.endBoss();widget.onStageClear(_score,_player.build);}
+
+  // Reset de armas al cambiar de stage — el triple no cruza stages
+  void _resetPlayerForStage(){
+    _player.build.hasTripleShot=false;
+    _player.build.fireRate=_player.build.fireRate.clamp(1.0,1.4); // mantiene algo de progresión
+    _tripleTimer=0;
+    _boss=null;_bossAlive=false;_bossDying=false;_bossDeathTimer=0;
+    _bullets.clear();_asteroids.clear();_enemies.clear();
+  }
   void _beginFrost(){if(_frosting||_quenching)return;_frosting=true;_coreTemp=1.0;_audio.stopAlarm();}
   void _quenchExp(){
     for(int i=0;i<80;i++){
@@ -1266,7 +1338,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       body:Stack(children:[
         GestureDetector(onPanStart:_onPS,onPanUpdate:_onPU,onPanEnd:_onPE,onTapDown:_onTD,onTapUp:_onTU,
           child:CustomPaint(painter:GamePainter(sw:_sw,sh:_sh,player:_player,enemies:_enemies,
-              bullets:_bullets,powerUps:_powerUps,boss:_bossAlive?_boss:null,
+              bullets:_bullets,powerUps:_powerUps,
+              boss:(_bossAlive||_bossDying)?_boss:null,
               particles:_particles,floats:_floats,score:_score,res:_res,phase:_phase,
               coreTemp:_coreTemp,corePulse:_pulse,laserColor:lc,isTriple:isTriple,
               frosting:_frosting,frostT:_frostT,quenching:_quenching,quenchT:_quenchT,
@@ -1277,7 +1350,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
               portalGrow:_stage.hazard==StageHazard.mirrorPortal?_portal:-1,
               mirrorVictory:_mirrorWin,mirrorVictoryT:_mirrorT,
               repelMeter:_boss?.repelMeter??0,stageName:_stage.name,
-              glitchActive:_glitchActive,paused:_paused),
+              glitchActive:_glitchActive||_bossDying,paused:_paused,
+              bossShakeX:_bossShakeX,bossShakeY:_bossShakeY,bossDying:_bossDying),
             child:const SizedBox.expand())),
         // Botón PAUSA
         Positioned(top:8,right:8,child:GestureDetector(
@@ -1300,7 +1374,9 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
         if(_showDec)_DecisionOverlay(options:_opts,cycle:_phase.cycleCount,stageNum:_stage.stageNum,onSelect:_selectUpg),
         if(_phase.phase==GamePhase.boss&&_bossAlive)
           Positioned(top:52,left:0,right:0,child:Center(child:_GlowText('⚠ ${_stage.bossName} ⚠',color:_stage.bossColor,size:13))),
-        if(isTriple)Positioned(bottom:_sh*0.14,right:60,child:_GlowText('💥 TRIPLE',color:cGold,size:11)),
+        if(isTriple)Positioned(bottom:_sh*0.14,right:60,child:
+          _GlowText(_tripleTimer>0?'💥 TRIPLE ${_tripleTimer.toStringAsFixed(0)}s':'💥 TRIPLE',color:cGold,size:11)),
+        if(_bossDying)Positioned.fill(child:Container(color:Colors.black.withOpacity(0.25))),
         if(_mg.active)Positioned(bottom:_sh*0.16,left:20,child:_GlowText('⚡ RÁFAGA ${_mg.activeTimer.toStringAsFixed(1)}s',color:cGold,size:11)),
         if(_fr.active)Positioned(bottom:_sh*0.18,left:20,child:_GlowText('❄ FREEZE ${_fr.activeTimer.toStringAsFixed(1)}s',color:cIce,size:11)),
         if(_gravWarn)Positioned(top:_sh*0.3,left:0,right:0,child:Center(child:_GlowText('⚠ GRAVEDAD: ${_gravTimer.toInt()}s',color:cDanger,size:16))),
@@ -1319,7 +1395,8 @@ class GamePainter extends CustomPainter {
   final double sw,sh,coreTemp,corePulse,frostT,quenchT,nucleusIFrame;
   final double gravityTimer,portalGrow,mirrorVictoryT,repelMeter;
   final bool frosting,quenching,touching,isTriple,freezeActive,machineGunActive,mirrorVictory;
-  final bool glitchActive,paused;
+  final bool glitchActive,paused,bossDying;
+  final double bossShakeX,bossShakeY;
   final Color laserColor,bossColor;final int stageNum;final String stageName;
   final Player player;final List<Enemy> enemies;final List<Bullet> bullets;final List<PowerUp> powerUps;
   final List<Asteroid> asteroids;final Boss? boss;final List<Particle> particles;final List<FloatingText> floats;
@@ -1333,9 +1410,14 @@ class GamePainter extends CustomPainter {
       required this.freezeActive,required this.machineGunActive,required this.stageNum,
       required this.bossColor,required this.asteroids,required this.gravityTimer,
       required this.portalGrow,required this.mirrorVictory,required this.mirrorVictoryT,
-      required this.repelMeter,required this.stageName,required this.glitchActive,required this.paused});
+      required this.repelMeter,required this.stageName,required this.glitchActive,required this.paused,
+      required this.bossShakeX,required this.bossShakeY,required this.bossDying});
 
   @override void paint(Canvas canvas,Size size){
+    // Camera shake cuando el boss muere
+    canvas.save();
+    canvas.translate(bossShakeX,bossShakeY);
+
     if(glitchActive){canvas.save();canvas.translate((Random().nextDouble()-0.5)*8,0);}
     _bg(canvas);if(portalGrow>0)_portal(canvas);
     _drawNucleus(canvas);_drawPowerUps(canvas);_drawAsteroids(canvas);
@@ -1344,9 +1426,9 @@ class GamePainter extends CustomPainter {
     _drawParticles(canvas);_drawFloats(canvas);_drawHUD(canvas);
     if(frosting)_drawFrost(canvas);if(quenching)_drawQuench(canvas);
     if(mirrorVictory)_drawMirrorWin(canvas);
+    if(bossDying)_drawBossDeathOverlay(canvas);
     if(glitchActive){
       canvas.restore();
-      // Scanlines de glitch
       for(int i=0;i<sh.toInt();i+=6){
         canvas.drawRect(Rect.fromLTWH(0,i.toDouble(),sw,2),
             Paint()..color=cRed.withOpacity(0.06));
@@ -1354,6 +1436,17 @@ class GamePainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
           Paint()..color=cRed.withOpacity(0.08));
     }
+    canvas.restore(); // cierra el shake translate
+  }
+
+  void _drawBossDeathOverlay(Canvas canvas){
+    // Vignette naranja pulsante durante muerte del boss
+    canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
+        Paint()..shader=RadialGradient(center:Alignment.center,radius:0.7,
+            colors:[Colors.transparent,Colors.orange.withOpacity(0.18)],
+            stops:const[0.5,1.0]).createShader(Rect.fromLTWH(0,0,sw,sh)));
+    // Texto central épico
+    _txt(canvas,'★  ELIMINADO  ★',Offset(sw/2,sh*0.35),cGold,22);
   }
 
   void _bg(Canvas canvas){
