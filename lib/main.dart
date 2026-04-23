@@ -875,7 +875,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   bool _antiPatternTriggered=false,_antiFinalTriggered=false;
   double _diffMult=1.0,_decayTimer=15.0;
   // Triple shot temporal
-  double _tripleTimer=0.0; // >0 = activo, 0 = expiró
+  double _tripleTimer=0.0; // >0 = activo temporal, 0 = expiró
+  bool _triplePermanent=false; // conseguido por upgrade de decisión
   // Glitch visual
   double _glitchT=0;bool _glitchActive=false;
   final _mg=ChargeIndicator(icon:'⚡',color:cGold,chargeTime:28.0,activeDuration:8.0);
@@ -937,12 +938,15 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       if(mounted)setState((){});return;}
     if(_showDec){if(mounted)setState((){});return;}
 
-    // Triple shot temporal — expira en 12 segundos
+    // Triple shot temporal — expira en 12 segundos (solo si no es permanente)
     if(_tripleTimer>0){
       _tripleTimer-=dt;
       if(_tripleTimer<=0){
-        _tripleTimer=0;_player.build.hasTripleShot=false;
-        _addFloat(_player.x,_sh*0.72-40,'TRIPLE EXPIRÓ',cGold);
+        _tripleTimer=0;
+        if(!_triplePermanent){
+          _player.build.hasTripleShot=false;
+          _addFloat(_player.x,_sh*0.72-40,'TRIPLE EXPIRÓ',cGold);
+        }
       }
     }
 
@@ -1276,6 +1280,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   // Reset de armas al cambiar de stage — el triple no cruza stages
   void _resetPlayerForStage(){
     _player.build.hasTripleShot=false;
+    _triplePermanent=false;
     _player.build.fireRate=_player.build.fireRate.clamp(1.0,1.4); // mantiene algo de progresión
     _tripleTimer=0;
     _boss=null;_bossAlive=false;_bossDying=false;_bossDeathTimer=0;
@@ -1307,7 +1312,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       UpgradeOption(title:'Void Pulse',        description:'Cadencia +20%',          emoji:'⚡',color:cGold,  apply:(b)=>b.fireRate=(b.fireRate*1.2).clamp(1,2.0)),
       UpgradeOption(title:'Energy Core Expand',description:'Energía máxima +25',     emoji:'💙',color:cIce,   apply:(b)=>b.maxEnergy+=25),
       UpgradeOption(title:'Entropy Shield',    description:'Escudo 10 segundos',     emoji:'🛡️',color:cShield,apply:(b){b.shieldEfficiency+=0.4;}),
-      UpgradeOption(title:'Triple Cannon',     description:'Disparo triple perm.',   emoji:'💥',color:cFire,  apply:(b){b.hasTripleShot=true;b.fireRate=(b.fireRate*1.1).clamp(1,2.0);}),
+      UpgradeOption(title:'Triple Cannon',description:'Disparo triple perm.',emoji:'💥',color:cFire,
+          apply:(b){b.hasTripleShot=true;_triplePermanent=true;_tripleTimer=0;b.fireRate=(b.fireRate*1.1).clamp(1,2.0);}),
       UpgradeOption(title:'Core Armor',        description:'Blindaje del núcleo',    emoji:'🔮',color:cShield,apply:(b)=>b.modules.add('core_armor')),
       UpgradeOption(title:'Phoenix Overdrive', description:'+20% daño,+10% cadencia',emoji:'🦅',color:cGold, apply:(b){b.damage*=1.2;b.fireRate=(b.fireRate*1.1).clamp(1,2.0);}),
     ];
