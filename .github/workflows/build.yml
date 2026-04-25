@@ -65,7 +65,7 @@ PYEOF
       - name: Setup keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
-          cat > android/key.properties << 'KEOF'
+          cat > android/key.properties << KEOF
 storePassword=${{ secrets.STORE_PASSWORD }}
 keyPassword=${{ secrets.KEY_PASSWORD }}
 keyAlias=${{ secrets.KEY_ALIAS }}
