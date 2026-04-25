@@ -38,12 +38,13 @@ jobs:
           mkdir -p android/app/src/main/res/mipmap-xhdpi
           mkdir -p android/app/src/main/res/mipmap-xxhdpi
           mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-
-          python3 -c "from PIL import Image; import os;
-sizes=[('mipmap-mdpi',48),('mipmap-hdpi',72),('mipmap-xhdpi',96),('mipmap-xxhdpi',144),('mipmap-xxxhdpi',192)];
-for f,s in sizes:
-    img=Image.new('RGBA',(s,s),(8,16,40,255));
-    img.save(f'android/app/src/main/res/{f}/ic_launcher.png')"
+          python3 -c "from PIL import Image, ImageDraw; import os; sizes={'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}; \
+for k,v in sizes.items(): \
+ img=Image.new('RGBA',(v,v),(8,16,40,255)); \
+ draw=ImageDraw.Draw(img); \
+ m=v//6; \
+ draw.ellipse([m,m,v-m,v-m], fill=(255,120,0,255)); \
+ img.save(f'android/app/src/main/res/mipmap-{k}/ic_launcher.png')"
 
       - name: Install dependencies
         run: flutter pub get
