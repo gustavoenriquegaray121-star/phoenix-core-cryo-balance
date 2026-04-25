@@ -1,6 +1,7 @@
 name: Build Flutter APK
 
-on: [push]
+on:
+  push:
 
 jobs:
   build:
@@ -12,8 +13,8 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
-          channel: 'stable'
+          flutter-version: 3.19.0
+          channel: stable
 
       - name: Download intro video from Google Drive
         run: |
@@ -33,7 +34,7 @@ jobs:
       - name: Create launcher icons
         run: |
           pip install Pillow --quiet
-          python3 << 'PYEOF'
+          python3 -c "
 import os
 from PIL import Image, ImageDraw
 
@@ -56,8 +57,7 @@ for folder, size in sizes.items():
   r = size // 8
   draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(255, 220, 100, 255))
   img.save(f'{path}/ic_launcher.png')
-  print(f'OK: {path}/ic_launcher.png ({size}x{size})')
-PYEOF
+"
 
       - name: Install dependencies
         run: flutter pub get
