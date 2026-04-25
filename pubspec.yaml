@@ -12,11 +12,15 @@ dependencies:
   shared_preferences: ^2.2.2
   audioplayers: ^5.2.1
   flutter_tts: ^3.8.5
+  video_player: ^2.8.6
 
 flutter:
   uses-material-design: true
 
   assets:
+    # ── VIDEO INTRO ─────────────────────────────────────
+    - assets/videos/intro_dock.mp4
+
     # ── SONIDOS DE COMBATE ──────────────────────────────
     - assets/sounds/laser.mp3
     - assets/sounds/laser_triple.mp3
