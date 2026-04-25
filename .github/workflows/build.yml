@@ -1,42 +1,54 @@
 name: Build Flutter APK
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Instalar ImageMagick
-        run: sudo apt-get install -y imagemagick
-
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
           channel: 'stable'
 
-      - name: Crear iconos
+      - name: Download intro video from Google Drive
         run: |
-          mkdir -p android/app/src/main/res/mipmap-mdpi
-          mkdir -p android/app/src/main/res/mipmap-hdpi
-          mkdir -p android/app/src/main/res/mipmap-xhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-          convert -size 48x48 radial-gradient:cyan-black android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          convert -size 72x72 radial-gradient:cyan-black android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          convert -size 96x96 radial-gradient:cyan-black android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          convert -size 144x144 radial-gradient:cyan-black android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          convert -size 192x192 radial-gradient:cyan-black android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          mkdir -p assets/videos
+          FILE_ID="1Sk--RSGdVOnyTYxYYPpWBaaHn_YA5w5F"
+          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
+            -o assets/videos/intro_dock.mp4 \
+            --max-redirs 10 \
+            -b /tmp/cookies.txt -c /tmp/cookies.txt
+          # Maneja la confirmación de archivos grandes de Google Drive
+          CONFIRM=$(grep -o 'confirm=[^&]*' /tmp/cookies.txt 2>/dev/null | head -1 | cut -d= -f2 || echo "")
+          if [ -n "$CONFIRM" ]; then
+            curl -L "https://drive.google.com/uc?export=download&confirm=${CONFIRM}&id=${FILE_ID}" \
+              -o assets/videos/intro_dock.mp4
+          fi
+          ls -lh assets/videos/intro_dock.mp4
 
-      - run: flutter pub get
+      - name: Install dependencies
+        run: flutter pub get
 
-      - run: flutter build apk --release
+      - name: Setup keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=keystore.jks
+          EOF
 
-      - uses: actions/upload-artifact@v4
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
         with:
-          name: PhoenixCore-APK
+          name: phoenix-core-release
           path: build/app/outputs/flutter-apk/app-release.apk
