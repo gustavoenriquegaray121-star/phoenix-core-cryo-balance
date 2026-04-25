@@ -30,72 +30,34 @@ jobs:
           fi
           ls -lh assets/videos/intro_dock.mp4
 
-      - name: Create missing launcher icons
+      - name: Create launcher icons
         run: |
-          # Crear todos los directorios mipmap necesarios
-          for dir in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            mkdir -p android/app/src/main/res/$dir
-          done
+          pip install Pillow --quiet
+          python3 << 'PYEOF'
+import os
+from PIL import Image, ImageDraw
 
-          # Generar ícono PNG simple con Python (fénix naranja sobre fondo azul oscuro)
-          python3 - <<'PYEOF'
-          from PIL import Image, ImageDraw
-          import os
+sizes = {
+  'mipmap-mdpi': 48,
+  'mipmap-hdpi': 72,
+  'mipmap-xhdpi': 96,
+  'mipmap-xxhdpi': 144,
+  'mipmap-xxxhdpi': 192,
+}
 
-          sizes = {
-            'mipmap-mdpi': 48,
-            'mipmap-hdpi': 72,
-            'mipmap-xhdpi': 96,
-            'mipmap-xxhdpi': 144,
-            'mipmap-xxxhdpi': 192,
-          }
-
-          for folder, size in sizes.items():
-            img = Image.new('RGBA', (size, size), (8, 16, 40, 255))
-            draw = ImageDraw.Draw(img)
-            # Círculo naranja como fénix simplificado
-            margin = size // 6
-            draw.ellipse([margin, margin, size-margin, size-margin],
-                         fill=(255, 120, 0, 255))
-            # Punto central brillante
-            cx, cy = size//2, size//2
-            r = size // 8
-            draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(255, 220, 100, 255))
-            path = f'android/app/src/main/res/{folder}/ic_launcher.png'
-            img.save(path)
-            print(f'Created {path} ({size}x{size})')
-          PYEOF
-
-          # Instalar PIL si no está
-          pip install Pillow --quiet 2>/dev/null || true
-
-          python3 - <<'PYEOF2'
-          from PIL import Image, ImageDraw
-          import os
-
-          sizes = {
-            'mipmap-mdpi': 48,
-            'mipmap-hdpi': 72,
-            'mipmap-xhdpi': 96,
-            'mipmap-xxhdpi': 144,
-            'mipmap-xxxhdpi': 192,
-          }
-
-          for folder, size in sizes.items():
-            img = Image.new('RGBA', (size, size), (8, 16, 40, 255))
-            draw = ImageDraw.Draw(img)
-            margin = size // 6
-            draw.ellipse([margin, margin, size-margin, size-margin], fill=(255, 120, 0, 255))
-            cx, cy = size//2, size//2
-            r = size // 8
-            draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(255, 220, 100, 255))
-            path = f'android/app/src/main/res/{folder}/ic_launcher.png'
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            img.save(path)
-            print(f'Created {path}')
-          PYEOF2
-
-          ls android/app/src/main/res/mipmap-*/ic_launcher.png
+for folder, size in sizes.items():
+  path = f'android/app/src/main/res/{folder}'
+  os.makedirs(path, exist_ok=True)
+  img = Image.new('RGBA', (size, size), (8, 16, 40, 255))
+  draw = ImageDraw.Draw(img)
+  m = size // 6
+  draw.ellipse([m, m, size-m, size-m], fill=(255, 120, 0, 255))
+  cx, cy = size//2, size//2
+  r = size // 8
+  draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(255, 220, 100, 255))
+  img.save(f'{path}/ic_launcher.png')
+  print(f'OK: {path}/ic_launcher.png ({size}x{size})')
+PYEOF
 
       - name: Install dependencies
         run: flutter pub get
@@ -103,12 +65,12 @@ jobs:
       - name: Setup keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
-          cat > android/key.properties <<EOF2
+          cat > android/key.properties << 'KEOF'
           storePassword=${{ secrets.STORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           storeFile=keystore.jks
-          EOF2
+          KEOF
 
       - name: Build APK
         run: flutter build apk --release
