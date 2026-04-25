@@ -33,13 +33,17 @@ jobs:
       - name: Create launcher icons
         run: |
           pip install Pillow --quiet
-          python3 -c "import os; from PIL import Image, ImageDraw;
-sizes={'mipmap-mdpi':48,'mipmap-hdpi':72,'mipmap-xhdpi':96,'mipmap-xxhdpi':144,'mipmap-xxxhdpi':192};
-[ (os.makedirs(f'android/app/src/main/res/{f}', exist_ok=True),
-   (lambda img: (ImageDraw.Draw(img).ellipse([s//6,s//6,s-s//6,s-s//6], fill=(255,120,0,255)),
-                 img.save(f'android/app/src/main/res/{f}/ic_launcher.png')))
-   (Image.new('RGBA',(s,s),(8,16,40,255))) )
- for f,s in sizes.items() ]"
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+
+          python3 -c "from PIL import Image; import os;
+sizes=[('mipmap-mdpi',48),('mipmap-hdpi',72),('mipmap-xhdpi',96),('mipmap-xxhdpi',144),('mipmap-xxxhdpi',192)];
+for f,s in sizes:
+    img=Image.new('RGBA',(s,s),(8,16,40,255));
+    img.save(f'android/app/src/main/res/{f}/ic_launcher.png')"
 
       - name: Install dependencies
         run: flutter pub get
