@@ -33,8 +33,33 @@ jobs:
           curl -L "https://drive.google.com/uc?export=download&id=${LOGO_ID}" -o /tmp/phoenix_logo.jpg --max-redirs 10
           ls -lh /tmp/phoenix_logo.jpg
 
-          python3 -c "from PIL import Image; import os; img=Image.open('/tmp/phoenix_logo.jpg').convert('RGBA'); w,h=img.size; side=min(w,h); left=(w-side)//2; top=(h-side)//2; img=img.crop((left,top,left+side,top+side)); sizes={'mipmap-mdpi':48,'mipmap-hdpi':72,'mipmap-xhdpi':96,'mipmap-xxhdpi':144,'mipmap-xxxhdpi':192}; \
-[ (os.makedirs(f'android/app/src/main/res/{folder}', exist_ok=True), img.resize((size,size), Image.LANCZOS).save(f'android/app/src/main/res/{folder}/ic_launcher.png')) for folder,size in sizes.items() ]"
+          cat > /tmp/gen_icons.py << 'PYEOF'
+from PIL import Image
+import os
+
+img = Image.open('/tmp/phoenix_logo.jpg').convert('RGBA')
+w, h = img.size
+side = min(w, h)
+left = (w - side) // 2
+top = (h - side) // 2
+img = img.crop((left, top, left+side, top+side))
+
+sizes = {
+  'mipmap-mdpi': 48,
+  'mipmap-hdpi': 72,
+  'mipmap-xhdpi': 96,
+  'mipmap-xxhdpi': 144,
+  'mipmap-xxxhdpi': 192
+}
+
+for folder, size in sizes.items():
+    path = f'android/app/src/main/res/{folder}'
+    os.makedirs(path, exist_ok=True)
+    img.resize((size, size), Image.LANCZOS).save(f'{path}/ic_launcher.png')
+    print(f'OK: {folder}/ic_launcher.png ({size}px)')
+PYEOF
+
+          python3 /tmp/gen_icons.py
 
       - name: Install dependencies
         run: flutter pub get
