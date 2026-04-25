@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:video_player/video_player.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -441,181 +442,68 @@ void drawSprite(Canvas canvas,ui.Image img,Offset center,double size,{double fla
 // ══════════════════════════════════════════════════════════
 // DOCK SCENE
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// DOCK SCENE — Video real del hangar Phoenix Project
+// ══════════════════════════════════════════════════════════
 class DockScene extends StatefulWidget {
   final VoidCallback onFinish;
   const DockScene({super.key,required this.onFinish});
   @override State<DockScene> createState()=>_DockSceneState();
 }
-class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMixin {
-  late Ticker _ticker;Duration _last=Duration.zero;
-  double _progress=0.0;bool _landed=false,_armActive=false,_finishing=false;
-  double _fadeOut=0.0,_shakeX=0,_shakeY=0,_t=0;
-  final List<_DockParticle> _particles=[];
-  final _rng=Random();
-  double _armAngleL=0,_armAngleR=pi;
-  final _sndLanding=AudioPlayer(),_sndSteam=AudioPlayer(),
-        _sndSpark=AudioPlayer(),_sndCafe=AudioPlayer();
+class _DockSceneState extends State<DockScene> {
+  late VideoPlayerController _ctrl;
+  bool _initialized=false;
   @override void initState(){
     super.initState();
-    _ticker=createTicker(_tick)..start();
-    _playLanding();
+    _ctrl=VideoPlayerController.asset('assets/videos/intro_dock.mp4')
+      ..initialize().then((_){
+        if(!mounted)return;
+        setState(()=>_initialized=true);
+        _ctrl.play();
+        _ctrl.addListener(_onVideoEnd);
+      });
   }
-  Future<void> _playLanding() async {
-    try{await _sndLanding.play(AssetSource('sounds/space_ship_landing.mp3'),volume:0.8);}catch(_){}
-  }
-  void _tick(Duration elapsed){
-    final dt=((elapsed-_last).inMicroseconds/1e6).clamp(0.0,0.05).toDouble();
-    _last=elapsed;if(dt==0||!mounted)return;
-    _t+=dt;_shakeX*=0.85;_shakeY*=0.85;
-    if(!_landed){
-      final speed=max(0.04,0.4*(1-_progress));
-      _progress=(_progress+speed*dt).clamp(0.0,1.0);
-      if(_rng.nextDouble()<0.5)_particles.add(_DockParticle(isSmoke:true,vx:(_rng.nextDouble()-0.5)*20,vy:-30-_rng.nextDouble()*25));
-      if(_progress<0.7&&_rng.nextDouble()<0.4)_particles.add(_DockParticle(isSmoke:false,vx:(_rng.nextDouble()-0.5)*150,vy:-_rng.nextDouble()*150));
-      if(_progress>=1.0&&!_landed){
-        _landed=true;_shakeX=12;_shakeY=8;
-        for(int i=0;i<40;i++){
-          final ang=_rng.nextDouble()*pi*2;final spd=80+_rng.nextDouble()*200;
-          _particles.add(_DockParticle(isSmoke:false,vx:cos(ang)*spd,vy:sin(ang)*spd-100,
-              color:_rng.nextBool()?Colors.orangeAccent:Colors.white));
-        }
-        try{_sndSteam.play(AssetSource('sounds/steam.mp3'),volume:0.7);}catch(_){}
-        try{_sndSpark.play(AssetSource('sounds/spark.mp3'),volume:0.6);}catch(_){}
-        Future.delayed(const Duration(milliseconds:500),(){if(mounted)setState(()=>_armActive=true);});
-        Future.delayed(const Duration(seconds:3),(){
-          if(!mounted)return;setState(()=>_finishing=true);
-          try{_sndCafe.play(AssetSource('sounds/cafeteria.mp3'),volume:0.5);}catch(_){}
-        });
-        Future.delayed(const Duration(seconds:5),(){if(mounted)widget.onFinish();});
-      }
+  void _onVideoEnd(){
+    if(_ctrl.value.position>=_ctrl.value.duration&&
+        _ctrl.value.duration.inMilliseconds>0){
+      _ctrl.removeListener(_onVideoEnd);
+      if(mounted)widget.onFinish();
     }
-    if(_finishing)_fadeOut=(_fadeOut+dt*0.4).clamp(0.0,1.0);
-    if(_armActive){
-      _armAngleL=(_armAngleL-dt*1.2).clamp(-pi*0.9,-pi*0.1);
-      _armAngleR=(_armAngleR+dt*1.2).clamp(pi*0.1,pi*1.7);
-    }
-    for(final p in _particles)p.update(dt);
-    _particles.removeWhere((p)=>p.dead);
-    if(mounted)setState((){});
   }
   @override void dispose(){
-    _ticker.dispose();
-    _sndLanding.dispose();_sndSteam.dispose();_sndSpark.dispose();_sndCafe.dispose();
+    _ctrl.removeListener(_onVideoEnd);
+    _ctrl.dispose();
     super.dispose();
   }
   @override Widget build(BuildContext ctx){
-    final sz=MediaQuery.of(ctx).size;
     return Scaffold(backgroundColor:Colors.black,
-      body:CustomPaint(painter:_DockPainter(
-          sw:sz.width,sh:sz.height,progress:_progress,landed:_landed,armActive:_armActive,
-          armAngleL:_armAngleL,armAngleR:_armAngleR,particles:_particles,
-          shakeX:_shakeX,shakeY:_shakeY,t:_t,fadeOut:_fadeOut),
-        child:const SizedBox.expand()));
+      body:GestureDetector(
+        onTap:widget.onFinish, // toca para saltar
+        child:Stack(children:[
+          if(_initialized)
+            SizedBox.expand(child:FittedBox(fit:BoxFit.cover,
+              child:SizedBox(width:_ctrl.value.size.width,height:_ctrl.value.size.height,
+                child:VideoPlayer(_ctrl))))
+          else
+            const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
+              CircularProgressIndicator(color:cIce),
+              SizedBox(height:16),
+              Text('PHOENIX PROJECT',style:TextStyle(color:cGold,fontSize:14,
+                  fontFamily:'Orbitron',letterSpacing:2)),
+            ])),
+          if(_initialized)
+            Positioned(bottom:24,right:20,
+              child:Container(
+                padding:const EdgeInsets.symmetric(horizontal:12,vertical:6),
+                decoration:BoxDecoration(color:Colors.black.withOpacity(0.55),
+                    borderRadius:BorderRadius.circular(6),
+                    border:Border.all(color:Colors.white24)),
+                child:const Text('toca para saltar',
+                    style:TextStyle(color:Colors.white54,fontSize:10,fontFamily:'Orbitron')))),
+        ])));
   }
 }
-class _DockParticle {
-  double x,y,vx,vy,life,maxLife,size;Color color;bool isSmoke;bool dead=false;
-  _DockParticle({required this.isSmoke,required this.vx,required this.vy,Color? color})
-      :x=0,y=0,life=isSmoke?1.4:0.6,size=isSmoke?8:2.5,
-       color=color??(isSmoke?Colors.grey.shade600:Colors.orangeAccent),
-       maxLife=isSmoke?1.4:0.6;
-  void update(double dt){
-    x+=vx*dt;y+=vy*dt;life-=dt;
-    if(isSmoke){size+=6*dt;vx*=0.97;vy-=8*dt;}
-    else{vy+=150*dt;}
-    if(life<=0)dead=true;
-  }
-}
-class _DockPainter extends CustomPainter {
-  final double sw,sh,progress,armAngleL,armAngleR,shakeX,shakeY,t,fadeOut;
-  final bool landed,armActive;
-  final List<_DockParticle> particles;
-  static final _rng=Random(12345);
-  _DockPainter({required this.sw,required this.sh,required this.progress,
-      required this.landed,required this.armActive,required this.armAngleL,
-      required this.armAngleR,required this.particles,required this.shakeX,
-      required this.shakeY,required this.t,required this.fadeOut});
-  double get _dockY=>sh*0.55;
-  double get _shipY{final ease=1-(1-progress)*(1-progress);return -120+ease*(_dockY+120);}
-  double get _cx=>sw/2;
-  @override void paint(Canvas canvas,Size size){
-    canvas.save();canvas.translate(shakeX,shakeY);
-    _drawBg(canvas);_drawDock(canvas);_drawParticles(canvas);_drawShip(canvas);
-    if(armActive)_drawArms(canvas);
-    canvas.restore();
-    if(fadeOut>0)canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..color=Colors.black.withOpacity(fadeOut.clamp(0,1)));
-    _drawText(canvas);
-  }
-  void _drawBg(Canvas canvas){
-    canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
-        colors:[const Color(0xFF000814),const Color(0xFF001824)]).createShader(Rect.fromLTWH(0,0,sw,sh)));
-    final rng=Random(99);final sp=Paint()..color=Colors.white.withOpacity(0.55);
-    for(int i=0;i<55;i++)canvas.drawCircle(Offset(rng.nextDouble()*sw,rng.nextDouble()*sh*0.7),rng.nextDouble()*1.3,sp);
-  }
-  void _drawDock(Canvas canvas){
-    final dockY=_dockY;
-    canvas.drawRect(Rect.fromLTWH(0,dockY,sw,sh-dockY),Paint()..color=Colors.grey.shade900);
-    final lp=Paint()..color=Colors.blueGrey.withOpacity(0.3)..strokeWidth=1.2;
-    for(int i=0;i<=7;i++)canvas.drawLine(Offset(sw*0.04+i*sw*0.135,dockY),Offset(sw*0.04+i*sw*0.135,sh),lp);
-    final lc=landed?cGreen:cFire;
-    for(int i=0;i<6;i++)canvas.drawCircle(Offset(sw*0.1+i*sw*0.16,dockY+10),6,
-        Paint()..color=lc.withOpacity(0.8+sin(t*4+i)*0.2)..maskFilter=const MaskFilter.blur(BlurStyle.normal,8));
-    canvas.drawLine(Offset(0,dockY),Offset(sw,dockY),Paint()..color=Colors.blueGrey.withOpacity(0.5)..strokeWidth=2);
-    final tp=TextPainter(text:const TextSpan(text:'DOCK 7A',style:TextStyle(color:Colors.white24,fontSize:12,fontFamily:'Orbitron',letterSpacing:2)),textDirection:TextDirection.ltr)..layout();
-    tp.paint(canvas,Offset(_cx-tp.width/2,dockY+28));
-  }
-  void _drawShip(Canvas canvas){
-    final sy=_shipY;canvas.save();canvas.translate(_cx,sy);
-    if(!landed)canvas.rotate(sin(t*3)*0.03*(1-progress));
-    canvas.drawOval(Rect.fromCenter(center:const Offset(0,48),width:110,height:24),
-        Paint()..color=cFire.withOpacity((0.18+sin(t*8)*0.08)*(1-progress*0.7))..maskFilter=const MaskFilter.blur(BlurStyle.normal,20));
-    canvas.drawPath(Path()..moveTo(0,-55)..lineTo(22,24)..lineTo(0,40)..lineTo(-22,24)..close(),
-        Paint()..shader=LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
-            colors:[Colors.blueGrey.shade300,Colors.blueGrey.shade800]).createShader(Rect.fromCenter(center:Offset.zero,width:90,height:110)));
-    canvas.drawPath(Path()..moveTo(-22,6)..lineTo(-68,26)..lineTo(-44,44)..lineTo(-22,30)..close(),Paint()..color=Colors.blueGrey.shade700);
-    canvas.drawPath(Path()..moveTo(22,6)..lineTo(68,26)..lineTo(44,44)..lineTo(22,30)..close(),Paint()..color=Colors.blueGrey.shade700);
-    canvas.drawCircle(Offset.zero,12,Paint()..color=cIce.withOpacity(0.9)..maskFilter=const MaskFilter.blur(BlurStyle.normal,8));
-    canvas.drawCircle(Offset.zero,6,Paint()..color=Colors.white.withOpacity(0.95));
-    if(!landed){
-      final flH=20+sin(t*14)*8;
-      canvas.drawPath(Path()..moveTo(-13,42)..lineTo(0,42+flH)..lineTo(13,42)..close(),Paint()..color=cFire.withOpacity(0.8));
-      canvas.drawPath(Path()..moveTo(-7,42)..lineTo(0,42+flH*0.55)..lineTo(7,42)..close(),Paint()..color=Colors.orange.withOpacity(0.95));
-    }
-    final dp=Paint()..color=Colors.black54..strokeWidth=1.5;
-    canvas.drawLine(const Offset(-10,-24),const Offset(-24,-8),dp);
-    canvas.drawLine(const Offset(7,-34),const Offset(20,-18),dp);
-    canvas.drawLine(const Offset(-18,4),const Offset(-30,18),dp);
-    canvas.restore();
-  }
-  void _drawArms(Canvas canvas){
-    final sy=_shipY;final len=65.0;
-    final endLx=_cx-40+cos(armAngleL)*len;final endLy=sy+40+sin(armAngleL)*len;
-    canvas.drawLine(Offset(_cx-40,sy+40),Offset(endLx,endLy),Paint()..color=Colors.blueGrey..strokeWidth=7..strokeCap=StrokeCap.round);
-    canvas.drawCircle(Offset(endLx,endLy),8,Paint()..color=Colors.orange);
-    final endRx=_cx+40+cos(armAngleR)*len;final endRy=sy+40+sin(armAngleR)*len;
-    canvas.drawLine(Offset(_cx+40,sy+40),Offset(endRx,endRy),Paint()..color=Colors.blueGrey..strokeWidth=7..strokeCap=StrokeCap.round);
-    canvas.drawCircle(Offset(endRx,endRy),8,Paint()..color=Colors.orange);
-  }
-  void _drawParticles(Canvas canvas){
-    final sy=_shipY;
-    for(final p in particles){
-      final alpha=(p.life/p.maxLife).clamp(0.0,1.0);
-      final r=p.size.clamp(0.5,60.0);
-      final px=_cx+p.x;final py=sy+50+p.y;
-      if(p.isSmoke){canvas.drawCircle(Offset(px,py),r,Paint()..color=p.color.withOpacity(alpha*0.4)..maskFilter=MaskFilter.blur(BlurStyle.normal,r*0.6));}
-      else{canvas.drawCircle(Offset(px,py),r,Paint()..color=p.color.withOpacity(alpha));}
-    }
-  }
-  void _drawText(Canvas canvas){
-    if(fadeOut>0.3)return;
-    final alpha=(1-fadeOut).clamp(0.0,1.0);
-    final tp=TextPainter(text:TextSpan(text:'DOCK 7A — PHOENIX PROJECT\nUnidad Phoenix ha aterrizado… iniciando protocolo criogénico.',
-        style:TextStyle(color:Colors.white.withOpacity(alpha*0.75),fontSize:10,fontFamily:'Orbitron',height:1.6)),
-        textAlign:TextAlign.center,textDirection:TextDirection.ltr)..layout(maxWidth:sw*0.88);
-    tp.paint(canvas,Offset((sw-tp.width)/2,sh*0.07));
-  }
-  @override bool shouldRepaint(covariant CustomPainter _)=>true;
-}
+
 
 // ── Polvo cinematic flotante ──────────────────────────────
 class _CinDust {
