@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -23,7 +23,6 @@ jobs:
             -o assets/videos/intro_dock.mp4 \
             --max-redirs 10 \
             -b /tmp/cookies.txt -c /tmp/cookies.txt
-          # Maneja la confirmación de archivos grandes de Google Drive
           CONFIRM=$(grep -o 'confirm=[^&]*' /tmp/cookies.txt 2>/dev/null | head -1 | cut -d= -f2 || echo "")
           if [ -n "$CONFIRM" ]; then
             curl -L "https://drive.google.com/uc?export=download&confirm=${CONFIRM}&id=${FILE_ID}" \
@@ -37,18 +36,18 @@ jobs:
       - name: Setup keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
-          cat > android/key.properties <<EOF
+          cat > android/key.properties <<EOF2
           storePassword=${{ secrets.STORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           storeFile=keystore.jks
-          EOF
+          EOF2
 
       - name: Build APK
         run: flutter build apk --release
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: phoenix-core-release
           path: build/app/outputs/flutter-apk/app-release.apk
