@@ -1,7 +1,6 @@
 name: Build Flutter APK
 
-on:
-  push:
+on: [push]
 
 jobs:
   build:
@@ -13,8 +12,8 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.19.0
-          channel: stable
+          flutter-version: '3.19.0'
+          channel: 'stable'
 
       - name: Download intro video from Google Drive
         run: |
@@ -34,30 +33,13 @@ jobs:
       - name: Create launcher icons
         run: |
           pip install Pillow --quiet
-          python3 -c "
-import os
-from PIL import Image, ImageDraw
-
-sizes = {
-  'mipmap-mdpi': 48,
-  'mipmap-hdpi': 72,
-  'mipmap-xhdpi': 96,
-  'mipmap-xxhdpi': 144,
-  'mipmap-xxxhdpi': 192,
-}
-
-for folder, size in sizes.items():
-  path = f'android/app/src/main/res/{folder}'
-  os.makedirs(path, exist_ok=True)
-  img = Image.new('RGBA', (size, size), (8, 16, 40, 255))
-  draw = ImageDraw.Draw(img)
-  m = size // 6
-  draw.ellipse([m, m, size-m, size-m], fill=(255, 120, 0, 255))
-  cx, cy = size//2, size//2
-  r = size // 8
-  draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(255, 220, 100, 255))
-  img.save(f'{path}/ic_launcher.png')
-"
+          python3 -c "import os; from PIL import Image, ImageDraw;
+sizes={'mipmap-mdpi':48,'mipmap-hdpi':72,'mipmap-xhdpi':96,'mipmap-xxhdpi':144,'mipmap-xxxhdpi':192};
+[ (os.makedirs(f'android/app/src/main/res/{f}', exist_ok=True),
+   (lambda img: (ImageDraw.Draw(img).ellipse([s//6,s//6,s-s//6,s-s//6], fill=(255,120,0,255)),
+                 img.save(f'android/app/src/main/res/{f}/ic_launcher.png')))
+   (Image.new('RGBA',(s,s),(8,16,40,255))) )
+ for f,s in sizes.items() ]"
 
       - name: Install dependencies
         run: flutter pub get
