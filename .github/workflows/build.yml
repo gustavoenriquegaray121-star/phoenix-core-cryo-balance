@@ -34,30 +34,30 @@ jobs:
           ls -lh /tmp/phoenix_logo.jpg
 
           cat > /tmp/gen_icons.py << 'PYEOF'
-from PIL import Image
-import os
+          from PIL import Image
+          import os
 
-img = Image.open('/tmp/phoenix_logo.jpg').convert('RGBA')
-w, h = img.size
-side = min(w, h)
-left = (w - side) // 2
-top = (h - side) // 2
-img = img.crop((left, top, left+side, top+side))
+          img = Image.open('/tmp/phoenix_logo.jpg').convert('RGBA')
+          w, h = img.size
+          side = min(w, h)
+          left = (w - side) // 2
+          top = (h - side) // 2
+          img = img.crop((left, top, left+side, top+side))
 
-sizes = {
-  'mipmap-mdpi': 48,
-  'mipmap-hdpi': 72,
-  'mipmap-xhdpi': 96,
-  'mipmap-xxhdpi': 144,
-  'mipmap-xxxhdpi': 192
-}
+          sizes = {
+            'mipmap-mdpi': 48,
+            'mipmap-hdpi': 72,
+            'mipmap-xhdpi': 96,
+            'mipmap-xxhdpi': 144,
+            'mipmap-xxxhdpi': 192
+          }
 
-for folder, size in sizes.items():
-    path = f'android/app/src/main/res/{folder}'
-    os.makedirs(path, exist_ok=True)
-    img.resize((size, size), Image.LANCZOS).save(f'{path}/ic_launcher.png')
-    print(f'OK: {folder}/ic_launcher.png ({size}px)')
-PYEOF
+          for folder, size in sizes.items():
+              path = f'android/app/src/main/res/{folder}'
+              os.makedirs(path, exist_ok=True)
+              img.resize((size, size), Image.LANCZOS).save(f'{path}/ic_launcher.png')
+              print(f'OK: {folder}/ic_launcher.png ({size}px)')
+          PYEOF
 
           python3 /tmp/gen_icons.py
 
