@@ -119,15 +119,15 @@ const _stages = [
     bossName:'EL SEGADOR DE ALMAS',bossAsset:'assets/images/jefe2.png',
     bossColor:cGreen,hazard:StageHazard.asteroids,bossHpBase:160,bossHpPerCycle:30,
     scenes:[
-      CinematicScene(location:'DOCK 7A — BASE PHOENIX',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — BASE PHOENIX',speaker:'GENERAL G.G.',speakerColor:'gold',
           dialogue:'Comandante… lo consiguió.\nEl núcleo cuántico llegó intacto.\nLa colonia Elysium ya está recibiendo energía estable.',
           imageAsset:'assets/images/escena1jefe2.jpg'),
-      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G.G.',speakerColor:'gold',
           dialogue:'Recibimos señales de alerta desde los Asteroides de Kharos.\nAlgo está atacando nuestros convoyes…\nLe llamamos El Segador de Almas del Abismo.',
           imageAsset:'assets/images/escena2jefe2.jpg'),
       CinematicScene(location:'DOCK 7A — HANGAR',speaker:'USUARIO',speakerColor:'ice',
           dialogue:'¿Qué necesita que haga?',imageAsset:'assets/images/escena3jefe2.jpg'),
-      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G.G.',speakerColor:'gold',
           dialogue:'Vaya allí y deténgalo antes de que alcance el Núcleo Central de Elysium.\nSu nave está siendo reparada. Descanse.\nEsta entidad es mucho más antigua… y más peligrosa.',
           imageAsset:'assets/images/escena4jefe2.jpg'),
     ]),
@@ -135,7 +135,7 @@ const _stages = [
     bossName:'EL DEVORADOR DE SUEÑOS',bossAsset:'assets/images/jefe3.png',
     bossColor:cPurple,hazard:StageHazard.gravityTimer,bossHpBase:220,bossHpPerCycle:35,
     scenes:[
-      CinematicScene(location:'DOCK 7A — BASE PHOENIX',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — BASE PHOENIX',speaker:'GENERAL G.G.',speakerColor:'gold',
           dialogue:'Comandante… excelente trabajo.\nEl Segador fue neutralizado.\nPermítame presentarle a la Doctora Denise Moreau.',
           imageAsset:'assets/images/escena1jefe3.jpg'),
       CinematicScene(location:'SALA DE ANÁLISIS',speaker:'DRA. DENISE MOREAU',speakerColor:'ice',
@@ -144,7 +144,7 @@ const _stages = [
       CinematicScene(location:'CAFÉ ALTEA',speaker:'DRA. DENISE MOREAU',speakerColor:'ice',
           dialogue:'Ataca la mente, genera alucinaciones y distorsiona la realidad.\nSi logra establecer una cabeza de playa, la infestación será imposible de detener.',
           imageAsset:'assets/images/escena3jefe3.jpg'),
-      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'DOCK 7A — HANGAR',speaker:'GENERAL G.G.',speakerColor:'gold',
           dialogue:'¡ADVERTENCIA: campo gravitacional activo!\nNeutralice al jefe antes de ser absorbido.\nTiene 75 segundos desde que aparezca.',
           imageAsset:'assets/images/escena4jefe3.jpg'),
     ]),
@@ -152,7 +152,7 @@ const _stages = [
     bossName:'ANTI-PHOENIX UNIT 01',bossAsset:'assets/images/jefe4.png',
     bossColor:cRed,hazard:StageHazard.mirrorPortal,bossHpBase:999,bossHpPerCycle:0,
     scenes:[
-      CinematicScene(location:'PUENTE DE MANDO',speaker:'GENERAL G-G',speakerColor:'gold',
+      CinematicScene(location:'PUENTE DE MANDO',speaker:'GENERAL G.G.',speakerColor:'gold',
           dialogue:'¡Comandante! Los sensores detectaron una anomalía masiva en el sector Omega-9.\nEs un portal dimensional que se está abriendo.',
           imageAsset:'assets/images/escena1jefe4.jpg'),
       CinematicScene(location:'SALA DE ANÁLISIS',speaker:'DRA. DENISE MOREAU',speakerColor:'ice',
@@ -164,14 +164,14 @@ const _stages = [
       CinematicScene(location:'CANAL DE COMUNICACIÓN',speaker:'ANTI-PHOENIX',speakerColor:'red',
           dialogue:'Por fin nos encontramos… "yo".\nEn mi universo ya conquisté todo lo que se movía.\nAhora vengo por el tuyo.',
           imageAsset:'assets/images/escena4jefe4.jpg'),
-      CinematicScene(location:'CANAL DE COMUNICACIÓN',speaker:'GENERAL G-G',speakerColor:'gold',
-          dialogue:'¡Comandante! ¡No intente destruirla!\n¡Su objetivo es CERRAR ESE PORTAL antes de que se estabilice!\n¡Repélalo de regreso a su realidad!',
+      CinematicScene(location:'CANAL DE COMUNICACIÓN',speaker:'DRA. DENISE MOREAU',speakerColor:'ice',
+          dialogue:'¡Phoenix! ¡Escúchame!\n¡No puedes dañarlo!\n¡Dispara los 4 NODOS del portal!\n¡Es la única salida!',
           imageAsset:'assets/images/escena5jefe4.jpg'),
     ]),
 ];
 
 const _introScenes = [
-  CinematicScene(location:'CAFÉ ALTEA — BASE PHOENIX',speaker:'GENERAL G-G',speakerColor:'gold',
+  CinematicScene(location:'CAFÉ ALTEA — BASE PHOENIX',speaker:'GENERAL G.G.',speakerColor:'gold',
       dialogue:'Usuario. El Núcleo Cuántico debe llegar hoy al Cuadrante 7 de la Nebulosa de Orión.\nLa colonia Elysium se está quedando sin energía.\nSin ese núcleo… perdemos tres millones de personas.',
       imageAsset:'assets/images/cafe1.jpg'),
   CinematicScene(location:'CAFÉ ALTEA — BASE PHOENIX',speaker:'USUARIO',speakerColor:'ice',
@@ -273,10 +273,9 @@ class Enemy {
   Enemy({required this.x,required this.y,required this.hp,required this.vx,
          this.vy=90,this.kind=EnemyKind.interceptor}):maxHp=hp;
 }
-// Asteroide con NIVEL — controla fragmentación sin recursión infinita
 class Asteroid {
   double x,y,vx,vy,r,angle,spin;bool dead=false;
-  int level; // 2=grande→3med, 1=mediano→2peq, 0=pequeño→MUERE
+  int level;
   Asteroid({required this.x,required this.y,required this.vx,required this.vy,
             required this.r,this.level=2})
       :angle=0,spin=(Random().nextDouble()-0.5)*(level==0?5:level==1?3:2);
@@ -312,6 +311,18 @@ class UpgradeOption {
   final void Function(PlayerBuild) apply;
   const UpgradeOption({required this.title,required this.description,
       required this.emoji,required this.color,required this.apply});
+}
+
+// ── NODO DEL PORTAL — Stage 4 ────────────────────────────
+class PortalNode {
+  double x,y,hp;bool broken;
+  PortalNode({required this.x,required this.y,this.hp=100,this.broken=false});
+  Color get color{
+    if(broken)return const Color(0xFF00FF88);
+    if(hp>60)return const Color(0xFFFF2222);
+    if(hp>30)return const Color(0xFFFF8800);
+    return const Color(0xFFFFFF00);
+  }
 }
 
 // ── PHASE ENGINE ─────────────────────────────────────────
@@ -440,9 +451,6 @@ void drawSprite(Canvas canvas,ui.Image img,Offset center,double size,{double fla
 }
 
 // ══════════════════════════════════════════════════════════
-// DOCK SCENE
-// ══════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════
 // DOCK SCENE — Video real del hangar Phoenix Project
 // ══════════════════════════════════════════════════════════
 class DockScene extends StatefulWidget {
@@ -478,7 +486,7 @@ class _DockSceneState extends State<DockScene> {
   @override Widget build(BuildContext ctx){
     return Scaffold(backgroundColor:Colors.black,
       body:GestureDetector(
-        onTap:widget.onFinish, // toca para saltar
+        onTap:widget.onFinish,
         child:Stack(children:[
           if(_initialized)
             SizedBox.expand(child:FittedBox(fit:BoxFit.cover,
@@ -504,7 +512,6 @@ class _DockSceneState extends State<DockScene> {
   }
 }
 
-
 // ── Polvo cinematic flotante ──────────────────────────────
 class _CinDust {
   double x,y,speed,size;
@@ -512,7 +519,7 @@ class _CinDust {
 }
 
 // ══════════════════════════════════════════════════════════
-// CINEMATIC SCREEN — Ken Burns + TTS + Vignette + Dust + Flash
+// CINEMATIC SCREEN
 // ══════════════════════════════════════════════════════════
 class CinematicScreen extends StatefulWidget {
   final List<CinematicScene> scenes;final VoidCallback onDone;
@@ -570,9 +577,7 @@ class _CinState extends State<CinematicScreen> with TickerProviderStateMixin {
                     errorBuilder:(_,__,___)=>Container(color:const Color(0xFF050A14),
                         child:const Center(child:Icon(Icons.image_not_supported,color:Colors.white24,size:48))))))),
             Positioned.fill(child:Container(color:Colors.black.withOpacity(0.28))),
-            // Vignette
             Positioned.fill(child:CustomPaint(painter:_VignettePainter())),
-            // Dust
             Positioned.fill(child:CustomPaint(painter:_DustPainter(dust:_dust,sw:sz.width,sh:sz.height*0.55))),
             Positioned(bottom:0,left:0,right:0,height:110,child:Container(
                 decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,
@@ -724,7 +729,7 @@ class VictoryScreen extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-// GAME SCREEN — con Pausa, Anti-Phoenix IA, fragmentación
+// GAME SCREEN
 // ══════════════════════════════════════════════════════════
 class GameScreen extends StatefulWidget {
   final StageConfig stageConfig;final PlayerBuild? initialBuild;final int initialScore;
@@ -743,7 +748,6 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   final _enemies=<Enemy>[];final _bullets=<Bullet>[];final _powerUps=<PowerUp>[];
   final _particles=<Particle>[];final _floats=<FloatingText>[];final _asteroids=<Asteroid>[];
   Boss? _boss;bool _bossAlive=false;
-  // Muerte épica del boss
   bool _bossDying=false;double _bossDeathTimer=0;double _timeScale=1.0;
   double _bossShakeX=0,_bossShakeY=0,_bossShakeIntensity=0;
   int _score=0;double _coreTemp=0,_niFrame=0;
@@ -755,18 +759,30 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   double _gravTimer=75.0;bool _gravActive=false,_gravWarn=false;
   double _portal=0.0;bool _mirrorWin=false;double _mirrorT=0;
   double _asteroidTimer=0;
-  // Pausa
   bool _paused=false;
-  // Anti-Phoenix IA
   final _tracker=PlayerTracker();
   final _profile=PlayerProfile();
   bool _antiPatternTriggered=false,_antiFinalTriggered=false;
   double _diffMult=1.0,_decayTimer=15.0;
-  // Triple shot temporal
-  double _tripleTimer=0.0; // >0 = activo temporal, 0 = expiró
-  bool _triplePermanent=false; // conseguido por upgrade de decisión
-  // Glitch visual
+  double _tripleTimer=0.0;
+  bool _triplePermanent=false;
   double _glitchT=0;bool _glitchActive=false;
+
+  // ── STAGE 4: Nodos del portal ──────────────────────────
+  final List<PortalNode> _portalNodes=[];
+  bool _nodesInitialized=false;
+  bool _deniseMsgShown=false;
+  double _deniseMsgTimer=0;
+  // Frases del Doppelganger por nodo roto
+  final List<String> _dopEnojado=[
+    '¡Imposible!',
+    '¡Eso no cambia nada!',
+    '¡Sigues siendo predecible!',
+    '¡Ciérralo si puedes… tecnología de museo!',
+  ];
+  bool _showDeniseWarning=false;
+  // ──────────────────────────────────────────────────────
+
   final _mg=ChargeIndicator(icon:'⚡',color:cGold,chargeTime:28.0,activeDuration:8.0);
   final _fr=ChargeIndicator(icon:'❄',color:cIce,chargeTime:38.0,activeDuration:6.0);
   Ticker? _ticker;Duration _last=Duration.zero;
@@ -787,18 +803,107 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _last=elapsed;if(dt==0||!mounted)return;_update(dt);
   }
 
+  // ── Inicializar nodos del portal Stage 4 ──────────────
+  void _initPortalNodes(){
+    if(_nodesInitialized)return;
+    _nodesInitialized=true;
+    final cx=_sw/2;
+    final cy=_sh*0.22;
+    final halfW=_sw*0.18;
+    final halfH=_sh*0.09;
+    _portalNodes.clear();
+    _portalNodes.addAll([
+      PortalNode(x:cx-halfW,y:cy-halfH), // arriba izquierda
+      PortalNode(x:cx+halfW,y:cy-halfH), // arriba derecha
+      PortalNode(x:cx-halfW,y:cy+halfH), // abajo izquierda
+      PortalNode(x:cx+halfW,y:cy+halfH), // abajo derecha
+    ]);
+  }
+
+  // ── Lógica de nodos — balas jugador vs nodos ──────────
+  void _checkBulletsVsNodes(){
+    if(_portalNodes.isEmpty)return;
+    final rem=<Bullet>{};
+    for(final bul in _bullets){
+      if(bul.isEnemy)continue;
+      for(int i=0;i<_portalNodes.length;i++){
+        final node=_portalNodes[i];
+        if(node.broken)continue;
+        final dx=bul.x-node.x;
+        final dy=bul.y-node.y;
+        if(dx*dx+dy*dy<24*24){
+          rem.add(bul);
+          node.hp-=8;
+          _spawnBurst(node.x,node.y,Colors.cyanAccent,5);
+          if(node.hp<=0){
+            node.hp=0;node.broken=true;
+            _onNodeBroken(i);
+          }
+          break;
+        }
+      }
+    }
+    _bullets.removeWhere((b)=>rem.contains(b));
+
+    // Balas jugador que golpean al boss en Stage 4 → efecto glitch, sin daño
+    final remBoss=<Bullet>{};
+    if(_bossAlive&&_boss!=null){
+      for(final bul in _bullets){
+        if(bul.isEnemy)continue;
+        final bo=_boss!;
+        if((bul.x-bo.x).abs()<kBossR&&(bul.y-bo.y).abs()<kBossR){
+          remBoss.add(bul);
+          _glitchActive=true;_glitchT=0.25;
+          _spawnBurst(bo.x,bo.y,Colors.purpleAccent,3);
+        }
+      }
+    }
+    _bullets.removeWhere((b)=>remBoss.contains(b));
+
+    // ¿Todos los nodos rotos?
+    if(_portalNodes.every((n)=>n.broken)&&!_mirrorWin){
+      _mirrorWin=true;hapticHeavy();
+      _spawnBurst(_sw/2,_sh*0.22,Colors.cyanAccent,60);
+      _spawnBurst(_sw/2,_sh*0.22,Colors.white,30);
+      _addFloat(_sw/2,_sh*0.4,'★ PORTAL CERRADO ★',cGold);
+      _audio.playExplosion(isBoss:true);_audio.switchToAmbient();
+    }
+  }
+
+  void _onNodeBroken(int index){
+    // Slow motion momentáneo
+    _timeScale=0.3;
+    Future.delayed(const Duration(milliseconds:700),(){
+      if(mounted)setState(()=>_timeScale=1.0);
+    });
+    // Shake
+    _bossShakeIntensity=12;
+    // Frase de enojo del boss
+    if(index<_dopEnojado.length&&_boss!=null){
+      _addFloat(_boss!.x,_boss!.y-kBossR-28,_dopEnojado[index],cRed);
+      _glitchActive=true;_glitchT=0.5;
+    }
+    // Boss se enoja — más rápido
+    if(_boss!=null){
+      _boss!.vx*=1.25;
+    }
+    // Partículas en el nodo
+    final node=_portalNodes[index];
+    _spawnBurst(node.x,node.y,Colors.greenAccent,25);
+    _spawnBurst(node.x,node.y,Colors.white,10);
+    hapticHeavy();
+    _score+=200;
+  }
+
   void _update(double dt){
     if(_paused){if(mounted)setState((){});return;}
 
-    // MUERTE ÉPICA DEL BOSS — estado especial con delay cinematográfico
     if(_bossDying){
       final scaledDt=dt*_timeScale;
-      _bossDeathTimer+=dt; // timer sin escalar para el delay real
-      // Shake de cámara que decae
+      _bossDeathTimer+=dt;
       _bossShakeIntensity*=0.92;
       _bossShakeX=(_rng.nextDouble()-0.5)*_bossShakeIntensity;
       _bossShakeY=(_rng.nextDouble()-0.5)*_bossShakeIntensity;
-      // Micro explosiones continuas mientras muere
       if(_rng.nextDouble()<0.35&&_boss!=null){
         _particles.add(Particle(
           x:_boss!.x+(_rng.nextDouble()-0.5)*80,
@@ -807,26 +912,49 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
           life:0.6+_rng.nextDouble()*0.4,
           color:_rng.nextBool()?Colors.orangeAccent:cFire,size:3+_rng.nextDouble()*5));
       }
-      // Escala de tiempo vuelve a 1 después de 0.3s
       if(_bossDeathTimer>0.3&&_timeScale<1.0)_timeScale=(_timeScale+dt*3).clamp(0,1);
       _updateParticles(dt);_updateFloats(dt);
-      // Después de 2.5s → siguiente stage
       if(_bossDeathTimer>2.5){
         _bossDying=false;_timeScale=1.0;_bossShakeIntensity=0;
-        _resetPlayerForStage();
-        _stageClear();
+        _resetPlayerForStage();_stageClear();
       }
       if(mounted)setState((){});return;
     }
 
-    if(_mirrorWin){_mirrorT+=dt;_updateParticles(dt);if(_mirrorT>3.0)widget.onStageClear(_score,_player.build);if(mounted)setState((){});return;}
+    if(_mirrorWin){
+      _mirrorT+=dt;
+      _updateParticles(dt);
+      _updateFloats(dt);
+      // Shake de celebración
+      _bossShakeIntensity*=0.95;
+      _bossShakeX=(_rng.nextDouble()-0.5)*_bossShakeIntensity*0.3;
+      _bossShakeY=(_rng.nextDouble()-0.5)*_bossShakeIntensity*0.3;
+      if(_mirrorT>3.5)widget.onStageClear(_score,_player.build);
+      if(mounted)setState((){});return;
+    }
     if(_quenching){_quenchT+=dt;_updateParticles(dt);if(_quenchT>2.5)widget.onGameOver(_score);if(mounted)setState((){});return;}
     if(_frosting){_frostT+=dt*0.55;_spawnFrost();_updateParticles(dt);_updateFloats(dt);
       if(_frostT>=1.0){_frosting=false;_quenching=true;_audio.stopAlarm();_audio.playQuench();_quenchExp();}
       if(mounted)setState((){});return;}
     if(_showDec){if(mounted)setState((){});return;}
 
-    // Triple shot temporal — expira en 12 segundos (solo si no es permanente)
+    // Inicializar nodos Stage 4 cuando el boss aparece
+    if(_stage.stageNum==4&&_bossAlive&&!_nodesInitialized){
+      _initPortalNodes();
+      // Mensaje Dra. Denise al inicio del boss Stage 4
+      if(!_deniseMsgShown){
+        _deniseMsgShown=true;
+        _showDeniseWarning=true;
+        _deniseMsgTimer=4.5;
+      }
+    }
+
+    // Timer del mensaje de Denise
+    if(_showDeniseWarning){
+      _deniseMsgTimer-=dt;
+      if(_deniseMsgTimer<=0)_showDeniseWarning=false;
+    }
+
     if(_tripleTimer>0){
       _tripleTimer-=dt;
       if(_tripleTimer<=0){
@@ -844,20 +972,16 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if(_niFrame>0)_niFrame=(_niFrame-dt).clamp(0,kNucleusIFrame);
     _mg.update(dt);_fr.update(dt);
 
-    // Tracker de movimiento para Anti-Phoenix
     final mv=_touching?(_touchX<_player.x?MoveType.left:MoveType.right):
              (_touching&&_res.energy>0?MoveType.shoot:MoveType.idle);
     _tracker.add(mv);_profile.register(mv);
-    // Decay del perfil cada 15 segundos
     _decayTimer-=dt;if(_decayTimer<=0){_decayTimer=15.0;_profile.decay();}
 
-    // Glitch foreshadowing stage 4
     if(_stage.stageNum==4&&!_bossAlive&&_phase.cycleCount>=2){
       if(_rng.nextDouble()<0.003){_glitchActive=true;_glitchT=0.4;}
     }
     if(_glitchActive){_glitchT-=dt;if(_glitchT<=0)_glitchActive=false;}
 
-    // Modo predictibilidad alta — frase final
     if(_stage.stageNum==4&&_bossAlive&&!_antiFinalTriggered&&_profile.predictability()>0.8){
       _antiFinalTriggered=true;_glitchActive=true;_glitchT=0.8;hapticHeavy();
       if(_boss!=null)_addFloat(_boss!.x,_boss!.y-kBossR-30,'Eres yo… pero sin evolución.',cRed);
@@ -865,8 +989,12 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
 
     if(_stage.hazard==StageHazard.gravityTimer&&_gravActive){
       _gravTimer-=dt;_gravWarn=_gravTimer<30;if(_gravTimer<=0)_beginFrost();}
+
+    // Stage 4: portal crece pero la victoria es por nodos, no por tamaño
     if(_stage.hazard==StageHazard.mirrorPortal){
-      if(_bossAlive)_portal+=dt*0.004;if(_portal>=1.0)_beginFrost();}
+      if(_bossAlive&&!_mirrorWin)_portal=(_portal+dt*0.003).clamp(0,0.95);
+    }
+
     if(_stage.hazard==StageHazard.asteroids){
       _asteroidTimer-=dt;
       if(_asteroidTimer<=0){_asteroidTimer=4+_rng.nextDouble()*4;_spawnAsteroid(2);}
@@ -898,7 +1026,20 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       if(_spawnTimer<=0){_spawnTimer=_ai.spawnInterval(_phase.cycleCount,_stage.stageNum);
         for(int i=0;i<_ai.waveSize(_phase.cycleCount,_stage.stageNum);i++)_spawnEnemy();}}
 
-    _updateEnemies(dt);if(_bossAlive&&_boss!=null)_updateBoss(dt);_resolveCollisions();
+    _updateEnemies(dt);if(_bossAlive&&_boss!=null)_updateBoss(dt);
+
+    // Shake decay
+    _bossShakeIntensity*=0.88;
+    _bossShakeX=(_rng.nextDouble()-0.5)*_bossShakeIntensity;
+    _bossShakeY=(_rng.nextDouble()-0.5)*_bossShakeIntensity;
+
+    _resolveCollisions();
+
+    // Stage 4: chequear balas vs nodos del portal
+    if(_stage.stageNum==4&&_bossAlive&&_nodesInitialized){
+      _checkBulletsVsNodes();
+    }
+
     _coreTemp=(_coreTemp-0.004*dt).clamp(0,1);if(_coreTemp>=1.0&&!_frosting&&!_quenching)_beginFrost();
     _updateParticles(dt);_updateFloats(dt);if(mounted)setState((){});
   }
@@ -914,7 +1055,6 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     }else{_bullets.add(Bullet(_player.x,py,_player.build.damage));}
   }
 
-  // SPAWN ASTEROIDE CON NIVEL (2=grande, 1=mediano, 0=pequeño)
   void _spawnAsteroid(int level,{double? ox,double? oy,double? ovx,double? ovy}){
     final r=level==2?18+_rng.nextDouble()*20:level==1?10+_rng.nextDouble()*8:5+_rng.nextDouble()*5;
     _asteroids.add(Asteroid(x:ox??20+_rng.nextDouble()*(_sw-40),y:oy??-r,
@@ -922,11 +1062,10 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
         vy:ovy??60+_rng.nextDouble()*50,r:r,level:level));
   }
 
-  // FRAGMENTACIÓN CONTROLADA — pequeño=0 MUERE, sin recursión infinita
   void _splitAsteroid(Asteroid a){
-    if(a.level<=0)return; // level 0 → muere sin fragmentar
+    if(a.level<=0)return;
     final nextLevel=a.level-1;
-    final count=nextLevel==1?3:2; // grande→3med, mediano→2peq
+    final count=nextLevel==1?3:2;
     for(int i=0;i<count;i++){
       final ang=(pi*2/count)*i+_rng.nextDouble()*0.4;
       final spd=nextLevel==1?55+_rng.nextDouble()*45:70+_rng.nextDouble()*50;
@@ -990,7 +1129,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       case PowerUpKind.rapidFire:_player.build.fireRate=(_player.build.fireRate*1.3).clamp(1.0,2.0);
       case PowerUpKind.tripleShot:
         _player.build.hasTripleShot=true;
-        _tripleTimer=12.0; // 12 segundos temporales
+        _tripleTimer=12.0;
         _player.build.fireRate=(_player.build.fireRate*1.1).clamp(1.0,2.0);
       case PowerUpKind.shield:_player.shieldActive=true;_player.shieldTimer=10.0;_audio.playShieldCharge();
       case PowerUpKind.coreArmor:_coreTemp=(_coreTemp-0.22).clamp(0,1);_res.heat=(_res.heat-30).clamp(0,100);
@@ -1036,13 +1175,23 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if(b.hitFlash>0)b.hitFlash-=dt*3;b.animT+=dt;
     if(b.phaseShieldActive){b.phaseShieldTimer-=dt;
       if(b.phaseShieldTimer<=0){b.phaseShieldActive=false;_addFloat(b.x,b.y-kBossR-20,'ESCUDO CAÍDO',cDanger);}}
+
+    // Stage 4: el boss se mueve libremente, nunca muere
     if(_stage.stageNum==4){
-      b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*24;
+      b.x+=b.vx*dt;b.y=_sh*0.16+sin(b.animT*0.8)*22;
       if(b.x<kBossR||b.x>_sw-kBossR)b.vx*=-1;
-      if(b.repelMeter>=1.0&&!_mirrorWin){_mirrorWin=true;hapticHeavy();
-        _spawnBurst(b.x,b.y,cRed,50);_spawnBurst(_sw/2,_sh/2,cGold,40);
-        _addFloat(_sw/2,_sh*0.4,'PORTAL CERRADO!',cGold);
-        _audio.playExplosion(isBoss:true);_audio.switchToAmbient();}}
+      // Dispara continuamente al jugador (daño reducido 30%)
+      b.burstTimer+=dt;
+      final brokenCount=_portalNodes.isEmpty?0:_portalNodes.where((n)=>n.broken).length;
+      // Intervalo se reduce conforme más nodos rotos: 1.8→1.4→1.0→0.7→0.5
+      final interval=1.8-(brokenCount*0.32);
+      if(b.burstTimer>=interval.clamp(0.45,1.8)){
+        b.burstTimer=0;
+        _fireBoss(b);
+      }
+      return;
+    }
+
     final effectiveMoveTime=b.phaseShieldActive?1.5:Boss.moveTime;
     final effectiveBurstLimit=b.phaseShieldActive?4:3;
     switch(b.state){
@@ -1059,12 +1208,41 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
 
   void _fireBoss(Boss b){
     final ba=atan2(_player.x-b.x,_sh*0.5)*0.35;const sp=0.31;
+
+    if(_stage.stageNum==4){
+      // Stage 4: disparo predictivo, daño REDUCIDO 30% (daño base 7 en vez de 10)
+      final predict=_profile.predictability();
+      double targetX=_player.x;
+      if(predict>0.6){
+        final dom=_profile.dominantMove();
+        if(dom==MoveType.right)targetX=(_player.x+55*_diffMult).clamp(0,_sw);
+        else if(dom==MoveType.left)targetX=(_player.x-55*_diffMult).clamp(0,_sw);
+      }
+      final predAngle=atan2(targetX-b.x,_sh*0.5)*0.45;
+      // Daño reducido 30% — 7 en vez de 10
+      _bullets.add(Bullet(b.x,b.y+kBossR,7,isEnemy:true,fromBoss:true,angle:predAngle));
+      // Fase triple cuando hay 2+ nodos rotos
+      final brokenCount=_portalNodes.isEmpty?0:_portalNodes.where((n)=>n.broken).length;
+      if(brokenCount>=2){
+        _bullets.add(Bullet(b.x,b.y+kBossR,5,isEnemy:true,fromBoss:true,angle:predAngle-0.22));
+        _bullets.add(Bullet(b.x,b.y+kBossR,5,isEnemy:true,fromBoss:true,angle:predAngle+0.22));
+      }
+      // Frase dinámica por predictibilidad
+      if(!_antiPatternTriggered&&_rng.nextDouble()<0.25){
+        _antiPatternTriggered=true;
+        final msg=predict>0.75?'Eres completamente predecible…':predict>0.6?'Empiezo a entenderte…':'Con tecnología de museo…';
+        _addFloat(b.x,b.y-kBossR-24,msg,cRed);
+        _glitchActive=true;_glitchT=0.5;
+        Future.delayed(const Duration(seconds:4),()=>_antiPatternTriggered=false);
+      }
+      _diffMult=(_diffMult+0.04).clamp(1.0,2.0);
+      return;
+    }
+
     final offsets=_stage.stageNum>=3?[0.0,-sp,sp,-sp*0.5]:[0.0,-sp,sp];
-    // ANTI-PHOENIX: ataque adaptativo basado en perfil del jugador
     if(_stage.stageNum==4&&_rng.nextDouble()<0.70){
       final predict=_profile.predictability();
       if(predict>0.6){
-        // Disparo predictivo según movimiento dominante
         double targetX=_player.x;
         final dom=_profile.dominantMove();
         if(dom==MoveType.right)targetX=(_player.x+60*_diffMult).clamp(0,_sw);
@@ -1072,14 +1250,6 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
         final predAngle=atan2(targetX-b.x,_sh*0.5)*0.45;
         _bullets.add(Bullet(b.x,b.y+kBossR,17,isEnemy:true,fromBoss:true,angle:predAngle));
         _bullets.add(Bullet(b.x,b.y+kBossR,17,isEnemy:true,fromBoss:true,angle:predAngle-0.18));
-        // Frases dinámicas por predictibilidad
-        if(!_antiPatternTriggered&&_rng.nextDouble()<0.3){
-          _antiPatternTriggered=true;
-          final msg=predict>0.75?'Eres completamente predecible…':predict>0.6?'Empiezo a entenderte…':'Interesante… estás cambiando.';
-          _addFloat(b.x,b.y-kBossR-24,msg,cRed);
-          _glitchActive=true;_glitchT=0.5;
-          Future.delayed(const Duration(seconds:4),()=>_antiPatternTriggered=false);
-        }
         _diffMult=(_diffMult+0.05).clamp(1.0,2.2);
       } else {
         for(final off in offsets)_bullets.add(Bullet(b.x,b.y+kBossR,14,isEnemy:true,fromBoss:true,angle:ba+off));
@@ -1106,6 +1276,9 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
           _coreTemp+=bul.fromBoss?kBossBulletDmg:kCoreHeatPerHit;hapticHeavy();_addFloat(nx,ny-20,'NÚCLEO!',cDanger);_spawnBurst(nx,ny,cDanger,6);}
         else if(_niFrame>0&&(bul.x-nx).abs()<kNucleusR&&(bul.y-ny).abs()<kNucleusR){rem.add(bul);_spawnBurst(bul.x,bul.y,cShield.withOpacity(0.5),4);}
       }else{
+        // Stage 4: balas del jugador SOLO van a nodos, no a boss — se manejan en _checkBulletsVsNodes
+        if(_stage.stageNum==4&&_bossAlive)continue;
+
         bool hit=false;
         for(final e in _enemies){if(e.dead||hit)continue;
           if((bul.x-e.x).abs()<kEnemyR&&(bul.y-e.y).abs()<kEnemyR){
@@ -1115,42 +1288,29 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
           final bo=_boss!;
           if((bul.x-bo.x).abs()<kBossR&&(bul.y-bo.y).abs()<kBossR){
             rem.add(bul);final dmg=_fr.active?bul.damage*1.5:bul.damage;
-            if(_stage.stageNum==4){bo.repelMeter=(bo.repelMeter+dmg/800).clamp(0,1);_score+=5;}
-            else{
-              final actualDmg=bo.phaseShieldActive?dmg*0.35:dmg;
-              bo.hp-=actualDmg;bo.hitFlash=1.0;_score+=_fr.active?7:5;
-              if(bo.phaseShieldActive)_spawnBurst(bo.x,bo.y,cShield.withOpacity(0.4),4);
-              if(_stage.stageNum==1&&!bo.phaseTriggered&&bo.hp/bo.maxHp<=0.5){
-                bo.phaseTriggered=true;bo.phaseShieldActive=true;bo.phaseShieldTimer=8.0;
-                _addFloat(bo.x,bo.y-kBossR-20,'⚡ ESCUDO ACTIVO!',cShield);_spawnBurst(bo.x,bo.y,cShield,30);hapticHeavy();}
-              if(bo.hp<=0&&!_bossDying){
-                // INICIO DE MUERTE ÉPICA
-                _bossDying=true;_bossDeathTimer=0;
-                _bossShakeIntensity=18;
-                _timeScale=0.3; // slow motion al impacto
-                _score+=500+(_stage.stageNum-1)*200;
-                // Explosión inicial masiva
-                for(int i=0;i<60;i++){
-                  final a=_rng.nextDouble()*pi*2;
-                  final s=80+_rng.nextDouble()*350;
-                  _particles.add(Particle(
-                    x:bo.x+(_rng.nextDouble()-0.5)*40,
-                    y:bo.y+(_rng.nextDouble()-0.5)*40,
-                    vx:cos(a)*s,vy:sin(a)*s,
-                    life:0.8+_rng.nextDouble()*1.0,
-                    color:_rng.nextBool()?cGold:(_rng.nextBool()?cFire:Colors.white),
-                    size:4+_rng.nextDouble()*8));
-                }
-                _audio.playExplosion(isBoss:true);hapticHeavy();
-                _addFloat(bo.x,bo.y,'+${500+(_stage.stageNum-1)*200} BOSS!',cGold);
-                _addFloat(bo.x,bo.y-50,'★ ELIMINADO ★',_stage.bossColor);
-                _ai.analyze(_player.build,_stage.stageNum);_audio.switchToAmbient();
+            final actualDmg=bo.phaseShieldActive?dmg*0.35:dmg;
+            bo.hp-=actualDmg;bo.hitFlash=1.0;_score+=_fr.active?7:5;
+            if(bo.phaseShieldActive)_spawnBurst(bo.x,bo.y,cShield.withOpacity(0.4),4);
+            if(_stage.stageNum==1&&!bo.phaseTriggered&&bo.hp/bo.maxHp<=0.5){
+              bo.phaseTriggered=true;bo.phaseShieldActive=true;bo.phaseShieldTimer=8.0;
+              _addFloat(bo.x,bo.y-kBossR-20,'⚡ ESCUDO ACTIVO!',cShield);_spawnBurst(bo.x,bo.y,cShield,30);hapticHeavy();}
+            if(bo.hp<=0&&!_bossDying){
+              _bossDying=true;_bossDeathTimer=0;
+              _bossShakeIntensity=18;_timeScale=0.3;
+              _score+=500+(_stage.stageNum-1)*200;
+              for(int i=0;i<60;i++){
+                final a=_rng.nextDouble()*pi*2;final s=80+_rng.nextDouble()*350;
+                _particles.add(Particle(x:bo.x+(_rng.nextDouble()-0.5)*40,y:bo.y+(_rng.nextDouble()-0.5)*40,vx:cos(a)*s,vy:sin(a)*s,life:0.8+_rng.nextDouble()*1.0,color:_rng.nextBool()?cGold:(_rng.nextBool()?cFire:Colors.white),size:4+_rng.nextDouble()*8));
               }
+              _audio.playExplosion(isBoss:true);hapticHeavy();
+              _addFloat(bo.x,bo.y,'+${500+(_stage.stageNum-1)*200} BOSS!',cGold);
+              _addFloat(bo.x,bo.y-50,'★ ELIMINADO ★',_stage.bossColor);
+              _ai.analyze(_player.build,_stage.stageNum);_audio.switchToAmbient();
             }
           }
         }
       }
-    } // end for(bul)
+    }
     _bullets.removeWhere((b)=>rem.contains(b));
   }
 
@@ -1165,14 +1325,14 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _addFloat(_sw/2,_sh*0.3,'⚠ ${_stage.bossName}',_stage.bossColor);}
   void _stageClear(){_audio.stopAlarm();_phase.endBoss();widget.onStageClear(_score,_player.build);}
 
-  // Reset de armas al cambiar de stage — el triple no cruza stages
   void _resetPlayerForStage(){
     _player.build.hasTripleShot=false;
     _triplePermanent=false;
-    _player.build.fireRate=_player.build.fireRate.clamp(1.0,1.4); // mantiene algo de progresión
+    _player.build.fireRate=_player.build.fireRate.clamp(1.0,1.4);
     _tripleTimer=0;
     _boss=null;_bossAlive=false;_bossDying=false;_bossDeathTimer=0;
     _bullets.clear();_asteroids.clear();_enemies.clear();
+    _portalNodes.clear();_nodesInitialized=false;
   }
   void _beginFrost(){if(_frosting||_quenching)return;_frosting=true;_coreTemp=1.0;_audio.stopAlarm();}
   void _quenchExp(){
@@ -1228,6 +1388,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     final sz=MediaQuery.of(ctx).size;_sw=sz.width;_sh=sz.height;
     final lc=Color.lerp(cIce,cGold,(_player.build.fireRate-1.0).clamp(0,1))!;
     final isTriple=_player.build.hasTripleShot||_player.build.fireRate>=1.8;
+    final brokenCount=_portalNodes.isEmpty?0:_portalNodes.where((n)=>n.broken).length;
     return Scaffold(backgroundColor:cBg,
       body:Stack(children:[
         GestureDetector(onPanStart:_onPS,onPanUpdate:_onPU,onPanEnd:_onPE,onTapDown:_onTD,onTapUp:_onTU,
@@ -1245,7 +1406,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
               mirrorVictory:_mirrorWin,mirrorVictoryT:_mirrorT,
               repelMeter:_boss?.repelMeter??0,stageName:_stage.name,
               glitchActive:_glitchActive||_bossDying,paused:_paused,
-              bossShakeX:_bossShakeX,bossShakeY:_bossShakeY,bossDying:_bossDying),
+              bossShakeX:_bossShakeX,bossShakeY:_bossShakeY,bossDying:_bossDying,
+              portalNodes:_portalNodes),
             child:const SizedBox.expand())),
         // Botón PAUSA
         Positioned(top:8,right:8,child:GestureDetector(
@@ -1274,12 +1436,41 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
         if(_mg.active)Positioned(bottom:_sh*0.16,left:20,child:_GlowText('⚡ RÁFAGA ${_mg.activeTimer.toStringAsFixed(1)}s',color:cGold,size:11)),
         if(_fr.active)Positioned(bottom:_sh*0.18,left:20,child:_GlowText('❄ FREEZE ${_fr.activeTimer.toStringAsFixed(1)}s',color:cIce,size:11)),
         if(_gravWarn)Positioned(top:_sh*0.3,left:0,right:0,child:Center(child:_GlowText('⚠ GRAVEDAD: ${_gravTimer.toInt()}s',color:cDanger,size:16))),
-        if(_stage.stageNum==4&&_bossAlive&&_boss!=null)
+        // ── Stage 4: contador de nodos + mensaje Denise ──
+        if(_stage.stageNum==4&&_bossAlive)...[
           Positioned(bottom:_sh*0.22,left:20,right:20,child:Column(children:[
-            _GlowText('REPELER PORTAL ${(_boss!.repelMeter*100).toInt()}%',color:cRed,size:12),const SizedBox(height:4),
-            ClipRRect(borderRadius:BorderRadius.circular(4),child:LinearProgressIndicator(
-                value:_boss!.repelMeter,backgroundColor:Colors.white12,
-                valueColor:AlwaysStoppedAnimation(cRed),minHeight:8))])),
+            _GlowText('NODOS: $brokenCount/4',color:brokenCount==4?Colors.greenAccent:cRed,size:13),
+            const SizedBox(height:4),
+            Row(mainAxisAlignment:MainAxisAlignment.center,children:List.generate(4,(i){
+              final broken=_portalNodes.isEmpty?false:_portalNodes[i].broken;
+              return Padding(padding:const EdgeInsets.symmetric(horizontal:4),
+                child:Icon(broken?Icons.circle:Icons.circle_outlined,
+                    color:broken?Colors.greenAccent:Colors.white38,size:14));
+            })),
+          ])),
+        ],
+        if(_showDeniseWarning)
+          Positioned(bottom:_sh*0.29,left:16,right:16,
+            child:Container(
+              padding:const EdgeInsets.all(14),
+              decoration:BoxDecoration(
+                color:Colors.black.withOpacity(0.88),
+                borderRadius:BorderRadius.circular(10),
+                border:Border.all(color:cIce,width:1.5),
+                boxShadow:[BoxShadow(color:cIce.withOpacity(0.3),blurRadius:18)]),
+              child:Row(children:[
+                Container(width:36,height:36,decoration:BoxDecoration(shape:BoxShape.circle,
+                    border:Border.all(color:cIce,width:2),color:Colors.blue.shade900),
+                    child:const Center(child:Text('D',style:TextStyle(color:Colors.white,fontWeight:FontWeight.bold,fontSize:16)))),
+                const SizedBox(width:12),
+                const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                  Text('Dra. Denise Moreau',style:TextStyle(color:cIce,fontSize:10,fontWeight:FontWeight.bold,fontFamily:'Orbitron')),
+                  SizedBox(height:4),
+                  Text('¡Phoenix!\n¡No puedes dañarlo!\n¡Dispara los 4 NODOS del portal!\n¡Es la única salida!',
+                      style:TextStyle(color:Colors.white,fontSize:11,height:1.4)),
+                ])),
+              ]),
+            )),
       ]));
   }
 }
@@ -1295,6 +1486,7 @@ class GamePainter extends CustomPainter {
   final Player player;final List<Enemy> enemies;final List<Bullet> bullets;final List<PowerUp> powerUps;
   final List<Asteroid> asteroids;final Boss? boss;final List<Particle> particles;final List<FloatingText> floats;
   final int score;final ResourceSystem res;final PhaseEngine phase;final SpriteCache sprites;
+  final List<PortalNode> portalNodes; // ← NODOS STAGE 4
   const GamePainter({required this.sw,required this.sh,required this.player,required this.enemies,
       required this.bullets,required this.powerUps,required this.boss,required this.particles,
       required this.floats,required this.score,required this.res,required this.phase,
@@ -1305,17 +1497,18 @@ class GamePainter extends CustomPainter {
       required this.bossColor,required this.asteroids,required this.gravityTimer,
       required this.portalGrow,required this.mirrorVictory,required this.mirrorVictoryT,
       required this.repelMeter,required this.stageName,required this.glitchActive,required this.paused,
-      required this.bossShakeX,required this.bossShakeY,required this.bossDying});
+      required this.bossShakeX,required this.bossShakeY,required this.bossDying,
+      required this.portalNodes});
 
   @override void paint(Canvas canvas,Size size){
-    // Camera shake cuando el boss muere
     canvas.save();
     canvas.translate(bossShakeX,bossShakeY);
-
     if(glitchActive){canvas.save();canvas.translate((Random().nextDouble()-0.5)*8,0);}
     _bg(canvas);if(portalGrow>0)_portal(canvas);
     _drawNucleus(canvas);_drawPowerUps(canvas);_drawAsteroids(canvas);
     _drawEnemies(canvas);if(boss!=null)_drawBoss(canvas,boss!);
+    // Nodos del portal Stage 4
+    if(stageNum==4&&portalNodes.isNotEmpty)_drawPortalNodes(canvas);
     _drawBullets(canvas);_drawPhoenix(canvas);
     _drawParticles(canvas);_drawFloats(canvas);_drawHUD(canvas);
     if(frosting)_drawFrost(canvas);if(quenching)_drawQuench(canvas);
@@ -1330,16 +1523,56 @@ class GamePainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
           Paint()..color=cRed.withOpacity(0.08));
     }
-    canvas.restore(); // cierra el shake translate
+    canvas.restore();
+  }
+
+  // ── Dibujar nodos del portal Stage 4 ──────────────────
+  void _drawPortalNodes(Canvas canvas){
+    // Líneas de conexión entre nodos (cuadrado)
+    if(portalNodes.length==4){
+      final linePaint=Paint()..color=Colors.purpleAccent.withOpacity(0.2)..strokeWidth=1..style=PaintingStyle.stroke;
+      final corners=[
+        Offset(portalNodes[0].x,portalNodes[0].y),
+        Offset(portalNodes[1].x,portalNodes[1].y),
+        Offset(portalNodes[3].x,portalNodes[3].y),
+        Offset(portalNodes[2].x,portalNodes[2].y),
+      ];
+      for(int i=0;i<4;i++)canvas.drawLine(corners[i],corners[(i+1)%4],linePaint);
+    }
+
+    for(final node in portalNodes){
+      final c=node.color;
+      // Glow
+      canvas.drawCircle(Offset(node.x,node.y),28,
+          Paint()..color=c.withOpacity(0.2)..maskFilter=const MaskFilter.blur(BlurStyle.normal,12));
+      // Círculo exterior
+      canvas.drawCircle(Offset(node.x,node.y),22,
+          Paint()..color=c.withOpacity(node.broken?0.3:0.15)..style=PaintingStyle.fill);
+      canvas.drawCircle(Offset(node.x,node.y),22,
+          Paint()..color=c..style=PaintingStyle.stroke..strokeWidth=node.broken?3:2);
+
+      if(node.broken){
+        // Check de completado
+        final tp=TextPainter(text:const TextSpan(text:'✓',style:TextStyle(color:Colors.greenAccent,fontSize:18,fontWeight:FontWeight.bold)),textDirection:TextDirection.ltr)..layout();
+        tp.paint(canvas,Offset(node.x-tp.width/2,node.y-tp.height/2));
+      } else {
+        // Barra de HP del nodo
+        final barW=44.0;final barH=5.0;
+        final barX=node.x-barW/2;final barY=node.y+26;
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(barX,barY,barW,barH),const Radius.circular(3)),
+            Paint()..color=Colors.white12);
+        final frac=(node.hp/100).clamp(0.0,1.0);
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(barX,barY,barW*frac,barH),const Radius.circular(3)),
+            Paint()..color=c..maskFilter=MaskFilter.blur(BlurStyle.normal,frac>0.5?3:0));
+      }
+    }
   }
 
   void _drawBossDeathOverlay(Canvas canvas){
-    // Vignette naranja pulsante durante muerte del boss
     canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),
         Paint()..shader=RadialGradient(center:Alignment.center,radius:0.7,
             colors:[Colors.transparent,Colors.orange.withOpacity(0.18)],
             stops:const[0.5,1.0]).createShader(Rect.fromLTWH(0,0,sw,sh)));
-    // Texto central épico
     _txt(canvas,'★  ELIMINADO  ★',Offset(sw/2,sh*0.35),cGold,22);
   }
 
@@ -1355,16 +1588,15 @@ class GamePainter extends CustomPainter {
     _txt(canvas,'STAGE $stageNum',Offset(sw-12,72),Colors.white24,9,right:true);}
 
   void _portal(Canvas canvas){
-    final cx=sw/2,cy=sh*0.25;final pg=portalGrow.clamp(0.0,1.0);final r=60+pg*120;
+    final cx=sw/2,cy=sh*0.22;final pg=portalGrow.clamp(0.0,1.0);final r=55+pg*100;
     for(int i=8;i>=1;i--)canvas.drawCircle(Offset(cx,cy),r*i*0.12,Paint()..color=cRed.withOpacity(pg*0.06*i)..maskFilter=const MaskFilter.blur(BlurStyle.normal,20));
-    canvas.drawCircle(Offset(cx,cy),r,Paint()..color=const Color(0xFF1A0000).withOpacity(pg*0.8));
-    canvas.drawCircle(Offset(cx,cy),r,Paint()..color=cRed.withOpacity(pg*0.6)..style=PaintingStyle.stroke..strokeWidth=3);
-    if(pg>0.5)_txt(canvas,'PORTAL DIMENSIONAL',Offset(cx,cy),cRed.withOpacity(pg),11);}
+    canvas.drawCircle(Offset(cx,cy),r,Paint()..color=const Color(0xFF1A0000).withOpacity(pg*0.7));
+    canvas.drawCircle(Offset(cx,cy),r,Paint()..color=cRed.withOpacity(pg*0.5)..style=PaintingStyle.stroke..strokeWidth=3);
+    if(pg>0.4)_txt(canvas,'PORTAL DIMENSIONAL',Offset(cx,cy),cRed.withOpacity(pg),11);}
 
   void _drawAsteroids(Canvas canvas){
     for(final a in asteroids){if(a.dead)continue;
       canvas.save();canvas.translate(a.x,a.y);canvas.rotate(a.angle);
-      // Color diferente por nivel
       final col=a.level==2?const Color(0xFF665544):a.level==1?const Color(0xFF887755):const Color(0xFFAA9966);
       final colB=a.level==2?const Color(0xFF887766):a.level==1?const Color(0xFFAA9977):const Color(0xFFCCBB88);
       final path=Path();
@@ -1437,7 +1669,7 @@ class GamePainter extends CustomPainter {
   Color _eColor(EnemyKind k)=>switch(k){EnemyKind.interceptor=>cWarlord,EnemyKind.frigate=>cGreen,EnemyKind.parasite=>cShield,EnemyKind.corrupter=>const Color(0xFFFF6600)};
 
   void _drawBoss(Canvas canvas,Boss b){
-    final isCharging=b.state==BossState.charging;
+    final isCharging=b.state==BossState.charging&&stageNum!=4;
     if(b.phaseShieldActive){
       final pulse=0.7+sin(b.animT*8)*0.3;
       canvas.drawCircle(Offset(b.x,b.y),kBossR*1.6,Paint()..color=cShield.withOpacity(0.35*pulse)..maskFilter=const MaskFilter.blur(BlurStyle.normal,18));
@@ -1453,9 +1685,17 @@ class GamePainter extends CustomPainter {
       final path=Path();for(int i=0;i<6;i++){final a=i*pi/3+b.animT*0.15;if(i==0)path.moveTo(b.x+cos(a)*kBossR,b.y+sin(a)*kBossR);else path.lineTo(b.x+cos(a)*kBossR,b.y+sin(a)*kBossR);}
       path.close();canvas.drawPath(path,Paint()..shader=RadialGradient(colors:[bossColor.withOpacity(0.95),const Color(0xFF112244)],stops:const[0.3,1.0]).createShader(Rect.fromCircle(center:Offset(b.x,b.y),radius:kBossR)));
       canvas.drawCircle(Offset(b.x,b.y),kBossR*0.18,Paint()..color=bossColor..maskFilter=const MaskFilter.blur(BlurStyle.normal,12));canvas.drawCircle(Offset(b.x,b.y),kBossR*0.07,Paint()..color=Colors.white);}
-    const bw=kBossR*2;canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR*1.3,bw,6),const Radius.circular(3)),Paint()..color=Colors.white24);
-    if(stageNum==4){canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR*1.3,bw*b.repelMeter,6),const Radius.circular(3)),Paint()..color=cRed);_txt(canvas,'REPEL ${(b.repelMeter*100).toInt()}%',Offset(b.x,b.y-kBossR*1.45),cRed,10);}
-    else{final frac=(b.hp/b.maxHp).clamp(0.0,1.0);canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR*1.3,bw*frac,6),const Radius.circular(3)),Paint()..color=Color.lerp(cDanger,bossColor,frac)!);_txt(canvas,'${(frac*100).toInt()}%',Offset(b.x,b.y-kBossR*1.45),bossColor,10);}
+
+    // Stage 4: no muestra barra de HP — el boss es invencible
+    if(stageNum!=4){
+      const bw=kBossR*2;canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR*1.3,bw,6),const Radius.circular(3)),Paint()..color=Colors.white24);
+      final frac=(b.hp/b.maxHp).clamp(0.0,1.0);
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(b.x-bw/2,b.y-kBossR*1.3,bw*frac,6),const Radius.circular(3)),Paint()..color=Color.lerp(cDanger,bossColor,frac)!);
+      _txt(canvas,'${(frac*100).toInt()}%',Offset(b.x,b.y-kBossR*1.45),bossColor,10);
+    } else {
+      // Stage 4: texto "INVENCIBLE" arriba del boss
+      _txt(canvas,'⚠ INVENCIBLE',Offset(b.x,b.y-kBossR*1.45),cRed,10);
+    }
     if(isCharging)_txt(canvas,'⚠ CARGANDO…',Offset(b.x,b.y+kBossR+18),cDanger,11);}
 
   void _drawBullets(Canvas canvas){
@@ -1510,11 +1750,12 @@ class GamePainter extends CustomPainter {
     canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..color=cFire.withOpacity(a*0.8));
     _txt(canvas,'💥  QUENCH  💥',Offset(sw/2,sh*0.38),Colors.white,38);_txt(canvas,'FALLO CRIOGÉNICO TOTAL',Offset(sw/2,sh*0.48),cFire,16);}
   void _drawMirrorWin(Canvas canvas){
-    final t=(mirrorVictoryT/3.0).clamp(0.0,1.0);
-    canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..color=const Color(0xFF000033).withOpacity(t*0.85));
-    _txt(canvas,'PORTAL DIMENSIONAL CERRADO',Offset(sw/2,sh*0.38),cGold.withOpacity(t),18);
-    _txt(canvas,'La puerta fue cerrada…',Offset(sw/2,sh*0.48),Colors.white.withOpacity(t),14);
-    _txt(canvas,'por ahora.',Offset(sw/2,sh*0.54),cIce.withOpacity(t),18);}
+    final t=(mirrorVictoryT/3.5).clamp(0.0,1.0);
+    canvas.drawRect(Rect.fromLTWH(0,0,sw,sh),Paint()..color=const Color(0xFF000033).withOpacity(t*0.88));
+    _txt(canvas,'★ PORTAL CERRADO ★',Offset(sw/2,sh*0.35),cGold.withOpacity(t),22);
+    _txt(canvas,'La puerta fue cerrada…',Offset(sw/2,sh*0.45),Colors.white.withOpacity(t),14);
+    _txt(canvas,'por ahora.',Offset(sw/2,sh*0.52),cIce.withOpacity(t),20);
+    _txt(canvas,'PHOENIX CORE II — COMING SOON',Offset(sw/2,sh*0.62),cRed.withOpacity(t*0.9),12);}
   void _txt(Canvas canvas,String t,Offset pos,Color c,double sz,{bool left=false,bool right=false}){
     final tp=TextPainter(text:TextSpan(text:t,style:TextStyle(color:c,fontSize:sz,fontFamily:'Orbitron',fontWeight:FontWeight.bold,shadows:[Shadow(color:c.withOpacity(0.5),blurRadius:8)])),textAlign:left?TextAlign.left:TextAlign.center,textDirection:TextDirection.ltr)..layout();
     final dx=right?pos.dx-tp.width:left?pos.dx:pos.dx-tp.width/2;tp.paint(canvas,Offset(dx,pos.dy-tp.height/2));}
