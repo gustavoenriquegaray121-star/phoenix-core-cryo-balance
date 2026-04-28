@@ -1043,8 +1043,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if (isTriple && _diff.level == Difficulty.comandante) _heat.applyShot(_player.build, _diff);
     _audio.playLaser(triple: isTriple);
     final py = _player.y - kPhoenixSize;
-    final penalty = _heat.zone == HeatZone.hot && _diff.heatAffectsAccuracy ? (_rng.nextDouble() - 0.5) * 0.06 : 0.0;
-    bool get heatAffectsAccuracy => _diff.level != Difficulty.amateur;
+    final heatAffectsAccuracy = _diff.level != Difficulty.amateur;
+    final penalty = _heat.zone == HeatZone.hot && heatAffectsAccuracy ? (_rng.nextDouble() - 0.5) * 0.06 : 0.0;
 
     if (isTriple) {
       _bullets.add(Bullet(_player.x, py, _player.build.damage, angle: penalty));
@@ -1490,13 +1490,38 @@ class _RingPainter extends CustomPainter {
 class _DecisionOverlay extends StatelessWidget {
   final List<UpgradeOption> options; final int cycle, stageNum; final DifficultyConfig diff; final void Function(UpgradeOption) onSelect;
   const _DecisionOverlay({required this.options, required this.cycle, required this.stageNum, required this.diff, required this.onSelect});
-  @override Widget build(BuildContext ctx) => Container(color: Colors.black.withOpacity(0.93), child: SafeArea(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-    _GlowText('⚡ FASE DE DECISIÓN', color: cGold, size: 19), const SizedBox(height: 4), _GlowText('Stage $stageNum — Ciclo $cycle', color: Colors.white54, size: 11), const SizedBox(height: 6),
-    Container(margin: const EdgeInsets.symmetric(horizontal: 24), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: diff.color.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: diff.color.withOpacity(0.4))), child: Text('${diff.emoji} ${diff.name}  ·  Efecto INMEDIATO', textAlign: TextAlign.center, style: TextStyle(color: diff.color, fontSize: 10, fontFamily: 'Orbitron'))),
-    const SizedBox(height: 12),
-    ...[for (final opt in options) Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5), child: GestureDetector(onTap: () => onSelect(opt), child: Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(border: Border.all(color: opt.color, width: 2), borderRadius: BorderRadius.circular(14), color: opt.color.withOpacity(0.12), boxShadow: [BoxShadow(color: opt.color.withOpacity(0.28), blurRadius: 18)]), child: Row(children: [Text(opt.emoji, style: const TextStyle(fontSize: 26)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(opt.title, style: TextStyle(color: opt.color, fontSize: 13, fontFamily: 'Orbitron', fontWeight: FontWeight.bold)), const SizedBox(height: 3), Text(opt.description, style: const TextStyle(color: Colors.white, fontSize: 11)), if (opt.hasTradeoff) ...[const SizedBox(height: 3), Text(opt.tradeoff, style: const TextStyle(color: Colors.orange, fontSize: 10))]])), Icon(Icons.arrow_forward_ios, color: opt.color, size: 16)])))]
-  ])));
-}
+  @override Widget build(BuildContext ctx) {
+    Widget buildOpt(UpgradeOption opt) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      child: GestureDetector(onTap: () => onSelect(opt), child: Container(
+        width: double.infinity, padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(border: Border.all(color: opt.color, width: 2), borderRadius: BorderRadius.circular(14), color: opt.color.withOpacity(0.12), boxShadow: [BoxShadow(color: opt.color.withOpacity(0.28), blurRadius: 18)]),
+        child: Row(children: [
+          Text(opt.emoji, style: const TextStyle(fontSize: 26)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(opt.title, style: TextStyle(color: opt.color, fontSize: 13, fontFamily: 'Orbitron', fontWeight: FontWeight.bold)),
+            const SizedBox(height: 3),
+            Text(opt.description, style: const TextStyle(color: Colors.white, fontSize: 11)),
+            if (opt.hasTradeoff) ...[const SizedBox(height: 3), Text(opt.tradeoff, style: const TextStyle(color: Colors.orange, fontSize: 10))],
+          ])),
+          Icon(Icons.arrow_forward_ios, color: opt.color, size: 16),
+        ]),
+      )),
+    );
+    return Container(
+      color: Colors.black.withOpacity(0.93),
+      child: SafeArea(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        _GlowText('⚡ FASE DE DECISIÓN', color: cGold, size: 19),
+        const SizedBox(height: 4),
+        _GlowText('Stage $stageNum — Ciclo $cycle', color: Colors.white54, size: 11),
+        const SizedBox(height: 6),
+        Container(margin: const EdgeInsets.symmetric(horizontal: 24), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: diff.color.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: diff.color.withOpacity(0.4))), child: Text('${diff.emoji} ${diff.name}  ·  Efecto INMEDIATO', textAlign: TextAlign.center, style: TextStyle(color: diff.color, fontSize: 10, fontFamily: 'Orbitron'))),
+        const SizedBox(height: 12),
+        ...options.map(buildOpt),
+      ])),
+    );
+  }
 
 class _GlowText extends StatelessWidget {
   final String text; final Color color; final double size;
