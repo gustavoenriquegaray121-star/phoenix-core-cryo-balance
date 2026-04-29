@@ -1442,30 +1442,78 @@ class GamePainter extends CustomPainter {
   void _drawFloats(Canvas canvas) { for (final f in floats) _txt(canvas, f.text, Offset(f.x, f.y), f.color.withOpacity(f.life.clamp(0, 1)), 11); }
   void _drawHUD(Canvas canvas) {
     _txt(canvas, 'SCORE  $score', Offset(16, 56), Colors.white, 15, left: true);
-    final label = switch (phase.phase) { GamePhase.combat => 'COMBAT  ${(phase.combatProgress * 100).toInt()}%', GamePhase.decision => 'DECISIÓN', GamePhase.boss => '⚠ BOSS' };
+    final label = switch (phase.phase) { GamePhase.combat => 'COMBAT  \${(phase.combatProgress * 100).toInt()}%', GamePhase.decision => 'DECISIÓN', GamePhase.boss => '⚠ BOSS' };
     _txt(canvas, label, Offset(sw / 2, 56), cIce, 11);
-    final bw = sw * 0.4, bx = (sw - bw) / 2; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx, 66, bw, 3), const Radius.circular(2)), Paint()..color = Colors.white12); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx, 66, bw * phase.combatProgress, 3), const Radius.circular(2)), Paint()..color = cIce);
-    _vBar(canvas, 14, sh * 0.35, 10, sh * 0.28, res.energyFrac, cIce, 'ENE');
+    final bw = sw * 0.4, bx = (sw - bw) / 2;
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx, 66, bw, 3), const Radius.circular(2)), Paint()..color = Colors.white12);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx, 66, bw * phase.combatProgress, 3), const Radius.circular(2)), Paint()..color = cIce);
+    final enePulse = 0.5 + sin(corePulse * pi * 3) * 0.15;
+    _vBarPulse(canvas, 14, sh * 0.35, 10, sh * 0.28, res.energyFrac, cIce, 'ENE', enePulse);
     _drawHeatBar(canvas);
-    if (gravityTimer > 0) _txt(canvas, '⏱ ${gravityTimer.toInt()}s', Offset(sw - 12, 84), cDanger, 11, right: true);
-    if (res.entropyFrac > 0.3) _txt(canvas, 'ENTROPÍA ${(res.entropyFrac * 100).toInt()}%', Offset(sw / 2, sh - 28), cShield.withOpacity(res.entropyFrac), 10);
-    _txt(canvas, 'DMG ${player.build.damage.toStringAsFixed(0)}  SPD ${player.build.fireRate.toStringAsFixed(1)}', Offset(sw / 2, sh - 14), Colors.white24, 9);
+    if (gravityTimer > 0) _txt(canvas, '⏱ \${gravityTimer.toInt()}s', Offset(sw - 12, 84), cDanger, 11, right: true);
+    if (res.entropyFrac > 0.3) {
+      final entropyPct = (res.entropyFrac * 100).toInt();
+      final isCritical = res.entropyFrac > 0.9;
+      final entColor = isCritical ? Color.lerp(cDanger, Colors.white, (sin(corePulse * pi * 8) * 0.5 + 0.5))! : cShield.withOpacity(res.entropyFrac);
+      _txt(canvas, isCritical ? '⚠ ENTROPÍA \$entropyPct%' : 'ENTROPÍA \$entropyPct%', Offset(sw / 2, sh - 28), entColor, isCritical ? 11.0 : 10.0);
+    }
+    _txt(canvas, 'DMG \${player.build.damage.toStringAsFixed(0)}  SPD \${player.build.fireRate.toStringAsFixed(1)}', Offset(sw / 2, sh - 14), Colors.white24, 9);
     if (coreTemp > 0.75) _txt(canvas, '⚠  QUENCH INMINENTE  ⚠', Offset(sw / 2, sh * 0.48), cDanger, 15);
-    // Heat warning progresivo
     if (heat.zone == HeatZone.hot && !heat.isOverheated) _txt(canvas, '🔥 CADENCIA REDUCIDA', Offset(sw / 2, sh * 0.53), cDanger.withOpacity(0.85), 10);
+    if (heat.zone == HeatZone.cool) _drawColdAura(canvas);
   }
+
+  void _drawColdAura(Canvas canvas) {
+    final px = player.x, py = playerY;
+    final rng = Random((corePulse * 60).toInt());
+    final frostPaint = Paint()..color = cIce.withOpacity(0.12)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    for (int i = 0; i < 4; i++) {
+      final angle = corePulse * pi * 2 + i * pi / 2;
+      final r = kPhoenixSize * 1.6 + rng.nextDouble() * 10;
+      canvas.drawCircle(Offset(px + cos(angle) * r, py + sin(angle) * r), 3 + rng.nextDouble() * 2, frostPaint);
+    }
+    canvas.drawCircle(Offset(px, py), kPhoenixSize * 2.0, Paint()..color = cIce.withOpacity(0.06 + sin(corePulse * pi * 4) * 0.03)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14));
+    for (int i = 0; i < 3; i++) {
+      canvas.drawCircle(Offset(px + (rng.nextDouble() - 0.5) * 18, py + kPhoenixSize + i * 8.0), 2, Paint()..color = cFrost.withOpacity(0.25 - i * 0.07)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    }
+  }
+
   void _drawHeatBar(Canvas canvas) {
     final x = sw - 60.0, y = sh * 0.35, w = 10.0, h = sh * 0.28;
+    if (heat.fraction > 0.4) {
+      final glowAlpha = (heat.fraction - 0.4) / 0.6 * 0.3;
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x - 3, y - 3, w + 6, h + 6), const Radius.circular(7)), Paint()..color = heat.zoneColor.withOpacity(glowAlpha * (0.5 + sin(corePulse * pi * 4) * 0.5))..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+    }
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(4)), Paint()..color = Colors.white12);
     final frac = heat.fraction.clamp(0.0, 1.0);
-    if (frac > 0) { final barH = h * frac; final barColor = heat.isOverheated ? cRed : switch (heat.zone) { HeatZone.cool => cIce, HeatZone.warm => cGold, HeatZone.hot => cDanger, HeatZone.overheat => cRed }; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + h - barH, w, barH), const Radius.circular(4)), Paint()..color = barColor..maskFilter = frac > 0.7 ? MaskFilter.blur(BlurStyle.normal, frac > 0.85 ? 6 : 3) : null); }
+    if (frac > 0) {
+      final barH = h * frac;
+      final barColor = heat.isOverheated ? cRed : switch (heat.zone) { HeatZone.cool => cIce, HeatZone.warm => cGold, HeatZone.hot => cDanger, HeatZone.overheat => cRed };
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + h - barH, w, barH), const Radius.circular(4)), Paint()..color = barColor..maskFilter = frac > 0.7 ? MaskFilter.blur(BlurStyle.normal, frac > 0.85 ? 6 : 3) : null);
+    }
     final cool40Y = y + h * (1 - 0.40); final warn70Y = y + h * (1 - 0.70);
     canvas.drawLine(Offset(x - 3, cool40Y), Offset(x + w + 3, cool40Y), Paint()..color = cGold.withOpacity(0.4)..strokeWidth = 1);
     canvas.drawLine(Offset(x - 3, warn70Y), Offset(x + w + 3, warn70Y), Paint()..color = cDanger.withOpacity(0.5)..strokeWidth = 1);
     _txt(canvas, 'HEAT', Offset(x + w / 2, y + h + 14), heat.zoneColor.withOpacity(0.7), 8);
     if (heat.isOverheated) _txt(canvas, '🔥', Offset(x + w / 2, y - 14), cRed, 14);
   }
-  void _vBar(Canvas canvas, double x, double y, double w, double h, double frac, Color c, String label) { canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(4)), Paint()..color = Colors.white12); final f = h * frac.clamp(0.0, 1.0); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + h - f, w, f), const Radius.circular(4)), Paint()..color = c..maskFilter = MaskFilter.blur(BlurStyle.normal, frac > 0.7 ? 4 : 0)); _txt(canvas, label, Offset(x + w / 2, y + h + 14), c.withOpacity(0.6), 8); }
+
+  void _vBarPulse(Canvas canvas, double x, double y, double w, double h, double frac, Color c, String label, double pulse) {
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(4)), Paint()..color = Colors.white12);
+    final f = h * frac.clamp(0.0, 1.0);
+    if (frac > 0.2) {
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x - 2, y + h - f - 2, w + 4, f + 4), const Radius.circular(6)), Paint()..color = c.withOpacity(0.08 + pulse * 0.08)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+    }
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + h - f, w, f), const Radius.circular(4)), Paint()..color = c..maskFilter = MaskFilter.blur(BlurStyle.normal, frac > 0.7 ? 4 : 0));
+    _txt(canvas, label, Offset(x + w / 2, y + h + 14), c.withOpacity(0.6 + pulse * 0.2), 8);
+  }
+
+  void _vBar(Canvas canvas, double x, double y, double w, double h, double frac, Color c, String label) {
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(4)), Paint()..color = Colors.white12);
+    final f = h * frac.clamp(0.0, 1.0);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + h - f, w, f), const Radius.circular(4)), Paint()..color = c..maskFilter = MaskFilter.blur(BlurStyle.normal, frac > 0.7 ? 4 : 0));
+    _txt(canvas, label, Offset(x + w / 2, y + h + 14), c.withOpacity(0.6), 8);
+  }
   void _drawFrost(Canvas canvas) { final ft = frostT.clamp(0.0, 1.0); canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..shader = RadialGradient(center: Alignment.center, radius: 0.7, colors: [Colors.transparent, cFrost.withOpacity(ft * 0.35), cFrost.withOpacity(ft * 0.7)], stops: const [0.4, 0.7, 1.0]).createShader(Rect.fromLTWH(0, 0, sw, sh))); final rng = Random(42); final cp = Paint()..color = cFrost.withOpacity(ft * 0.55)..strokeWidth = 1.0..style = PaintingStyle.stroke; void crack(double sx, double sy, int d) { if (d <= 0) return; for (int i = 0; i < 3; i++) { final a = rng.nextDouble() * pi * 2; final l = (20 + rng.nextDouble() * 40) * ft; final ex = sx + cos(a) * l; final ey = sy + sin(a) * l; canvas.drawLine(Offset(sx, sy), Offset(ex, ey), cp); if (rng.nextDouble() < 0.5) crack(ex, ey, d - 1); } } crack(0, 0, 4); crack(sw, 0, 4); crack(0, sh, 4); crack(sw, sh, 4); _txt(canvas, '❄  QUENCH CRÍTICO  ❄', Offset(sw / 2, sh * 0.38), cFrost.withOpacity(0.6 + sin(frostT * pi * 8) * 0.4), 18); }
   void _drawQuench(Canvas canvas) { final a = (quenchT / 2.5).clamp(0.0, 0.92); canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = cFire.withOpacity(a * 0.8)); _txt(canvas, '💥  QUENCH  💥', Offset(sw / 2, sh * 0.38), Colors.white, 38); _txt(canvas, 'FALLO CRIOGÉNICO TOTAL', Offset(sw / 2, sh * 0.48), cFire, 16); }
   void _drawMirrorWin(Canvas canvas) { final t = (mirrorVictoryT / 3.5).clamp(0.0, 1.0); canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = const Color(0xFF000033).withOpacity(t * 0.88)); _txt(canvas, '★ PORTAL CERRADO ★', Offset(sw / 2, sh * 0.35), cGold.withOpacity(t), 22); _txt(canvas, 'La puerta fue cerrada…', Offset(sw / 2, sh * 0.45), Colors.white.withOpacity(t), 14); _txt(canvas, 'por ahora.', Offset(sw / 2, sh * 0.52), cIce.withOpacity(t), 20); _txt(canvas, 'PHOENIX CORE II — COMING SOON', Offset(sw / 2, sh * 0.62), cRed.withOpacity(t * 0.9), 12); }
