@@ -718,6 +718,83 @@ class _FleetLegend extends StatelessWidget {
 // ══════════════════════════════════════════════════════════
 // GAME SCREEN — Con Finisher Mode
 // ══════════════════════════════════════════════════════════
+// BUILD IDENTITY — 3 arquetipos con identidad real
+// ══════════════════════════════════════════════════════════
+enum BuildIdentity { none, cryo, overdrive, tactico }
+
+class BuildIdentityInfo {
+  static String name(BuildIdentity b) => switch(b){
+    BuildIdentity.cryo=>'🔵 CRYO CORE', BuildIdentity.overdrive=>'🔴 OVERDRIVE',
+    BuildIdentity.tactico=>'🟡 TÁCTICO', _=>'NEUTRO'};
+  static Color color(BuildIdentity b) => switch(b){
+    BuildIdentity.cryo=>cIce, BuildIdentity.overdrive=>cRed,
+    BuildIdentity.tactico=>cGold, _=>Colors.white38};
+  static String desc(BuildIdentity b) => switch(b){
+    BuildIdentity.cryo=>'Control · Freeze · Precisión',
+    BuildIdentity.overdrive=>'Daño brutal · Riesgo máximo',
+    BuildIdentity.tactico=>'Balance · Misiles · Timing',
+    _=>''};
+}
+
+// ══════════════════════════════════════════════════════════
+// COMBO SYSTEM — Kill streak + multiplicador
+// ══════════════════════════════════════════════════════════
+class ComboSystem {
+  int streak = 0;
+  double mult = 1.0;
+  double timer = 0; // tiempo para resetear combo
+  static const double kResetTime = 3.5;
+  String? lastLabel;
+  double labelLife = 0;
+
+  void onKill() {
+    streak++;
+    timer = kResetTime;
+    mult = (1.0 + streak * 0.08).clamp(1.0, 3.5);
+    if (streak >= 3) { lastLabel = _label(); labelLife = 1.2; }
+  }
+
+  void update(double dt) {
+    if (timer > 0) { timer -= dt; if (timer <= 0) { streak = 0; mult = 1.0; } }
+    if (labelLife > 0) labelLife = (labelLife - dt * 1.2).clamp(0, 1.2);
+  }
+
+  void reset() { streak = 0; mult = 1.0; timer = 0; }
+
+  String _label() {
+    if (streak >= 20) return '★ LEGENDARY x$streak';
+    if (streak >= 12) return '🔥 MASSACRE x$streak';
+    if (streak >= 8)  return '💥 UNSTOPPABLE x$streak';
+    if (streak >= 5)  return '⚡ KILLING SPREE x$streak';
+    return '✦ COMBO x$streak';
+  }
+
+  bool get isActive => streak >= 3;
+  double get displayMult => mult;
+}
+
+// ══════════════════════════════════════════════════════════
+// EPIC MOMENTS — Eventos memorables
+// ══════════════════════════════════════════════════════════
+enum EpicMomentKind { overheatEdge, freezeBreak, coreInestable }
+
+class EpicMoment {
+  EpicMomentKind kind;
+  double timer;
+  EpicMoment(this.kind, this.timer);
+
+  String get label => switch(kind){
+    EpicMomentKind.overheatEdge=>'🔥 OVERHEAT EDGE — ¡AHORA!',
+    EpicMomentKind.freezeBreak=>'❄ FREEZE BREAK',
+    EpicMomentKind.coreInestable=>'💀 CORE INESTABLE',
+  };
+  Color get color => switch(kind){
+    EpicMomentKind.overheatEdge=>cFire, EpicMomentKind.freezeBreak=>cIce,
+    EpicMomentKind.coreInestable=>cDanger,
+  };
+}
+
+// ══════════════════════════════════════════════════════════
 class GameScreen extends StatefulWidget {
   final StageConfig stageConfig; final PlayerBuild? initialBuild; final int initialScore;
   final void Function(int, PlayerBuild, int) onStageClear;
