@@ -1522,6 +1522,7 @@ class _DecisionOverlay extends StatelessWidget {
       ])),
     );
   }
+}
 
 class _GlowText extends StatelessWidget {
   final String text; final Color color; final double size;
