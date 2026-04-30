@@ -847,12 +847,15 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   final List<String> _dopEnojado = ['¡Imposible!', '¡Eso no cambia nada!', '¡Sigues siendo predecible!', '¡Tecnología de museo!'];
   bool _tripleGuaranteedUsed = false;
   double _upgradeFlash = 0; Color _upgradeFlashColor = Colors.white;
+  double _bossWhiteFlash = 0; // Flash blanco en muerte de boss
+  double _upgradeShipGlow = 0; Color _upgradeGlowColor = Colors.white; // Glow nave al elegir upgrade
   bool _disposed = false;
   // Finisher joystick virtual
   Offset? _joystickOrigin; Offset _joystickDelta = Offset.zero;
   bool _finisherComplete = false;
   final _mg = ChargeIndicator(icon: '⚡', color: cGold, chargeTime: 28.0, activeDuration: 8.0);
   final _fr = ChargeIndicator(icon: '❄', color: cIce, chargeTime: 38.0, activeDuration: 6.0);
+  final _combo = ComboSystem(); // Sistema de combo/kill streak
   Ticker? _ticker; Duration _last = Duration.zero;
 
   @override void initState() {
@@ -963,24 +966,43 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _bossDying = true; _bossDeathTimer = 0; _bossShakeIntensity = 22; _timeScale = 0.25;
     final bossScore = (500 + (_stage.stageNum - 1) * 200) * _diff.scoreMult;
     if (_finisher.active) {
-      // Finisher bonus
       _score += (bossScore * 1.5).toInt();
-      _addFloat(_boss!.x, _boss!.y, '+${(bossScore * 1.5).toInt()} FINISHER!', Colors.orange);
-      _addFloat(_boss!.x, _boss!.y - 50, '★ FINISHER KILL ★', cGold);
     } else {
       _score += bossScore.toInt();
-      _addFloat(_boss!.x, _boss!.y, '+${bossScore.toInt()} BOSS!', cGold);
-      _addFloat(_boss!.x, _boss!.y - 50, '★ ELIMINADO ★', _stage.bossColor);
     }
-    _totalDmg += (_boss!.maxHp * 1000).toInt(); // aproximación
-    for (int i = 0; i < 80; i++) {
-      final a = _rng.nextDouble() * pi * 2; final s = 80 + _rng.nextDouble() * 400;
-      _particles.add(Particle(x: _boss!.x + (_rng.nextDouble() - 0.5) * 50, y: _boss!.y + (_rng.nextDouble() - 0.5) * 50, vx: cos(a) * s, vy: sin(a) * s, life: 1.0 + _rng.nextDouble() * 1.2, color: _rng.nextBool() ? cGold : (_rng.nextBool() ? cFire : Colors.orange), size: 4 + _rng.nextDouble() * 10));
+    _totalDmg += (_boss!.maxHp * 1000).toInt();
+
+    // ── SECUENCIA SENSORIAL ──────────────────────────────
+    // 1. Micro-silencio — detener TODO inmediatamente
+    _audio.stopAll();
+    // 2. Flash blanco + shake brutal
+    _bossWhiteFlash = 1.0;
+    hapticHeavy();
+
+    // 3. Partículas masivas
+    for (int i = 0; i < 120; i++) {
+      final a = _rng.nextDouble() * pi * 2; final s = 60 + _rng.nextDouble() * 500;
+      _particles.add(Particle(
+        x: _boss!.x + (_rng.nextDouble() - 0.5) * 60,
+        y: _boss!.y + (_rng.nextDouble() - 0.5) * 60,
+        vx: cos(a) * s, vy: sin(a) * s,
+        life: 0.8 + _rng.nextDouble() * 1.5,
+        color: _rng.nextBool() ? cGold : (_rng.nextBool() ? cFire : Colors.white),
+        size: 3 + _rng.nextDouble() * 12));
     }
-    _audio.playExplosion(isBoss: true); hapticHeavy();
-    _ai.analyze(_player.build, _stage.stageNum); _audio.switchToAmbient();
-    // Mostrar pantalla de triunfo 3.5s antes de continuar
-    _showBossKillGlory = true; _bossKillGloryTimer = 3.5;
+
+    // 4. Después de 0.2s — regresa sonido con golpe grave
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (!_disposed) {
+        _audio.playExplosion(isBoss: true);
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (!_disposed) _audio.switchToAmbient();
+        });
+      }
+    });
+
+    _ai.analyze(_player.build, _stage.stageNum);
+    _showBossKillGlory = true; _bossKillGloryTimer = 4.0;
     _finisherCamZoom = 1.0;
   }
 
@@ -1063,6 +1085,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if (_showDeniseWarning) { _deniseMsgTimer -= dt; if (_deniseMsgTimer <= 0) _showDeniseWarning = false; }
 
     if (_upgradeFlash > 0) _upgradeFlash = (_upgradeFlash - dt * 2).clamp(0, 1);
+    if (_bossWhiteFlash > 0) _bossWhiteFlash = (_bossWhiteFlash - dt * 3).clamp(0, 1);
+    if (_upgradeShipGlow > 0) _upgradeShipGlow = (_upgradeShipGlow - dt * 1.5).clamp(0, 1);
     if (_tripleTimer > 0) { _tripleTimer -= dt; if (_tripleTimer <= 0) { _tripleTimer = 0; if (!_triplePermanent) { _player.build.hasTripleShot = false; _addFloat(_player.x, _sh * 0.72 - 40, 'TRIPLE EXPIRÓ', cGold); } } }
 
     _pulse += _pDir * dt * 2.2; if (_pulse > 1) _pDir = -1; if (_pulse < 0) _pDir = 1;
@@ -1072,7 +1096,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _missile?.update(dt);
     _ai.updateSpike(dt, _diff);
     if (_niFrame > 0) _niFrame = (_niFrame - dt).clamp(0, kNucleusIFrame);
-    _mg.update(dt); _fr.update(dt);
+    _mg.update(dt); _fr.update(dt); _combo.update(dt);
 
     final mv = _touching ? (_touchX < _player.x ? MoveType.left : MoveType.right) : MoveType.idle;
     _tracker.add(mv); _profile.register(mv);
@@ -1292,7 +1316,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
           continue;
         }
         bool hit = false;
-        for (final e in _enemies) { if (e.dead || hit) continue; if ((bul.x - e.x).abs() < kEnemyR && (bul.y - e.y).abs() < kEnemyR) { rem.add(bul); hit = true; final dmg = _fr.active ? bul.damage * 1.6 : bul.damage; e.hp -= dmg; e.hitFlash = 1.0; _totalDmg += dmg.toInt(); if (e.hp <= 0) { e.dead = true; _score += (_eScore(e.kind) * _diff.scoreMult).toInt(); _spawnBurst(e.x, e.y, _eColor(e.kind), 16); _audio.playExplosion(); _addFloat(e.x, e.y - 10, '+${(_eScore(e.kind) * _diff.scoreMult).toInt()}', cGold); } } }
+        for (final e in _enemies) { if (e.dead || hit) continue; if ((bul.x - e.x).abs() < kEnemyR && (bul.y - e.y).abs() < kEnemyR) { rem.add(bul); hit = true; final dmg = _fr.active ? bul.damage * 1.6 : bul.damage; e.hp -= dmg; e.hitFlash = 1.0; _totalDmg += dmg.toInt(); if (e.hp <= 0) { e.dead = true; _combo.onKill(); final comboB = _combo.mult; _score += (_eScore(e.kind) * _diff.scoreMult * comboB).toInt(); _spawnBurst(e.x, e.y, _eColor(e.kind), 16); _audio.playExplosion(); final pts = (_eScore(e.kind) * _diff.scoreMult * comboB).toInt(); _addFloat(e.x, e.y - 10, '+$pts${_combo.streak >= 3 ? " x${_combo.streak}" : ""}', _combo.streak >= 5 ? Colors.orange : cGold); } } }
         if (!hit && _bossAlive && _boss != null && !_boss!.dead) {
           final bo = _boss!;
           if ((bul.x - bo.x).abs() < kBossR && (bul.y - bo.y).abs() < kBossR) {
@@ -1351,12 +1375,28 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     _player.y = _sh * 0.72;
     // Restaurar casco parcialmente entre stages (no full, para mantener tensión)
     _player.hullIntegrity = (_player.hullIntegrity + 40).clamp(0, 100);
+    _combo.reset();
   }
   void _beginFrost() { if (_frosting || _quenching) return; _frosting = true; _coreTemp = 1.0; _audio.stopAlarm(); }
   void _quenchExp() { for (int i = 0; i < 80; i++) { final a = _rng.nextDouble() * pi * 2; final s = 100 + _rng.nextDouble() * 320; _particles.add(Particle(x: _sw / 2, y: _sh * 0.87, vx: cos(a) * s, vy: sin(a) * s, life: 1.2 + _rng.nextDouble(), color: _rng.nextBool() ? cFire : cIce, size: 5 + _rng.nextDouble() * 12)); } }
   void _spawnFrost() { if (_rng.nextDouble() > 0.3) return; final a = _rng.nextDouble() * pi * 2; final r = kNucleusR + _rng.nextDouble() * 60; _particles.add(Particle(x: _sw / 2 + cos(a) * r, y: _sh * 0.87 + sin(a) * r, vx: cos(a + pi) * 40, vy: sin(a + pi) * 40, life: 0.8 + _rng.nextDouble() * 0.6, color: cFrost, size: 3 + _rng.nextDouble() * 6, isFrost: true)); }
 
-  void _selectUpg(UpgradeOption o) { o.apply(_player.build); _res.energy = (_res.energy + 20).clamp(0, _player.build.maxEnergy); _heat.cool(12); _upgradeFlash = 1.0; _upgradeFlashColor = o.color; _showDec = false; _phase.endDecision(); if (!_bossAlive && _phase.cycleCount >= 3) _stageClear(); }
+  void _selectUpg(UpgradeOption o) {
+    o.apply(_player.build);
+    _res.energy = (_res.energy + 20).clamp(0, _player.build.maxEnergy);
+    _heat.cool(12);
+    _upgradeFlash = 1.0; _upgradeFlashColor = o.color;
+    // ── FEEDBACK SENSORIAL DE UPGRADE ──
+    _upgradeShipGlow = 1.0; // glow en la nave
+    _upgradeGlowColor = o.color;
+    // Texto flotante con nombre del upgrade
+    _addFloat(_player.x, _player.y - 60, '+${o.title} ACTIVADO', o.color);
+    _addFloat(_player.x, _player.y - 40, o.emoji, o.color);
+    hapticMedium();
+    _spawnBurst(_player.x, _player.y, o.color, 20);
+    _showDec = false; _phase.endDecision();
+    if (!_bossAlive && _phase.cycleCount >= 3) _stageClear();
+  }
 
   List<UpgradeOption> _buildOpts() {
     final forceTriple = _diff.tripleGuaranteed && _stage.stageNum >= 3 && !_player.build.hasTripleShot && !_tripleGuaranteedUsed;
@@ -1418,7 +1458,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
 
     return Scaffold(backgroundColor: cBg, body: Stack(children: [
       GestureDetector(onPanStart: _onPS, onPanUpdate: _onPU, onPanEnd: _onPE, onTapDown: _onTD, onTapUp: _onTU,
-        child: CustomPaint(painter: GamePainter(sw: _sw, sh: _sh, player: _player, playerY: playerY, enemies: _enemies, bullets: _bullets, powerUps: _powerUps, boss: (_bossAlive || _bossDying || _finisher.active) ? _boss : null, particles: _particles, floats: _floats, score: _score, res: _res, heat: _heat, phase: _phase, coreTemp: _coreTemp, corePulse: _pulse, laserColor: lc, isTriple: isTriple, frosting: _frosting, frostT: _frostT, quenching: _quenching, quenchT: _quenchT, touching: _touching, sprites: _spr, nucleusIFrame: _niFrame, freezeActive: _fr.active, machineGunActive: _mg.active, stageNum: _stage.stageNum, bossColor: _stage.bossColor, asteroids: _asteroids, gravityTimer: _gravActive ? _gravTimer : -1, portalGrow: _stage.hazard == StageHazard.mirrorPortal ? _portal : -1, mirrorVictory: _mirrorWin, mirrorVictoryT: _mirrorT, stageName: _stage.name, glitchActive: _glitchActive || _bossDying, paused: _paused, bossShakeX: _bossShakeX, bossShakeY: _bossShakeY, bossDying: _bossDying, portalNodes: _portalNodes, upgradeFlash: _upgradeFlash, upgradeFlashColor: _upgradeFlashColor, diff: _diff, finisher: _finisher, camZoom: _finisherCamZoom), child: const SizedBox.expand())),
+        child: CustomPaint(painter: GamePainter(sw: _sw, sh: _sh, player: _player, playerY: playerY, enemies: _enemies, bullets: _bullets, powerUps: _powerUps, boss: (_bossAlive || _bossDying || _finisher.active) ? _boss : null, particles: _particles, floats: _floats, score: _score, res: _res, heat: _heat, phase: _phase, coreTemp: _coreTemp, corePulse: _pulse, laserColor: lc, isTriple: isTriple, frosting: _frosting, frostT: _frostT, quenching: _quenching, quenchT: _quenchT, touching: _touching, sprites: _spr, nucleusIFrame: _niFrame, freezeActive: _fr.active, machineGunActive: _mg.active, stageNum: _stage.stageNum, bossColor: _stage.bossColor, asteroids: _asteroids, gravityTimer: _gravActive ? _gravTimer : -1, portalGrow: _stage.hazard == StageHazard.mirrorPortal ? _portal : -1, mirrorVictory: _mirrorWin, mirrorVictoryT: _mirrorT, stageName: _stage.name, glitchActive: _glitchActive || _bossDying, paused: _paused, bossShakeX: _bossShakeX, bossShakeY: _bossShakeY, bossDying: _bossDying, portalNodes: _portalNodes, upgradeFlash: _upgradeFlash, upgradeFlashColor: _upgradeFlashColor, diff: _diff, finisher: _finisher, camZoom: _finisherCamZoom, bossWhiteFlash: _bossWhiteFlash, upgradeShipGlow: _upgradeShipGlow, upgradeGlowColor: _upgradeGlowColor, combo: _combo), child: const SizedBox.expand())),
 
       // Badge dificultad
       Positioned(top: 8, left: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: _diff.color.withOpacity(0.15), borderRadius: BorderRadius.circular(6), border: Border.all(color: _diff.color.withOpacity(0.6))), child: Text('${_diff.emoji} ${_diff.name}', style: TextStyle(color: _diff.color, fontSize: 9, fontFamily: 'Orbitron', fontWeight: FontWeight.bold)))),
@@ -1518,7 +1558,8 @@ class GamePainter extends CustomPainter {
   final Player player; final List<Enemy> enemies; final List<Bullet> bullets; final List<PowerUp> powerUps;
   final List<Asteroid> asteroids; final Boss? boss; final List<Particle> particles; final List<FloatingText> floats;
   final int score; final ResourceSystem res; final HeatSystem heat; final PhaseEngine phase; final SpriteCache sprites; final List<PortalNode> portalNodes; final DifficultyConfig diff; final FinisherState finisher;
-  const GamePainter({required this.sw, required this.sh, required this.player, required this.playerY, required this.enemies, required this.bullets, required this.powerUps, required this.boss, required this.particles, required this.floats, required this.score, required this.res, required this.heat, required this.phase, required this.coreTemp, required this.corePulse, required this.laserColor, required this.isTriple, required this.frosting, required this.frostT, required this.quenching, required this.quenchT, required this.touching, required this.sprites, required this.nucleusIFrame, required this.freezeActive, required this.machineGunActive, required this.stageNum, required this.bossColor, required this.asteroids, required this.gravityTimer, required this.portalGrow, required this.mirrorVictory, required this.mirrorVictoryT, required this.stageName, required this.glitchActive, required this.paused, required this.bossShakeX, required this.bossShakeY, required this.bossDying, required this.portalNodes, required this.upgradeFlash, required this.upgradeFlashColor, required this.diff, required this.finisher, required this.camZoom});
+  final double bossWhiteFlash, upgradeShipGlow; final Color upgradeGlowColor; final ComboSystem combo;
+  const GamePainter({required this.sw, required this.sh, required this.player, required this.playerY, required this.enemies, required this.bullets, required this.powerUps, required this.boss, required this.particles, required this.floats, required this.score, required this.res, required this.heat, required this.phase, required this.coreTemp, required this.corePulse, required this.laserColor, required this.isTriple, required this.frosting, required this.frostT, required this.quenching, required this.quenchT, required this.touching, required this.sprites, required this.nucleusIFrame, required this.freezeActive, required this.machineGunActive, required this.stageNum, required this.bossColor, required this.asteroids, required this.gravityTimer, required this.portalGrow, required this.mirrorVictory, required this.mirrorVictoryT, required this.stageName, required this.glitchActive, required this.paused, required this.bossShakeX, required this.bossShakeY, required this.bossDying, required this.portalNodes, required this.upgradeFlash, required this.upgradeFlashColor, required this.diff, required this.finisher, required this.camZoom, required this.bossWhiteFlash, required this.upgradeShipGlow, required this.upgradeGlowColor, required this.combo});
 
   @override void paint(Canvas canvas, Size size) {
     canvas.save();
@@ -1535,6 +1576,10 @@ class GamePainter extends CustomPainter {
     // Finisher flash naranja
     if (finisher.phase == FinisherPhase.chasing) canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = Colors.orange.withOpacity(0.04));
     if (upgradeFlash > 0) canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = upgradeFlashColor.withOpacity(upgradeFlash * 0.28));
+    // Flash blanco muerte de boss
+    if (bossWhiteFlash > 0) canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = Colors.white.withOpacity(bossWhiteFlash * 0.85));
+    // Combo HUD visible y agresivo
+    if (combo.isActive) _drawCombo(canvas);
     if (glitchActive) { canvas.restore(); for (int i = 0; i < sh.toInt(); i += 6) { canvas.drawRect(Rect.fromLTWH(0, i.toDouble(), sw, 2), Paint()..color = cRed.withOpacity(0.06)); } canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = cRed.withOpacity(0.08)); }
     canvas.restore();
   }
@@ -1565,6 +1610,11 @@ class GamePainter extends CustomPainter {
     if (heat.zone != HeatZone.cool) { final hc = heat.zoneColor; canvas.drawCircle(Offset(px, py), kPhoenixSize * 1.3, Paint()..color = hc.withOpacity(0.15 + heat.fraction * 0.15)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)); }
     if (player.shieldActive) { canvas.drawCircle(Offset(px, py), kPhoenixSize * 1.7, Paint()..color = cShield.withOpacity(0.3)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)); canvas.drawCircle(Offset(px, py), kPhoenixSize * 1.7, Paint()..color = cShield.withOpacity(0.7)..style = PaintingStyle.stroke..strokeWidth = 2); }
     if (isTriple) canvas.drawCircle(Offset(px, py), kPhoenixSize * 0.9, Paint()..color = cGold.withOpacity(0.2)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    // Glow de upgrade elegido
+    if (upgradeShipGlow > 0) {
+      canvas.drawCircle(Offset(px, py), kPhoenixSize * 2.5 * (1 + upgradeShipGlow * 0.3), Paint()..color = upgradeGlowColor.withOpacity(upgradeShipGlow * 0.5)..maskFilter = MaskFilter.blur(BlurStyle.normal, 20 + upgradeShipGlow * 10));
+      canvas.drawCircle(Offset(px, py), kPhoenixSize * 1.8, Paint()..color = upgradeGlowColor.withOpacity(upgradeShipGlow * 0.7)..style = PaintingStyle.stroke..strokeWidth = 3);
+    }
     if (machineGunActive) canvas.drawCircle(Offset(px, py), kPhoenixSize * 1.1, Paint()..color = cGold.withOpacity(0.3)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10));
     if (sprites.loaded && sprites.player != null) { drawSprite(canvas, sprites.player!, Offset(px, py), kPhoenixSize * 2.4); return; }
     canvas.drawCircle(Offset(px, py + kPhoenixSize * 0.55), kPhoenixSize * 0.35, Paint()..color = cFire.withOpacity(touching ? 0.85 : 0.3)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12));
@@ -1691,6 +1741,31 @@ class GamePainter extends CustomPainter {
   void _drawFrost(Canvas canvas) { final ft = frostT.clamp(0.0, 1.0); canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..shader = RadialGradient(center: Alignment.center, radius: 0.7, colors: [Colors.transparent, cFrost.withOpacity(ft * 0.35), cFrost.withOpacity(ft * 0.7)], stops: const [0.4, 0.7, 1.0]).createShader(Rect.fromLTWH(0, 0, sw, sh))); final rng = Random(42); final cp = Paint()..color = cFrost.withOpacity(ft * 0.55)..strokeWidth = 1.0..style = PaintingStyle.stroke; void crack(double sx, double sy, int d) { if (d <= 0) return; for (int i = 0; i < 3; i++) { final a = rng.nextDouble() * pi * 2; final l = (20 + rng.nextDouble() * 40) * ft; final ex = sx + cos(a) * l; final ey = sy + sin(a) * l; canvas.drawLine(Offset(sx, sy), Offset(ex, ey), cp); if (rng.nextDouble() < 0.5) crack(ex, ey, d - 1); } } crack(0, 0, 4); crack(sw, 0, 4); crack(0, sh, 4); crack(sw, sh, 4); _txt(canvas, '❄  QUENCH CRÍTICO  ❄', Offset(sw / 2, sh * 0.38), cFrost.withOpacity(0.6 + sin(frostT * pi * 8) * 0.4), 18); }
   void _drawQuench(Canvas canvas) { final a = (quenchT / 2.5).clamp(0.0, 0.92); canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = cFire.withOpacity(a * 0.8)); _txt(canvas, '💥  QUENCH  💥', Offset(sw / 2, sh * 0.38), Colors.white, 38); _txt(canvas, 'FALLO CRIOGÉNICO TOTAL', Offset(sw / 2, sh * 0.48), cFire, 16); }
   void _drawMirrorWin(Canvas canvas) { final t = (mirrorVictoryT / 3.5).clamp(0.0, 1.0); canvas.drawRect(Rect.fromLTWH(0, 0, sw, sh), Paint()..color = const Color(0xFF000033).withOpacity(t * 0.88)); _txt(canvas, '★ PORTAL CERRADO ★', Offset(sw / 2, sh * 0.35), cGold.withOpacity(t), 22); _txt(canvas, 'La puerta fue cerrada…', Offset(sw / 2, sh * 0.45), Colors.white.withOpacity(t), 14); _txt(canvas, 'por ahora.', Offset(sw / 2, sh * 0.52), cIce.withOpacity(t), 20); _txt(canvas, 'PHOENIX CORE II — COMING SOON', Offset(sw / 2, sh * 0.62), cRed.withOpacity(t * 0.9), 12); }
+  // ── COMBO DISPLAY — visible, agresivo, con personalidad ──
+  void _drawCombo(Canvas canvas) {
+    if (!combo.isActive) return;
+    final streak = combo.streak;
+    // Color progresivo: blanco → dorado → naranja → rojo
+    final comboColor = streak >= 15 ? cRed : streak >= 8 ? Colors.orange : streak >= 5 ? cGold : Colors.white;
+    // Tamaño crece con el streak
+    final fontSize = (16 + (streak * 0.8).clamp(0, 20)).toDouble();
+    final cx = sw / 2, cy = sh * 0.22;
+    // Glow exterior pulsante
+    final glowPaint = Paint()..color = comboColor.withOpacity(0.3 + corePulse * 0.2)..maskFilter = MaskFilter.blur(BlurStyle.normal, 16 + streak * 0.5);
+    canvas.drawCircle(Offset(cx, cy), fontSize * 1.8, glowPaint);
+    // Texto principal del combo
+    _txt(canvas, 'x$streak COMBO', Offset(cx, cy), comboColor, fontSize);
+    // Multiplicador debajo
+    if (combo.mult > 1.0) {
+      _txt(canvas, '+${((combo.mult - 1) * 100).toInt()}% SCORE', Offset(cx, cy + fontSize + 4), comboColor.withOpacity(0.8), 10);
+    }
+    // Barra de timer
+    final timerFrac = (combo.timer / ComboSystem.kResetTime).clamp(0, 1);
+    final barW = 80.0;
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx - barW/2, cy + fontSize + 18, barW, 3), const Radius.circular(2)), Paint()..color = Colors.white12);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx - barW/2, cy + fontSize + 18, barW * timerFrac, 3), const Radius.circular(2)), Paint()..color = comboColor);
+  }
+
   void _txt(Canvas canvas, String t, Offset pos, Color c, double sz, {bool left = false, bool right = false}) { final tp = TextPainter(text: TextSpan(text: t, style: TextStyle(color: c, fontSize: sz, fontFamily: 'Orbitron', fontWeight: FontWeight.bold, shadows: [Shadow(color: c.withOpacity(0.5), blurRadius: 8)])), textAlign: left ? TextAlign.left : TextAlign.center, textDirection: TextDirection.ltr)..layout(); final dx = right ? pos.dx - tp.width : left ? pos.dx : pos.dx - tp.width / 2; tp.paint(canvas, Offset(dx, pos.dy - tp.height / 2)); }
   @override bool shouldRepaint(covariant CustomPainter _) => true;
 }
