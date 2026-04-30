@@ -149,19 +149,23 @@ class DifficultyConfig {
   double get spawnRateMult   => switch (level) { Difficulty.amateur => 0.85, Difficulty.veterano => 1.35, Difficulty.comandante => 1.7  };
   int    get maxWaveSize     => switch (level) { Difficulty.amateur => 3,    Difficulty.veterano => 5,    Difficulty.comandante => 6    };
   double get enemyFireRateMult => switch (level) { Difficulty.amateur => 0.7, Difficulty.veterano => 1.0, Difficulty.comandante => 1.4 };
-  double get bossHpMult      => switch (level) { Difficulty.amateur => 0.9,  Difficulty.veterano => 1.4,  Difficulty.comandante => 1.8  };
-  double get bossBulletDmgMult => switch (level) { Difficulty.amateur => 0.7, Difficulty.veterano => 1.0, Difficulty.comandante => 1.4 };
-  double get bossShieldDuration => switch (level) { Difficulty.amateur => 6.0, Difficulty.veterano => 10.0, Difficulty.comandante => 14.0 };
-  double get bossVulnerableWindow => switch (level) { Difficulty.amateur => 4.0, Difficulty.veterano => 2.5, Difficulty.comandante => 1.8 };
+  double get bossHpMult      => switch (level) { Difficulty.amateur => 1.5,  Difficulty.veterano => 2.5,  Difficulty.comandante => 3.5  };
+  double get bossBulletDmgMult => switch (level) { Difficulty.amateur => 0.6, Difficulty.veterano => 0.9, Difficulty.comandante => 1.3 };
+  double get bossShieldDuration => switch (level) { Difficulty.amateur => 8.0, Difficulty.veterano => 14.0, Difficulty.comandante => 20.0 };
+  double get bossVulnerableWindow => switch (level) { Difficulty.amateur => 3.5, Difficulty.veterano => 2.0, Difficulty.comandante => 1.2 };
   double get gravTimerSeconds => switch (level) { Difficulty.amateur => 80.0, Difficulty.veterano => 60.0, Difficulty.comandante => 45.0 };
   double get heatGenMult     => switch (level) { Difficulty.amateur => 0.6,  Difficulty.veterano => 1.0,  Difficulty.comandante => 1.5  };
   double get heatCoolMult    => switch (level) { Difficulty.amateur => 2.0,  Difficulty.veterano => 1.0,  Difficulty.comandante => 0.7  };
-  double get overheatDuration => switch (level) { Difficulty.amateur => 0.8, Difficulty.veterano => 1.5,  Difficulty.comandante => 2.2  };
+  double get overheatDuration => switch (level) { Difficulty.amateur => 0.6, Difficulty.veterano => 1.2,  Difficulty.comandante => 1.8  };
   bool   get tripleGuaranteed => level != Difficulty.comandante;
   bool   get hasMissile      => level != Difficulty.amateur;
   double get missileRechargeTime => switch (level) { Difficulty.amateur => 999, Difficulty.veterano => 10.0, Difficulty.comandante => 14.0 };
   double get powerUpInterval => switch (level) { Difficulty.amateur => 22.0, Difficulty.veterano => 32.0, Difficulty.comandante => 45.0 };
   bool   get boss4TripleFromStart => level == Difficulty.comandante;
+  // Comandante empieza con disparo doble desde Stage 1
+  bool   get startsWithDouble => level == Difficulty.comandante;
+  // Comandante empieza con disparo doble desde el inicio
+  bool   get startsWithDouble => level == Difficulty.comandante;
   bool   get hasFinisherMode => true; // todos los niveles
   // Finisher threshold — % HP para activar huida
   double get finisherThreshold => switch (level) { Difficulty.amateur => 0.12, Difficulty.veterano => 0.10, Difficulty.comandante => 0.08 };
@@ -216,14 +220,14 @@ class CinematicScene {
 }
 
 const _stages = [
-  StageConfig(stageNum:1, name:'NEBULOSA DE ORIÓN', bossName:'THE FROZEN WARLORD', bossAsset:'assets/images/boss.png', bossColor:cWarlord, hazard:StageHazard.none, bossHpBase:180, bossHpPerCycle:35, scenes:[]),
-  StageConfig(stageNum:2, name:'ASTEROIDES DE KHAROS', bossName:'EL SEGADOR DE ALMAS', bossAsset:'assets/images/jefe2.png', bossColor:cGreen, hazard:StageHazard.asteroids, bossHpBase:160, bossHpPerCycle:30, scenes:[
+  StageConfig(stageNum:1, name:'NEBULOSA DE ORIÓN', bossName:'THE FROZEN WARLORD', bossAsset:'assets/images/boss.png', bossColor:cWarlord, hazard:StageHazard.none, bossHpBase:420, bossHpPerCycle:80, scenes:[]),
+  StageConfig(stageNum:2, name:'ASTEROIDES DE KHAROS', bossName:'EL SEGADOR DE ALMAS', bossAsset:'assets/images/jefe2.png', bossColor:cGreen, hazard:StageHazard.asteroids, bossHpBase:380, bossHpPerCycle:70, scenes:[
     CinematicScene(location:'DOCK 7A — BASE PHOENIX', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Comandante… lo consiguió.\nEl núcleo cuántico llegó intacto.\nLa colonia Elysium ya está recibiendo energía estable.', imageAsset:'assets/images/escena1jefe2.jpg'),
     CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Recibimos señales de alerta desde los Asteroides de Kharos.\nAlgo está atacando nuestros convoyes…\nLe llamamos El Segador de Almas del Abismo.', imageAsset:'assets/images/escena2jefe2.jpg'),
     CinematicScene(location:'DOCK 7A — HANGAR', speaker:'USUARIO', speakerColor:'ice', dialogue:'¿Qué necesita que haga?', imageAsset:'assets/images/escena3jefe2.jpg'),
     CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Vaya allí y deténgalo antes de que alcance el Núcleo Central de Elysium.\nSu nave está siendo reparada. Descanse.\nEsta entidad es mucho más antigua… y más peligrosa.', imageAsset:'assets/images/escena4jefe2.jpg'),
   ]),
-  StageConfig(stageNum:3, name:'ZONA NEUTRÓNICA OMEGA', bossName:'EL DEVORADOR DE SUEÑOS', bossAsset:'assets/images/jefe3.png', bossColor:cPurple, hazard:StageHazard.gravityTimer, bossHpBase:220, bossHpPerCycle:35, scenes:[
+  StageConfig(stageNum:3, name:'ZONA NEUTRÓNICA OMEGA', bossName:'EL DEVORADOR DE SUEÑOS', bossAsset:'assets/images/jefe3.png', bossColor:cPurple, hazard:StageHazard.gravityTimer, bossHpBase:520, bossHpPerCycle:90, scenes:[
     CinematicScene(location:'DOCK 7A — BASE PHOENIX', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Comandante… excelente trabajo.\nEl Segador fue neutralizado.\nPermítame presentarle a la Doctora Denise Moreau.', imageAsset:'assets/images/escena1jefe3.jpg'),
     CinematicScene(location:'SALA DE ANÁLISIS', speaker:'DRA. DENISE MOREAU', speakerColor:'ice', dialogue:'Lo que enfrentaremos no es una nave enemiga…\nes una entidad biológica altamente evolucionada.', imageAsset:'assets/images/escena2jefe3.jpg'),
     CinematicScene(location:'CAFÉ ALTEA', speaker:'DRA. DENISE MOREAU', speakerColor:'ice', dialogue:'Ataca la mente, genera alucinaciones y distorsiona la realidad.\nSi logra establecer una cabeza de playa, la infestación será imposible de detener.', imageAsset:'assets/images/escena3jefe3.jpg'),
@@ -274,8 +278,11 @@ class PlayerBuild {
   PlayerBuild({this.damage = 10, this.fireRate = 1.0, this.maxEnergy = 100, this.cooling = 1.0, this.shieldEfficiency = 1.0, this.hasTripleShot = false, this.heatGenMult = 1.0, List<String>? modules}) : modules = modules ?? [];
 }
 class Player {
-  double x, y, energy = 100, heat = 0; bool shieldActive = false; double shieldTimer = 0; PlayerBuild build;
-  // y es para Finisher Mode (movimiento libre)
+  double x, y, energy = 100, heat = 0;
+  bool shieldActive = false; double shieldTimer = 0;
+  // Escudo inicial degradable — nave tiene protección que baja con daño
+  double hullIntegrity = 100; // 100% integridad del casco
+  PlayerBuild build;
   Player(this.x, {PlayerBuild? b, double? startY}) : build = b ?? PlayerBuild(), energy = b?.maxEnergy ?? 100, y = startY ?? 0;
 }
 class Enemy {
@@ -294,7 +301,7 @@ class Boss {
   bool phaseShieldActive = false; double phaseShieldTimer = 0, vulnerableTimer = 0; bool phaseTriggered = false;
   // Finisher
   bool finisherTriggered = false;
-  static const double moveTime = 3.0, chargeTime = kBossChargeTime, cooldownTime = 2.8;
+  static const double moveTime = 2.5, chargeTime = kBossChargeTime, cooldownTime = 2.0;
   Boss({required this.x, required this.y, required this.hp, this.vx = 75}) : maxHp = hp, vy = 0;
 }
 class Bullet {
@@ -819,6 +826,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   double _finisherCamZoom = 1.0; // zoom out durante chase
   // ── Boss death épica ──
   bool _bossDying = false; double _bossDeathTimer = 0; double _timeScale = 1.0;
+  bool _showBossKillGlory = false; double _bossKillGloryTimer = 0;
   double _bossShakeX = 0, _bossShakeY = 0, _bossShakeIntensity = 0;
   int _score = 0, _totalDmg = 0; double _coreTemp = 0, _niFrame = 0;
   double _shootTimer = 0, _spawnTimer = 0, _puTimer = 0;
@@ -850,12 +858,17 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
   @override void initState() {
     super.initState(); _score = widget.initialScore; _ai = AIAdapt();
     _heat = HeatSystem(); _puTimer = _diff.powerUpInterval; _gravTimer = _diff.gravTimerSeconds;
+    // Detener todo audio anterior al iniciar nuevo stage
+    widget.audio.stopAll();
     if (_diff.hasMissile) _missile = MissileSystem(_diff.missileRechargeTime);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final sz = MediaQuery.of(context).size; _sw = sz.width; _sh = sz.height;
       final b = widget.initialBuild ?? PlayerBuild();
       _player = Player(_sw / 2, b: b, startY: _sh * 0.72); _res.energy = _player.build.maxEnergy;
+    // Escudo inicial degradable — más resistente en stages bajos
+    _player.shieldActive = true;
+    _player.shieldTimer = switch(_stage.stageNum) { 1 => 8.0, 2 => 6.0, 3 => 4.0, _ => 0.0 };
       _ai.resetForStage(_stage.stageNum);
       _ticker = createTicker(_tick)..start();
     });
@@ -966,6 +979,8 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     }
     _audio.playExplosion(isBoss: true); hapticHeavy();
     _ai.analyze(_player.build, _stage.stageNum); _audio.switchToAmbient();
+    // Mostrar pantalla de triunfo 3.5s antes de continuar
+    _showBossKillGlory = true; _bossKillGloryTimer = 3.5;
     _finisherCamZoom = 1.0;
   }
 
@@ -1015,6 +1030,15 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if (_disposed || !mounted) return;
     if (_paused) { setState(() {}); return; }
 
+    // Glory screen al matar jefe
+    if (_showBossKillGlory) {
+      _bossKillGloryTimer -= dt;
+      _updateParticles(dt); _updateFloats(dt);
+      if (_bossKillGloryTimer <= 0) _showBossKillGlory = false;
+      if (mounted) setState(() {}); 
+      // No bloqueamos el update completo, solo mostramos overlay
+    }
+
     // Boss dying épico
     if (_bossDying) {
       _bossDeathTimer += dt; _bossShakeIntensity *= 0.92;
@@ -1022,7 +1046,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       if (_rng.nextDouble() < 0.4 && _boss != null) { _particles.add(Particle(x: _boss!.x + (_rng.nextDouble() - 0.5) * 90, y: _boss!.y + (_rng.nextDouble() - 0.5) * 90, vx: (_rng.nextDouble() - 0.5) * 240, vy: (_rng.nextDouble() - 0.5) * 240, life: 0.6 + _rng.nextDouble() * 0.5, color: _rng.nextBool() ? Colors.orange : cFire, size: 3 + _rng.nextDouble() * 6)); }
       if (_bossDeathTimer > 0.3 && _timeScale < 1.0) _timeScale = (_timeScale + dt * 2.5).clamp(0, 1);
       _updateParticles(dt); _updateFloats(dt);
-      if (_bossDeathTimer > 3.0) { _bossDying = false; _timeScale = 1.0; _bossShakeIntensity = 0; _resetPlayerForStage(); _stageClear(); }
+      if (_bossDeathTimer > 2.0 && !_showBossKillGlory) { _bossDying = false; _timeScale = 1.0; _bossShakeIntensity = 0; _resetPlayerForStage(); _stageClear(); }
       if (mounted) setState(() {}); return;
     }
 
@@ -1127,6 +1151,10 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       _bullets.add(Bullet(_player.x, py, _player.build.damage, angle: penalty));
       _bullets.add(Bullet(_player.x, py, _player.build.damage * 0.7, angle: -0.13 + penalty));
       _bullets.add(Bullet(_player.x, py, _player.build.damage * 0.7, angle: 0.13 + penalty));
+    } else if (_diff.startsWithDouble) {
+      // Comandante empieza con doble disparo paralelo
+      _bullets.add(Bullet(_player.x - 6, py, _player.build.damage * 0.85, angle: penalty));
+      _bullets.add(Bullet(_player.x + 6, py, _player.build.damage * 0.85, angle: penalty));
     } else {
       _bullets.add(Bullet(_player.x, py, _player.build.damage, angle: penalty));
     }
@@ -1194,7 +1222,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       b.burstTimer += dt; final brokenCount = _portalNodes.isEmpty ? 0 : _portalNodes.where((n) => n.broken).length; final interval = (1.8 - (brokenCount * 0.32)).clamp(0.45, 1.8); if (b.burstTimer >= interval) { b.burstTimer = 0; _fireBoss(b); } return;
     }
 
-    final effectiveMoveTime = b.phaseShieldActive ? 1.5 : Boss.moveTime; final effectiveBurstLimit = b.phaseShieldActive ? 4 : 3;
+    final effectiveMoveTime = b.phaseShieldActive ? 1.5 : Boss.moveTime; final effectiveBurstLimit = b.phaseShieldActive ? 5 : (_diff.level == Difficulty.amateur ? 3 : _diff.level == Difficulty.veterano ? 4 : 5);
     switch (b.state) {
       case BossState.moving: b.x += b.vx * dt; b.y = _sh * 0.16 + sin(b.animT * 0.8) * 24; if (b.x < kBossR || b.x > _sw - kBossR) b.vx *= -1; b.stateTimer += dt; if (b.stateTimer >= effectiveMoveTime) { b.state = BossState.charging; b.stateTimer = 0; b.chargeGlow = 0; }
       case BossState.charging: b.stateTimer += dt; b.chargeGlow = (b.stateTimer / Boss.chargeTime).clamp(0, 1); b.y = _sh * 0.16 + sin(b.animT * 12) * 3 * b.chargeGlow; if (b.stateTimer >= Boss.chargeTime) { b.state = BossState.firing; b.stateTimer = 0; b.burstCount = 0; b.burstTimer = 0; }
@@ -1220,7 +1248,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       if (!_antiPatternTriggered && _rng.nextDouble() < 0.25) { _antiPatternTriggered = true; final msg = predict > 0.75 ? 'Eres completamente predecible…' : predict > 0.5 ? 'Empiezo a entenderte…' : 'Con tecnología de museo…'; _addFloat(b.x, b.y - kBossR - 24, msg, cRed); _glitchActive = true; _glitchT = 0.5; Future.delayed(const Duration(seconds: 4), () { if (!_disposed) _antiPatternTriggered = false; }); }
       _diffMult = (_diffMult + 0.03).clamp(1.0, 2.0); return;
     }
-    final offsets = _stage.stageNum >= 3 ? [0.0, -sp, sp, -sp * 0.5] : [0.0, -sp, sp];
+    final offsets = _diff.level == Difficulty.comandante ? [0.0, -sp, sp, -sp*0.5, sp*0.5] : _stage.stageNum >= 3 ? [0.0, -sp, sp, -sp * 0.5] : [0.0, -sp, sp];
     for (final off in offsets) _bullets.add(Bullet(b.x, b.y + kBossR, dmg, isEnemy: true, fromBoss: true, angle: ba + off, speed: bspd));
   }
 
@@ -1231,8 +1259,23 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
         final px = _player.x, py = _player.y;
         if ((bul.x - px).abs() < kPhoenixSize && (bul.y - py).abs() < kPhoenixSize) {
           rem.add(bul);
-          if (_player.shieldActive) { _player.shieldActive = false; hapticLight(); _audio.playShieldHit(); _spawnBurst(px, py, cShield, 8); _addFloat(px, py - 20, 'ESCUDO!', cShield); }
-          else { _res.energy -= bul.fromBoss ? 11 : 13; _heat.applyShot(_player.build, _diff); _coreTemp += bul.fromBoss ? 0.032 : 0.042; hapticMedium(); _spawnBurst(px, py, cDanger, 8); _addFloat(px, py - 20, '-E', cDanger); }
+          if (_player.shieldActive) {
+            _player.shieldActive = false; hapticLight(); _audio.playShieldHit(); _spawnBurst(px, py, cShield, 8); _addFloat(px, py - 20, 'ESCUDO!', cShield);
+          } else if (_player.hullIntegrity > 0) {
+            // Casco absorbe parte del daño
+            final hullDmg = bul.fromBoss ? 8.0 : 5.0;
+            _player.hullIntegrity = (_player.hullIntegrity - hullDmg).clamp(0, 100);
+            final passThru = _player.hullIntegrity < 30 ? 1.0 : _player.hullIntegrity < 60 ? 0.6 : 0.3;
+            _res.energy -= (bul.fromBoss ? 11 : 13) * passThru;
+            _heat.applyShot(_player.build, _diff);
+            _coreTemp += (bul.fromBoss ? 0.032 : 0.042) * passThru;
+            hapticMedium(); _spawnBurst(px, py, cDanger, 8);
+            _addFloat(px, py - 20, _player.hullIntegrity < 30 ? '💀 CASCO CRÍTICO' : '-CASCO', cDanger);
+          } else {
+            _res.energy -= bul.fromBoss ? 14 : 16; _heat.applyShot(_player.build, _diff);
+            _coreTemp += bul.fromBoss ? 0.055 : 0.065; hapticHeavy();
+            _spawnBurst(px, py, cRed, 12); _addFloat(px, py - 20, '💀 SIN CASCO', cRed);
+          }
         }
         final nx = _sw / 2, ny = _sh * 0.87;
         if (_niFrame <= 0 && (bul.x - nx).abs() < kNucleusR && (bul.y - ny).abs() < kNucleusR) { rem.add(bul); _niFrame = kNucleusIFrame; _coreTemp += bul.fromBoss ? 0.055 : kCoreHeatPerHit; hapticHeavy(); _addFloat(nx, ny - 20, 'NÚCLEO!', cDanger); _spawnBurst(nx, ny, cDanger, 6); }
@@ -1292,14 +1335,22 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if (_stage.hazard == StageHazard.gravityTimer) { _gravActive = true; _gravTimer = _diff.gravTimerSeconds; }
     _addFloat(_sw / 2, _sh * 0.3, '⚠ ${_stage.bossName}', _stage.bossColor);
   }
-  void _stageClear() { _audio.stopAlarm(); _phase.endBoss(); if (mounted && !_disposed) widget.onStageClear(_score, _player.build, _totalDmg); }
+  void _stageClear() {
+    _audio.stopAll(); // FIX: detener TODOS los sonidos antes de cambiar stage
+    _phase.endBoss();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted && !_disposed) widget.onStageClear(_score, _player.build, _totalDmg);
+    });
+  }
   void _resetPlayerForStage() {
     _player.build.hasTripleShot = false; _triplePermanent = false; _player.build.fireRate = _player.build.fireRate.clamp(1.0, 1.4); _tripleTimer = 0;
     _boss = null; _bossAlive = false; _bossDying = false; _bossDeathTimer = 0;
     _bullets.clear(); _asteroids.clear(); _enemies.clear(); _portalNodes.clear(); _nodesInitialized = false;
     _tripleGuaranteedUsed = false; _gravTimer = _diff.gravTimerSeconds; _heat.heat = 0; _heat.isOverheated = false;
     _finisher.phase = FinisherPhase.none; _finisherTriggered = false; _finisherCamZoom = 1.0;
-    _player.y = _sh * 0.72; // reset Y al modo normal
+    _player.y = _sh * 0.72;
+    // Restaurar casco parcialmente entre stages (no full, para mantener tensión)
+    _player.hullIntegrity = (_player.hullIntegrity + 40).clamp(0, 100);
   }
   void _beginFrost() { if (_frosting || _quenching) return; _frosting = true; _coreTemp = 1.0; _audio.stopAlarm(); }
   void _quenchExp() { for (int i = 0; i < 80; i++) { final a = _rng.nextDouble() * pi * 2; final s = 100 + _rng.nextDouble() * 320; _particles.add(Particle(x: _sw / 2, y: _sh * 0.87, vx: cos(a) * s, vy: sin(a) * s, life: 1.2 + _rng.nextDouble(), color: _rng.nextBool() ? cFire : cIce, size: 5 + _rng.nextDouble() * 12)); } }
@@ -1401,7 +1452,38 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
       if (_phase.phase == GamePhase.boss && _bossAlive && !_finisher.active) Positioned(top: 52, left: 0, right: 0, child: Center(child: _GlowText('⚠ ${_stage.bossName} ⚠', color: _stage.bossColor, size: 13))),
       if (_boss != null && _boss!.state == BossState.vulnerable && _bossAlive && !_finisher.active) Positioned(top: 70, left: 0, right: 0, child: Center(child: _GlowText('⚡ VULNERABLE — ¡ATACA AHORA!', color: cGold, size: 12))),
       if (isTriple) Positioned(bottom: _sh * 0.14, right: 60, child: _GlowText(_tripleTimer > 0 ? '💥 TRIPLE ${_tripleTimer.toStringAsFixed(0)}s' : '💥 TRIPLE PERM', color: cGold, size: 11)),
-      if (_bossDying) Positioned.fill(child: Container(color: Colors.black.withOpacity(0.25))),
+      if (_bossDying) ...[
+        Positioned.fill(child: Container(color: Colors.black.withOpacity(0.35))),
+        if (_bossDeathTimer > 0.8 && _bossDeathTimer < 4.5) Positioned(
+          top: _sh * 0.25, left: 0, right: 0,
+          child: Column(children: [
+            _GlowText('★ ELIMINADO ★', color: _stage.bossColor, size: 32),
+            const SizedBox(height: 8),
+            _GlowText(_stage.bossName, color: Colors.white70, size: 13),
+            const SizedBox(height: 16),
+            _GlowText('+${((500 + (_stage.stageNum - 1) * 200) * _diff.scoreMult).toInt()} PTS', color: cGold, size: 22),
+            if (_finisher.active) ...[
+              const SizedBox(height: 8),
+              _GlowText('★ FINISHER BONUS x1.5 ★', color: Colors.orange, size: 14),
+            ],
+          ]),
+        ),
+      ],
+      // ── BOSS KILL GLORY OVERLAY ────────────────────────
+      if (_showBossKillGlory) Positioned.fill(child: IgnorePointer(child: Container(
+        color: Colors.black.withOpacity(0.55),
+        child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('★', style: TextStyle(fontSize: 72, color: cGold, shadows: [Shadow(color: cGold, blurRadius: 40)])),
+          const SizedBox(height: 12),
+          _GlowText(_finisher.active ? 'FINISHER KILL' : '${_stage.bossName}', color: _stage.bossColor, size: 18),
+          const SizedBox(height: 8),
+          _GlowText('ELIMINADO', color: cGold, size: 42),
+          const SizedBox(height: 16),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            decoration: BoxDecoration(color: _diff.color.withOpacity(0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: _diff.color)),
+            child: Text('+${((500 + (_stage.stageNum - 1) * 200) * _diff.scoreMult).toInt()} PUNTOS', style: TextStyle(color: _diff.color, fontSize: 16, fontFamily: 'Orbitron', fontWeight: FontWeight.bold))),
+        ])),
+      ))),
       if (_mg.active) Positioned(bottom: _sh * 0.16, left: 20, child: _GlowText('⚡ RÁFAGA ${_mg.activeTimer.toStringAsFixed(1)}s', color: cGold, size: 11)),
       if (_fr.active) Positioned(bottom: _sh * 0.18, left: 20, child: _GlowText('❄ FREEZE ${_fr.activeTimer.toStringAsFixed(1)}s', color: cIce, size: 11)),
       if (_gravWarn) Positioned(top: _sh * 0.3, left: 0, right: 0, child: Center(child: _GlowText('⚠ GRAVEDAD: ${_gravTimer.toInt()}s', color: cDanger, size: 16))),
@@ -1519,7 +1601,7 @@ class GamePainter extends CustomPainter {
   void _drawFloats(Canvas canvas) { for (final f in floats) _txt(canvas, f.text, Offset(f.x, f.y), f.color.withOpacity(f.life.clamp(0, 1)), 11); }
   void _drawHUD(Canvas canvas) {
     _txt(canvas, 'SCORE  $score', Offset(16, 56), Colors.white, 15, left: true);
-    final label = switch (phase.phase) { GamePhase.combat => 'COMBAT  \${(phase.combatProgress * 100).toInt()}%', GamePhase.decision => 'DECISIÓN', GamePhase.boss => '⚠ BOSS' };
+    final label = switch (phase.phase) { GamePhase.combat => 'COMBAT  ${(phase.combatProgress * 100).toInt()}%', GamePhase.decision => 'DECISIÓN', GamePhase.boss => '⚠ BOSS' };
     _txt(canvas, label, Offset(sw / 2, 56), cIce, 11);
     final bw = sw * 0.4, bx = (sw - bw) / 2;
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx, 66, bw, 3), const Radius.circular(2)), Paint()..color = Colors.white12);
@@ -1527,17 +1609,32 @@ class GamePainter extends CustomPainter {
     final enePulse = 0.5 + sin(corePulse * pi * 3) * 0.15;
     _vBarPulse(canvas, 14, sh * 0.35, 10, sh * 0.28, res.energyFrac, cIce, 'ENE', enePulse);
     _drawHeatBar(canvas);
-    if (gravityTimer > 0) _txt(canvas, '⏱ \${gravityTimer.toInt()}s', Offset(sw - 12, 84), cDanger, 11, right: true);
+    if (gravityTimer > 0) _txt(canvas, '⏱ ${gravityTimer.toInt()}s', Offset(sw - 12, 84), cDanger, 11, right: true);
     if (res.entropyFrac > 0.3) {
       final entropyPct = (res.entropyFrac * 100).toInt();
       final isCritical = res.entropyFrac > 0.9;
       final entColor = isCritical ? Color.lerp(cDanger, Colors.white, (sin(corePulse * pi * 8) * 0.5 + 0.5))! : cShield.withOpacity(res.entropyFrac);
-      _txt(canvas, isCritical ? '⚠ ENTROPÍA \$entropyPct%' : 'ENTROPÍA \$entropyPct%', Offset(sw / 2, sh - 28), entColor, isCritical ? 11.0 : 10.0);
+      _txt(canvas, isCritical ? '⚠ ENTROPÍA $entropyPct%' : 'ENTROPÍA $entropyPct%', Offset(sw / 2, sh - 28), entColor, isCritical ? 11.0 : 10.0);
     }
-    _txt(canvas, 'DMG \${player.build.damage.toStringAsFixed(0)}  SPD \${player.build.fireRate.toStringAsFixed(1)}', Offset(sw / 2, sh - 14), Colors.white24, 9);
+    _txt(canvas, 'DMG ${player.build.damage.toStringAsFixed(0)}  SPD ${player.build.fireRate.toStringAsFixed(1)}', Offset(sw / 2, sh - 14), Colors.white24, 9);
     if (coreTemp > 0.75) _txt(canvas, '⚠  QUENCH INMINENTE  ⚠', Offset(sw / 2, sh * 0.48), cDanger, 15);
     if (heat.zone == HeatZone.hot && !heat.isOverheated) _txt(canvas, '🔥 CADENCIA REDUCIDA', Offset(sw / 2, sh * 0.53), cDanger.withOpacity(0.85), 10);
     if (heat.zone == HeatZone.cool) _drawColdAura(canvas);
+    // ── Indicador de casco (hull integrity) ──
+    _drawHullBar(canvas);
+  }
+
+  void _drawHullBar(Canvas canvas) {
+    final hull = player.hullIntegrity / 100;
+    if (hull >= 0.99) return; // no mostrar si está lleno
+    final x = 14.0, y = sh * 0.35 + sh * 0.28 + 22, w = 10.0, h = 40.0;
+    final hullColor = hull > 0.6 ? cGreen : hull > 0.3 ? cGold : cRed;
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(3)), Paint()..color = Colors.white12);
+    final f = h * hull.clamp(0, 1);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + h - f, w, f), const Radius.circular(3)),
+      Paint()..color = hullColor..maskFilter = hull < 0.3 ? const MaskFilter.blur(BlurStyle.normal, 4) : null);
+    _txt(canvas, 'HULL', Offset(x + w / 2, y + h + 12), hullColor.withOpacity(0.7), 7);
+    if (hull < 0.3) _txt(canvas, '💀', Offset(x + w / 2, y - 12), cRed, 12);
   }
 
   void _drawColdAura(Canvas canvas) {
