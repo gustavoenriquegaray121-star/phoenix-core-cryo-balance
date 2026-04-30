@@ -202,11 +202,63 @@ class PlayerTracker {
 
 class PlayerProfile {
   int left = 0, right = 0, shoot = 0;
-  void register(MoveType m) { if (m == MoveType.left) left++; else if (m == MoveType.right) right++; else if (m == MoveType.shoot) shoot++; }
-  MoveType dominantMove() { if (left > right && left > shoot) return MoveType.left; if (right > left && right > shoot) return MoveType.right; return MoveType.shoot; }
-  double predictability() { final total = left + right + shoot; if (total == 0) return 0; final mx = [left, right, shoot].reduce((a, b) => a > b ? a : b); return mx / total; }
-  void decay() { left = (left * 0.8).toInt(); right = (right * 0.8).toInt(); shoot = (shoot * 0.8).toInt(); }
+  // Métricas de estilo
+  int nearDeathSurvives = 0; // cuántas veces sobrevivió con <10% energía
+  int perfectStreaks = 0;    // kills sin recibir daño
+  int aggressivePushes = 0;  // disparos mientras heat > 70%
+  double avgHeatWhileShooting = 0; int _heatSamples = 0;
+
+  void register(MoveType m) {
+    if (m == MoveType.left) left++;
+    else if (m == MoveType.right) right++;
+    else if (m == MoveType.shoot) shoot++;
+  }
+  void registerHeat(double heat) {
+    _heatSamples++;
+    avgHeatWhileShooting = (avgHeatWhileShooting * (_heatSamples - 1) + heat) / _heatSamples;
+    if (heat > 0.7) aggressivePushes++;
+  }
+  void registerNearDeath() => nearDeathSurvives++;
+  void registerPerfectKill() => perfectStreaks++;
+
+  MoveType dominantMove() {
+    if (left > right && left > shoot) return MoveType.left;
+    if (right > left && right > shoot) return MoveType.right;
+    return MoveType.shoot;
+  }
+  double predictability() {
+    final total = left + right + shoot;
+    if (total == 0) return 0;
+    final mx = [left, right, shoot].reduce((a, b) => a > b ? a : b);
+    return mx / total;
+  }
+
+  // ── ESTILO DE JUGADOR ──────────────────────────────────
+  PlayerStyle get style {
+    if (nearDeathSurvives >= 3) return PlayerStyle.survivor;
+    if (aggressivePushes > shoot * 0.4) return PlayerStyle.aggressive;
+    if (perfectStreaks >= 5 && avgHeatWhileShooting < 0.4) return PlayerStyle.precision;
+    if (predictability() < 0.45) return PlayerStyle.unpredictable;
+    return PlayerStyle.balanced;
+  }
+
+  // Mensaje del núcleo según estilo
+  String get styleMessage => switch(style) {
+    PlayerStyle.aggressive   => 'Estás forzando el núcleo…',
+    PlayerStyle.precision    => 'Precisión… casi quirúrgica.',
+    PlayerStyle.survivor     => 'No sé cómo sigues vivo…',
+    PlayerStyle.unpredictable=> 'Imposible predecirte.',
+    PlayerStyle.balanced     => 'Control óptimo del sistema.',
+  };
+
+  void decay() {
+    left = (left * 0.8).toInt(); right = (right * 0.8).toInt(); shoot = (shoot * 0.8).toInt();
+    aggressivePushes = (aggressivePushes * 0.85).toInt();
+    perfectStreaks = (perfectStreaks * 0.9).toInt();
+  }
 }
+
+enum PlayerStyle { aggressive, precision, survivor, unpredictable, balanced }
 
 class StageConfig {
   final int stageNum; final String name, bossName, bossAsset; final Color bossColor; final StageHazard hazard; final double bossHpBase, bossHpPerCycle; final List<CinematicScene> scenes;
@@ -1114,10 +1166,16 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
     if (_nucleusVoiceTimer <= 0) {
       _nucleusVoiceTimer = 12 + _rng.nextDouble() * 8;
       final ef = _res.entropyFrac; final hf = _heat.fraction; final ht = _player.hullIntegrity / 100;
+      // Prioridad: estado crítico > estilo de jugador > normal
       if (ef > 0.9) { _nucleusMessage = 'ESTABILIDAD COMPROMETIDA…'; _nucleusMessageLife = 3.5; }
       else if (hf > 0.85) { _nucleusMessage = 'No voy a resistir mucho más…'; _nucleusMessageLife = 3.0; }
       else if (_bossAlive) { _nucleusMessage = 'Esa cosa… no es normal…'; _nucleusMessageLife = 3.0; }
       else if (ht < 0.3) { _nucleusMessage = 'Si caemos… todo se pierde…'; _nucleusMessageLife = 3.5; }
+      else if (_rng.nextDouble() < 0.4) {
+        // 40% del tiempo — el núcleo comenta tu ESTILO de juego
+        _nucleusMessage = _profile.styleMessage;
+        _nucleusMessageLife = 3.0;
+      }
       else if (hf < 0.3 && ef < 0.4) { _nucleusMessage = 'Sistema estable. Por ahora.'; _nucleusMessageLife = 2.5; }
     }
 
@@ -1225,6 +1283,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
 
   void _fireLaser() {
     _res.applyShoot(_player.build);
+    _profile.registerHeat(_heat.fraction); // registro de estilo
     final isTriple = _player.build.hasTripleShot || _player.build.fireRate >= 1.8;
     // Triple en Comandante genera más heat
     _heat.applyShot(_player.build, _diff);
@@ -1362,6 +1421,7 @@ class _GState extends State<GameScreen> with SingleTickerProviderStateMixin {
             _res.energy -= bul.fromBoss ? 14 : 16; _heat.applyShot(_player.build, _diff);
             _coreTemp += bul.fromBoss ? 0.055 : 0.065; hapticHeavy();
             _spawnBurst(px, py, cRed, 12); _addFloat(px, py - 20, '💀 SIN CASCO', cRed);
+            if (_res.energy < 15) _profile.registerNearDeath(); // sobreviviendo al límite
           }
         }
         final nx = _sw / 2, ny = _sh * 0.87;
