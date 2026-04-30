@@ -164,8 +164,6 @@ class DifficultyConfig {
   bool   get boss4TripleFromStart => level == Difficulty.comandante;
   // Comandante empieza con disparo doble desde Stage 1
   bool   get startsWithDouble => level == Difficulty.comandante;
-  // Comandante empieza con disparo doble desde el inicio
-  bool   get startsWithDouble => level == Difficulty.comandante;
   bool   get hasFinisherMode => true; // todos los niveles
   // Finisher threshold — % HP para activar huida
   double get finisherThreshold => switch (level) { Difficulty.amateur => 0.12, Difficulty.veterano => 0.10, Difficulty.comandante => 0.08 };
