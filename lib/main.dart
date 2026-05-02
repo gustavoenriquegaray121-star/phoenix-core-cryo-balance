@@ -184,7 +184,7 @@ class FinisherState {
   bool get isChasing => phase == FinisherPhase.chasing;
 }
 
-enum AppScreen  { dockIntro, intro, menu, diffSelect, playing, stageClear, cinematic, gameOver, victory }
+enum AppScreen  { dockIntro, preIntro, intro, menu, diffSelect, playing, stageClear, cinematic, cinematicText, gameOver, victory, finalNave, finalFinal }
 enum GamePhase  { combat, decision, boss }
 enum EnemyKind  { interceptor, frigate, parasite, corrupter }
 enum PowerUpKind{ rapidFire, tripleShot, shield, coreArmor, energyBoost }
@@ -261,8 +261,8 @@ class PlayerProfile {
 enum PlayerStyle { aggressive, precision, survivor, unpredictable, balanced }
 
 class StageConfig {
-  final int stageNum; final String name, bossName, bossAsset; final Color bossColor; final StageHazard hazard; final double bossHpBase, bossHpPerCycle; final List<CinematicScene> scenes;
-  const StageConfig({required this.stageNum, required this.name, required this.bossName, required this.bossAsset, required this.bossColor, required this.hazard, required this.bossHpBase, required this.bossHpPerCycle, required this.scenes});
+  final int stageNum; final String name, bossName, bossAsset, misionVideo; final Color bossColor; final StageHazard hazard; final double bossHpBase, bossHpPerCycle; final List<CinematicScene> scenes;
+  const StageConfig({required this.stageNum, required this.name, required this.bossName, required this.bossAsset, required this.bossColor, required this.hazard, required this.bossHpBase, required this.bossHpPerCycle, required this.scenes, this.misionVideo = ''});
 }
 class CinematicScene {
   final String location, speaker, speakerColor, dialogue, imageAsset;
@@ -270,20 +270,20 @@ class CinematicScene {
 }
 
 const _stages = [
-  StageConfig(stageNum:1, name:'NEBULOSA DE ORIÓN', bossName:'THE FROZEN WARLORD', bossAsset:'assets/images/boss.png', bossColor:cWarlord, hazard:StageHazard.none, bossHpBase:420, bossHpPerCycle:80, scenes:[]),
-  StageConfig(stageNum:2, name:'ASTEROIDES DE KHAROS', bossName:'EL SEGADOR DE ALMAS', bossAsset:'assets/images/jefe2.png', bossColor:cGreen, hazard:StageHazard.asteroids, bossHpBase:380, bossHpPerCycle:70, scenes:[
+  StageConfig(stageNum:1, name:'NEBULOSA DE ORIÓN', bossName:'THE FROZEN WARLORD', bossAsset:'assets/images/boss.png', bossColor:cWarlord, hazard:StageHazard.none, bossHpBase:420, bossHpPerCycle:80, misionVideo:'assets/videos/primera_mision.mp4', scenes:[]),
+  StageConfig(stageNum:2, name:'ASTEROIDES DE KHAROS', bossName:'EL SEGADOR DE ALMAS', bossAsset:'assets/images/jefe2.png', bossColor:cGreen, hazard:StageHazard.asteroids, bossHpBase:380, bossHpPerCycle:70, misionVideo:'assets/videos/segunda_mision.mp4', scenes:[
     CinematicScene(location:'DOCK 7A — BASE PHOENIX', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Comandante… lo consiguió.\nEl núcleo cuántico llegó intacto.\nLa colonia Elysium ya está recibiendo energía estable.', imageAsset:'assets/images/escena1jefe2.jpg'),
     CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Recibimos señales de alerta desde los Asteroides de Kharos.\nAlgo está atacando nuestros convoyes…\nLe llamamos El Segador de Almas del Abismo.', imageAsset:'assets/images/escena2jefe2.jpg'),
     CinematicScene(location:'DOCK 7A — HANGAR', speaker:'USUARIO', speakerColor:'ice', dialogue:'¿Qué necesita que haga?', imageAsset:'assets/images/escena3jefe2.jpg'),
     CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Vaya allí y deténgalo antes de que alcance el Núcleo Central de Elysium.\nSu nave está siendo reparada. Descanse.\nEsta entidad es mucho más antigua… y más peligrosa.', imageAsset:'assets/images/escena4jefe2.jpg'),
   ]),
-  StageConfig(stageNum:3, name:'ZONA NEUTRÓNICA OMEGA', bossName:'EL DEVORADOR DE SUEÑOS', bossAsset:'assets/images/jefe3.png', bossColor:cPurple, hazard:StageHazard.gravityTimer, bossHpBase:520, bossHpPerCycle:90, scenes:[
+  StageConfig(stageNum:3, name:'ZONA NEUTRÓNICA OMEGA', bossName:'EL DEVORADOR DE SUEÑOS', bossAsset:'assets/images/jefe3.png', bossColor:cPurple, hazard:StageHazard.gravityTimer, bossHpBase:520, bossHpPerCycle:90, misionVideo:'assets/videos/tercera_mision.mp4', scenes:[
     CinematicScene(location:'DOCK 7A — BASE PHOENIX', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'Comandante… excelente trabajo.\nEl Segador fue neutralizado.\nPermítame presentarle a la Doctora Denise Moreau.', imageAsset:'assets/images/escena1jefe3.jpg'),
     CinematicScene(location:'SALA DE ANÁLISIS', speaker:'DRA. DENISE MOREAU', speakerColor:'ice', dialogue:'Lo que enfrentaremos no es una nave enemiga…\nes una entidad biológica altamente evolucionada.', imageAsset:'assets/images/escena2jefe3.jpg'),
     CinematicScene(location:'CAFÉ ALTEA', speaker:'DRA. DENISE MOREAU', speakerColor:'ice', dialogue:'Ataca la mente, genera alucinaciones y distorsiona la realidad.\nSi logra establecer una cabeza de playa, la infestación será imposible de detener.', imageAsset:'assets/images/escena3jefe3.jpg'),
     CinematicScene(location:'DOCK 7A — HANGAR', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'¡ADVERTENCIA: campo gravitacional activo!\nNeutralice al jefe antes de ser absorbido.\nTiene 75 segundos desde que aparezca.', imageAsset:'assets/images/escena4jefe3.jpg'),
   ]),
-  StageConfig(stageNum:4, name:'SECTOR OMEGA-9 — REALIDAD ESPEJO', bossName:'ANTI-PHOENIX UNIT 01', bossAsset:'assets/images/jefe4.png', bossColor:cRed, hazard:StageHazard.mirrorPortal, bossHpBase:999, bossHpPerCycle:0, scenes:[
+  StageConfig(stageNum:4, name:'SECTOR OMEGA-9 — REALIDAD ESPEJO', bossName:'ANTI-PHOENIX UNIT 01', bossAsset:'assets/images/jefe4.png', bossColor:cRed, hazard:StageHazard.mirrorPortal, bossHpBase:999, bossHpPerCycle:0, misionVideo:'assets/videos/cuarta_mision.mp4', scenes:[
     CinematicScene(location:'PUENTE DE MANDO', speaker:'GENERAL G.G.', speakerColor:'gold', dialogue:'¡Comandante! Los sensores detectaron una anomalía masiva en el sector Omega-9.\nEs un portal dimensional que se está abriendo.', imageAsset:'assets/images/escena1jefe4.jpg'),
     CinematicScene(location:'SALA DE ANÁLISIS', speaker:'DRA. DENISE MOREAU', speakerColor:'ice', dialogue:'La firma energética es completamente desconocida.\nSea lo que sea que intenta cruzar, viene con poder enorme.', imageAsset:'assets/images/escena2jefe4.jpg'),
     CinematicScene(location:'SECTOR OMEGA-9', speaker:'USUARIO', speakerColor:'ice', dialogue:'Del portal emerge una nave casi idéntica a la Phoenix… oscura y roja.\nEl emblema está invertido.\n"ANTI-PHOENIX" pintado en el casco con plasma.', imageAsset:'assets/images/escena3jefe4.jpg'),
@@ -447,6 +447,45 @@ void drawSprite(Canvas canvas, ui.Image img, Offset center, double size, {double
 // ══════════════════════════════════════════════════════════
 // DOCK SCENE
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// VIDEO SCENE — Reproductor genérico con tap para saltar
+// ══════════════════════════════════════════════════════════
+class _VideoScene extends StatefulWidget {
+  final String asset; final VoidCallback onFinish;
+  const _VideoScene({required this.asset, required this.onFinish});
+  @override State<_VideoScene> createState() => _VideoSceneState();
+}
+class _VideoSceneState extends State<_VideoScene> {
+  late VideoPlayerController _ctrl; bool _initialized = false;
+  @override void initState() {
+    super.initState();
+    _ctrl = VideoPlayerController.asset(widget.asset)
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() => _initialized = true);
+        _ctrl.play();
+        _ctrl.addListener(_onEnd);
+      });
+  }
+  void _onEnd() {
+    if (_ctrl.value.position >= _ctrl.value.duration && _ctrl.value.duration.inMilliseconds > 0) {
+      _ctrl.removeListener(_onEnd);
+      if (mounted) widget.onFinish();
+    }
+  }
+  @override void dispose() { _ctrl.removeListener(_onEnd); _ctrl.dispose(); super.dispose(); }
+  @override Widget build(BuildContext ctx) => Scaffold(backgroundColor: Colors.black,
+    body: GestureDetector(onTap: widget.onFinish, child: Stack(children: [
+      if (_initialized) SizedBox.expand(child: FittedBox(fit: BoxFit.cover,
+        child: SizedBox(width: _ctrl.value.size.width, height: _ctrl.value.size.height, child: VideoPlayer(_ctrl))))
+      else const Center(child: CircularProgressIndicator(color: cIce)),
+      Positioned(bottom: 24, right: 20, child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white24)),
+        child: const Text('toca para saltar', style: TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'Orbitron')))),
+    ])));
+}
+
 class DockScene extends StatefulWidget {
   final VoidCallback onFinish; const DockScene({super.key, required this.onFinish}); @override State<DockScene> createState() => _DockSceneState();
 }
@@ -528,7 +567,7 @@ class _AppRootState extends State<AppRoot> {
   void _loadBests() async { final p = await SharedPreferences.getInstance(); setState(() { _bestAmateur = p.getInt('best_amateur') ?? 0; _bestVeterano = p.getInt('best_veterano') ?? 0; _bestComandante = p.getInt('best_comandante') ?? 0; _totalRuns = p.getInt('total_runs') ?? 0; }); }
   int get _currentBest => switch (_diff.level) { Difficulty.amateur => _bestAmateur, Difficulty.veterano => _bestVeterano, Difficulty.comandante => _bestComandante };
 
-  void _onDockDone() { _audio.startAmbient(); setState(() => _screen = AppScreen.intro); }
+  void _onDockDone() { _audio.startAmbient(); setState(() => _screen = AppScreen.preIntro); }
   void _onIntroDone() => setState(() => _screen = AppScreen.menu);
 
   void _startWithDiff(DifficultyConfig diff) {
@@ -539,7 +578,7 @@ class _AppRootState extends State<AppRoot> {
 
   void _onStageClear(int score, PlayerBuild build, int dmg) {
     _score = score; _carry = build; _stagesReached = _currentStage; _totalDamageDealt += dmg;
-    if (_currentStage >= 4) { _save(_score); setState(() => _screen = AppScreen.victory); }
+    if (_currentStage >= 4) { _save(_score); setState(() => _screen = AppScreen.finalNave); }
     else setState(() => _screen = AppScreen.stageClear);
   }
   void _onCinematicDone() { _currentStage++; setState(() => _screen = AppScreen.playing); }
@@ -550,13 +589,19 @@ class _AppRootState extends State<AppRoot> {
 
   @override Widget build(BuildContext ctx) => switch (_screen) {
     AppScreen.dockIntro  => DockScene(onFinish: _onDockDone),
+    AppScreen.preIntro   => _VideoScene(asset: 'assets/videos/batalla_regreso.mp4', onFinish: () => setState(() => _screen = AppScreen.intro)),
     AppScreen.intro      => CinematicScreen(scenes: _introScenes, onDone: _onIntroDone),
     AppScreen.menu       => MenuScreen(bestAmateur: _bestAmateur, bestVeterano: _bestVeterano, bestComandante: _bestComandante, totalRuns: _totalRuns, onStart: () => setState(() => _screen = AppScreen.diffSelect), sprites: _sprites),
     AppScreen.diffSelect => DiffSelectScreen(onSelect: _startWithDiff, bestAmateur: _bestAmateur, bestVeterano: _bestVeterano, bestComandante: _bestComandante),
     AppScreen.playing    => GameScreen(key: ValueKey('s${_currentStage}_${_diff.level.name}'), stageConfig: _stages[_currentStage - 1], initialBuild: _carry, initialScore: _score, onStageClear: _onStageClear, onGameOver: _gameOver, audio: _audio, sprites: _sprites, diff: _diff),
     AppScreen.stageClear => StageClearScreen(stageNum: _currentStage, diff: _diff, onContinue: () => setState(() => _screen = AppScreen.cinematic)),
-    AppScreen.cinematic  => CinematicScreen(scenes: _stages[_currentStage].scenes, onDone: _onCinematicDone),
+    AppScreen.cinematic  => _stages[_currentStage - 1].misionVideo.isNotEmpty
+      ? _VideoScene(asset: _stages[_currentStage - 1].misionVideo, onFinish: () => setState(() => _screen = AppScreen.cinematicText))
+      : CinematicScreen(scenes: _stages[_currentStage].scenes, onDone: _onCinematicDone),
+    AppScreen.cinematicText => CinematicScreen(scenes: _stages[_currentStage].scenes, onDone: _onCinematicDone),
     AppScreen.gameOver   => GameOverScreen(score: _score, best: _currentBest, diff: _diff, stagesReached: _stagesReached, runDuration: _runDuration, totalDmg: _totalDamageDealt, onRetry: () => _startWithDiff(_diff), onChangeDiff: () => setState(() => _screen = AppScreen.diffSelect), onMenu: () => setState(() => _screen = AppScreen.menu)),
+    AppScreen.finalNave  => _VideoScene(asset: 'assets/videos/final_nave.mp4', onFinish: () => setState(() => _screen = AppScreen.finalFinal)),
+    AppScreen.finalFinal  => _VideoScene(asset: 'assets/videos/final_final.mp4', onFinish: () => setState(() => _screen = AppScreen.menu)),
     AppScreen.victory    => VictoryScreen(score: _score, best: _currentBest, diff: _diff, runDuration: _runDuration, totalDmg: _totalDamageDealt, onTryNextDiff: () { final next = switch (_diff.level) { Difficulty.amateur => const DifficultyConfig(Difficulty.veterano), Difficulty.veterano => const DifficultyConfig(Difficulty.comandante), Difficulty.comandante => null }; if (next != null) _startWithDiff(next); else setState(() => _screen = AppScreen.menu); }, onMenu: () => setState(() => _screen = AppScreen.menu)),
   };
 }
