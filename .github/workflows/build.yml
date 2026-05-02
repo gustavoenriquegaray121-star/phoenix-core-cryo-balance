@@ -106,6 +106,32 @@ jobs:
           echo "=== Total ==="
           du -sh assets/videos/
 
+      - name: Create launcher icons if missing
+        run: |
+          for size_dir in "mipmap-mdpi:48" "mipmap-hdpi:72" "mipmap-xhdpi:96" "mipmap-xxhdpi:144" "mipmap-xxxhdpi:192"; do
+            dir="android/app/src/main/res/${size_dir%%:*}"
+            size="${size_dir##*:}"
+            mkdir -p "$dir"
+            if [ ! -f "$dir/ic_launcher.png" ]; then
+              python3 -c "
+          import struct, zlib
+          w,h=$size,$size
+          def mkpng(w,h):
+            sig=b'\x89PNG\r\n\x1a\n'
+            ihdr=struct.pack('>IIBBBBB',w,h,8,2,0,0,0)
+            rows=b''.join(b'\x00'+bytes([int(i*200/h),int(80),min(255,30+i)]*w) for i in range(h))
+            idat=zlib.compress(rows)
+            def ch(t,d):
+              crc=zlib.crc32(t+d)&0xffffffff
+              return struct.pack('>I',len(d))+t+d+struct.pack('>I',crc)
+            return sig+ch(b'IHDR',ihdr)+ch(b'IDAT',idat)+ch(b'IEND',b'')
+          open('$dir/ic_launcher.png','wb').write(mkpng(w,h))
+          "
+              cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png" 2>/dev/null || true
+            fi
+          done
+          echo "Icons:" && find android/app/src/main/res/mipmap-* -name "*.png" 2>/dev/null | head -10
+
       - name: Build APK
         run: flutter build apk --release
 
