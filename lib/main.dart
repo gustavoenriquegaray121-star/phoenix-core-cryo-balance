@@ -456,45 +456,131 @@ class _VideoScene extends StatefulWidget {
   @override State<_VideoScene> createState() => _VideoSceneState();
 }
 class _VideoSceneState extends State<_VideoScene> {
-  late VideoPlayerController _ctrl; bool _initialized = false;
+  VideoPlayerController? _ctrl;
+  bool _initialized = false;
+  bool _error = false;
+
   @override void initState() {
     super.initState();
-    _ctrl = VideoPlayerController.asset(widget.asset)
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() => _initialized = true);
-        _ctrl.play();
-        _ctrl.addListener(_onEnd);
-      });
+    _initVideo();
   }
-  void _onEnd() {
-    if (_ctrl.value.position >= _ctrl.value.duration && _ctrl.value.duration.inMilliseconds > 0) {
-      _ctrl.removeListener(_onEnd);
+
+  Future<void> _initVideo() async {
+    try {
+      final ctrl = VideoPlayerController.asset(widget.asset);
+      await ctrl.initialize();
+      if (!mounted) { ctrl.dispose(); return; }
+      ctrl.addListener(_onEnd);
+      setState(() { _ctrl = ctrl; _initialized = true; });
+      ctrl.play();
+    } catch (e) {
+      // Si el video no existe o falla → saltar directamente
       if (mounted) widget.onFinish();
     }
   }
-  @override void dispose() { _ctrl.removeListener(_onEnd); _ctrl.dispose(); super.dispose(); }
-  @override Widget build(BuildContext ctx) => Scaffold(backgroundColor: Colors.black,
+
+  void _onEnd() {
+    final c = _ctrl;
+    if (c == null) return;
+    if (c.value.position >= c.value.duration && c.value.duration.inMilliseconds > 0) {
+      c.removeListener(_onEnd);
+      if (mounted) widget.onFinish();
+    }
+  }
+
+  @override void dispose() {
+    _ctrl?.removeListener(_onEnd);
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override Widget build(BuildContext ctx) => Scaffold(
+    backgroundColor: Colors.black,
     body: GestureDetector(onTap: widget.onFinish, child: Stack(children: [
-      if (_initialized) SizedBox.expand(child: FittedBox(fit: BoxFit.cover,
-        child: SizedBox(width: _ctrl.value.size.width, height: _ctrl.value.size.height, child: VideoPlayer(_ctrl))))
-      else const Center(child: CircularProgressIndicator(color: cIce)),
+      if (_initialized && _ctrl != null)
+        SizedBox.expand(child: FittedBox(fit: BoxFit.cover,
+          child: SizedBox(width: _ctrl!.value.size.width, height: _ctrl!.value.size.height,
+            child: VideoPlayer(_ctrl!))))
+      else
+        const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(color: cIce),
+          SizedBox(height: 12),
+          Text('Cargando...', style: TextStyle(color: Colors.white38, fontSize: 11, fontFamily: 'Orbitron')),
+        ])),
       Positioned(bottom: 24, right: 20, child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white24)),
-        child: const Text('toca para saltar', style: TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'Orbitron')))),
+        decoration: BoxDecoration(color: Colors.black.withOpacity(0.55),
+          borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white24)),
+        child: const Text('toca para saltar',
+          style: TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'Orbitron')))),
     ])));
 }
 
 class DockScene extends StatefulWidget {
   final VoidCallback onFinish; const DockScene({super.key, required this.onFinish}); @override State<DockScene> createState() => _DockSceneState();
 }
-class _DockSceneState extends State<DockScene> {
-  late VideoPlayerController _ctrl; bool _initialized = false;
-  @override void initState() { super.initState(); _ctrl = VideoPlayerController.asset('assets/videos/intro_dock.mp4')..initialize().then((_) { if (!mounted) return; setState(() => _initialized = true); _ctrl.play(); _ctrl.addListener(_onVideoEnd); }); }
-  void _onVideoEnd() { if (_ctrl.value.position >= _ctrl.value.duration && _ctrl.value.duration.inMilliseconds > 0) { _ctrl.removeListener(_onVideoEnd); if (mounted) widget.onFinish(); } }
-  @override void dispose() { _ctrl.removeListener(_onVideoEnd); _ctrl.dispose(); super.dispose(); }
-  @override Widget build(BuildContext ctx) => Scaffold(backgroundColor: Colors.black, body: GestureDetector(onTap: widget.onFinish, child: Stack(children: [if (_initialized) SizedBox.expand(child: FittedBox(fit: BoxFit.cover, child: SizedBox(width: _ctrl.value.size.width, height: _ctrl.value.size.height, child: VideoPlayer(_ctrl)))) else const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(color: cIce), SizedBox(height: 16), Text('PHOENIX PROJECT', style: TextStyle(color: cGold, fontSize: 14, fontFamily: 'Orbitron', letterSpacing: 2))])), if (_initialized) Positioned(bottom: 24, right: 20, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white24)), child: const Text('toca para saltar', style: TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'Orbitron'))))])));
+class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMixin {
+  VideoPlayerController? _ctrl; bool _initialized = false;
+  bool _showingSplash = true; // Muestra logo primero
+  late AnimationController _splashAnim;
+  late Animation<double> _splashFade;
+
+  @override void initState() {
+    super.initState();
+    // Animación del splash logo
+    _splashAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..forward();
+    _splashFade = CurvedAnimation(parent: _splashAnim, curve: Curves.easeIn);
+    // Después de 2.5s mostrar el video
+    Future.delayed(const Duration(milliseconds: 2500), _startVideo);
+  }
+
+  Future<void> _startVideo() async {
+    if (!mounted) return;
+    setState(() => _showingSplash = false);
+    try {
+      final ctrl = VideoPlayerController.asset('assets/videos/intro_dock.mp4');
+      await ctrl.initialize();
+      if (!mounted) { ctrl.dispose(); return; }
+      ctrl.addListener(_onVideoEnd);
+      setState(() { _ctrl = ctrl; _initialized = true; });
+      ctrl.play();
+    } catch (_) { if (mounted) widget.onFinish(); }
+  }
+
+  void _onVideoEnd() {
+    final c = _ctrl; if (c == null) return;
+    if (c.value.position >= c.value.duration && c.value.duration.inMilliseconds > 0) {
+      c.removeListener(_onVideoEnd); if (mounted) widget.onFinish();
+    }
+  }
+
+  @override void dispose() { _splashAnim.dispose(); _ctrl?.removeListener(_onVideoEnd); _ctrl?.dispose(); super.dispose(); }
+
+  @override Widget build(BuildContext ctx) => Scaffold(backgroundColor: Colors.black, body: GestureDetector(onTap: _showingSplash ? null : widget.onFinish, child: Stack(children: [
+    // ── SPLASH LOGO ────────────────────────────────────
+    if (_showingSplash) Positioned.fill(child: FadeTransition(opacity: _splashFade, child: Container(
+      color: Colors.black,
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Image.asset('assets/images/splash_logo.png', width: 320, height: 320, fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, color: cFire, size: 120)),
+        const SizedBox(height: 24),
+        const Text('PHOENIX CORE', style: TextStyle(color: cFire, fontSize: 22, fontFamily: 'Orbitron', fontWeight: FontWeight.bold, letterSpacing: 4)),
+        const SizedBox(height: 6),
+        const Text('CRYO BALANCE', style: TextStyle(color: cIce, fontSize: 13, fontFamily: 'Orbitron', letterSpacing: 6)),
+      ]),
+    ))),
+    // ── VIDEO ─────────────────────────────────────────
+    if (!_showingSplash && _initialized && _ctrl != null)
+      SizedBox.expand(child: FittedBox(fit: BoxFit.cover,
+        child: SizedBox(width: _ctrl!.value.size.width, height: _ctrl!.value.size.height, child: VideoPlayer(_ctrl!)))),
+    if (!_showingSplash && !_initialized)
+      const Center(child: CircularProgressIndicator(color: cIce)),
+    if (!_showingSplash && _initialized)
+      Positioned(bottom: 24, right: 20, child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white24)),
+        child: const Text('toca para saltar', style: TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'Orbitron')))),
+  ])));
 }
 
 class _CinDust { double x, y, speed, size; _CinDust({required this.x, required this.y, required this.speed, required this.size}); }
@@ -567,7 +653,11 @@ class _AppRootState extends State<AppRoot> {
   void _loadBests() async { final p = await SharedPreferences.getInstance(); setState(() { _bestAmateur = p.getInt('best_amateur') ?? 0; _bestVeterano = p.getInt('best_veterano') ?? 0; _bestComandante = p.getInt('best_comandante') ?? 0; _totalRuns = p.getInt('total_runs') ?? 0; }); }
   int get _currentBest => switch (_diff.level) { Difficulty.amateur => _bestAmateur, Difficulty.veterano => _bestVeterano, Difficulty.comandante => _bestComandante };
 
-  void _onDockDone() { _audio.startAmbient(); setState(() => _screen = AppScreen.preIntro); }
+  void _onDockDone() {
+    _audio.startAmbient();
+    // Solo mostrar preIntro si el video existe — si no, ir directo a intro
+    setState(() => _screen = AppScreen.preIntro);
+  }
   void _onIntroDone() => setState(() => _screen = AppScreen.menu);
 
   void _startWithDiff(DifficultyConfig diff) {
