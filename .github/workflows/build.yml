@@ -35,72 +35,30 @@ jobs:
       - name: Create videos directory
         run: mkdir -p assets/videos
 
-      - name: Download intro_dock.mp4
-        run: |
-          FILE_ID="1Sk--RSGdVOnyTYxYYPpWBaaHn_YA5w5F"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/intro_dock.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/intro_dock.mp4
+      - name: Install gdown
+        run: pip install gdown --quiet
 
-      - name: Download batalla_regreso.mp4
+      - name: Download all videos from Google Drive
         run: |
-          FILE_ID="1_X3PtgAelk-BGPSQXSSsXQn8B6aiKfve"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/batalla_regreso.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/batalla_regreso.mp4
-
-      - name: Download primera_mision.mp4
-        run: |
-          FILE_ID="1wdwT1BUt73Ii9BRAfgwmmGfxbTdxxvyw"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/primera_mision.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/primera_mision.mp4
-
-      - name: Download segunda_mision.mp4
-        run: |
-          FILE_ID="1So57nA9zj9939Wm3Ersd6EHElXIXwYqP"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/segunda_mision.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/segunda_mision.mp4
-
-      - name: Download tercera_mision.mp4
-        run: |
-          FILE_ID="1ZUyvU44swFDlMHSjPkjlcWjhQDCvGcjD"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/tercera_mision.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/tercera_mision.mp4
-
-      - name: Download cuarta_mision.mp4
-        run: |
-          FILE_ID="174rrFFbx6GSfKwsz1s0QbvQYtxqwKRSB"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/cuarta_mision.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/cuarta_mision.mp4
-
-      - name: Download final_nave.mp4
-        run: |
-          FILE_ID="1RYm3ZfUz7OPRrPsf7q-qLfrFdClz6ma-"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/final_nave.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/final_nave.mp4
-
-      - name: Download final_final.mp4
-        run: |
-          FILE_ID="1HEYd1MzZJiqbFMprAWWLuABEb4CoXiRM"
-          curl -L "https://drive.google.com/uc?export=download&id=${FILE_ID}" \
-            -o assets/videos/final_final.mp4 \
-            --retry 3 --retry-delay 5
-          ls -lh assets/videos/final_final.mp4
-
-      - name: Verify all videos downloaded
-        run: |
+          mkdir -p assets/videos
+          
+          declare -A videos=(
+            ["intro_dock.mp4"]="1Sk--RSGdVOnyTYxYYPpWBaaHn_YA5w5F"
+            ["batalla_regreso.mp4"]="1_X3PtgAelk-BGPSQXSSsXQn8B6aiKfve"
+            ["primera_mision.mp4"]="1wdwT1BUt73Ii9BRAfgwmmGfxbTdxxvyw"
+            ["segunda_mision.mp4"]="1So57nA9zj9939Wm3Ersd6EHElXIXwYqP"
+            ["tercera_mision.mp4"]="1ZUyvU44swFDlMHSjPkjlcWjhQDCvGcjD"
+            ["cuarta_mision.mp4"]="174rrFFbx6GSfKwsz1s0QbvQYtxqwKRSB"
+            ["final_nave.mp4"]="1RYm3ZfUz7OPRrPsf7q-qLfrFdClz6ma-"
+            ["final_final.mp4"]="1HEYd1MzZJiqbFMprAWWLuABEb4CoXiRM"
+          )
+          
+          for filename in "${!videos[@]}"; do
+            id="${videos[$filename]}"
+            echo "Descargando $filename (ID: $id)..."
+            gdown "https://drive.google.com/uc?id=${id}" -O "assets/videos/${filename}" --fuzzy ||             gdown "${id}" -O "assets/videos/${filename}" ||             echo "WARNING: No se pudo descargar $filename"
+          done
+          
           echo "=== Videos descargados ==="
           ls -lh assets/videos/
           echo "=== Total ==="
