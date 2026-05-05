@@ -8,19 +8,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
+      - uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
           channel: 'stable'
@@ -28,76 +24,38 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # ══════════════════════════════════════════════════════
-      # DESCARGA DE VIDEOS DESDE GOOGLE DRIVE
-      # Orden narrativo: intro → batalla_regreso → misiones → final
-      # ══════════════════════════════════════════════════════
-      - name: Create videos directory
-        run: mkdir -p assets/videos
-
-      - name: Install gdown
-        run: pip install gdown --quiet
-
-      - name: Download all videos from Google Drive
+      - name: Fix icon names
         run: |
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher_1.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher_1.png android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-hdpi/ic_launcher_1.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-hdpi/ic_launcher_1.png android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-xhdpi/ic_launcher_2.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-xhdpi/ic_launcher_2.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-xxhdpi/ic_launcher_3.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-xxhdpi/ic_launcher_3.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_4.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png 2>/dev/null || true
+          cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_4.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png 2>/dev/null || true
+          echo "Icons ready"
+
+      - name: Download videos
+        run: |
+          pip install gdown -q
           mkdir -p assets/videos
-          
-          declare -A videos=(
-            ["intro_dock.mp4"]="1Sk--RSGdVOnyTYxYYPpWBaaHn_YA5w5F"
-            ["batalla_regreso.mp4"]="1_X3PtgAelk-BGPSQXSSsXQn8B6aiKfve"
-            ["primera_mision.mp4"]="1wdwT1BUt73Ii9BRAfgwmmGfxbTdxxvyw"
-            ["segunda_mision.mp4"]="1So57nA9zj9939Wm3Ersd6EHElXIXwYqP"
-            ["tercera_mision.mp4"]="1ZUyvU44swFDlMHSjPkjlcWjhQDCvGcjD"
-            ["cuarta_mision.mp4"]="174rrFFbx6GSfKwsz1s0QbvQYtxqwKRSB"
-            ["final_nave.mp4"]="1RYm3ZfUz7OPRrPsf7q-qLfrFdClz6ma-"
-            ["final_final.mp4"]="1HEYd1MzZJiqbFMprAWWLuABEb4CoXiRM"
-          )
-          
-          for filename in "${!videos[@]}"; do
-            id="${videos[$filename]}"
-            echo "Descargando $filename (ID: $id)..."
-            gdown "https://drive.google.com/uc?id=${id}" -O "assets/videos/${filename}" --fuzzy ||             gdown "${id}" -O "assets/videos/${filename}" ||             echo "WARNING: No se pudo descargar $filename"
-          done
-          
-          echo "=== Videos descargados ==="
+          gdown 1Sk--RSGdVOnyTYxYYPpWBaaHn_YA5w5F -O assets/videos/intro_dock.mp4 || true
+          gdown 1_X3PtgAelk-BGPSQXSSsXQn8B6aiKfve -O assets/videos/batalla_regreso.mp4 || true
+          gdown 1wdwT1BUt73Ii9BRAfgwmmGfxbTdxxvyw -O assets/videos/primera_mision.mp4 || true
+          gdown 1So57nA9zj9939Wm3Ersd6EHElXIXwYqP -O assets/videos/segunda_mision.mp4 || true
+          gdown 1ZUyvU44swFDlMHSjPkjlcWjhQDCvGcjD -O assets/videos/tercera_mision.mp4 || true
+          gdown 174rrFFbx6GSfKwsz1s0QbvQYtxqwKRSB -O assets/videos/cuarta_mision.mp4 || true
+          gdown 1RYm3ZfUz7OPRrPsf7q-qLfrFdClz6ma- -O assets/videos/final_nave.mp4 || true
+          gdown 1HEYd1MzZJiqbFMprAWWLuABEb4CoXiRM -O assets/videos/final_final.mp4 || true
           ls -lh assets/videos/
-          echo "=== Total ==="
-          du -sh assets/videos/
-
-      - name: Create launcher icons
-        run: |
-          python3 << 'EOF'
-          import struct, zlib, os
-
-          def make_png(w, h, r, g, b):
-              sig = b'\x89PNG\r\n\x1a\n'
-              ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
-              rows = b''.join(b'\x00' + bytes([r, g, b] * w) for _ in range(h))
-              idat = zlib.compress(rows)
-              def chunk(t, d):
-                  crc = zlib.crc32(t + d) & 0xffffffff
-                  return struct.pack('>I', len(d)) + t + d + struct.pack('>I', crc)
-              return sig + chunk(b'IHDR', ihdr) + chunk(b'IDAT', idat) + chunk(b'IEND', b'')
-
-          sizes = {
-              'mipmap-mdpi': 48, 'mipmap-hdpi': 72,
-              'mipmap-xhdpi': 96, 'mipmap-xxhdpi': 144, 'mipmap-xxxhdpi': 192
-          }
-          for folder, size in sizes.items():
-              path = f'android/app/src/main/res/{folder}'
-              os.makedirs(path, exist_ok=True)
-              png = make_png(size, size, 1, 8, 16)
-              for name in ['ic_launcher.png', 'ic_launcher_round.png']:
-                  with open(f'{path}/{name}', 'wb') as f:
-                      f.write(png)
-              print(f'Created {path}/ic_launcher.png ({size}x{size})')
-          EOF
 
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: phoenix-core-release
           path: build/app/outputs/flutter-apk/app-release.apk
