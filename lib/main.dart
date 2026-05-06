@@ -468,13 +468,16 @@ class _VideoSceneState extends State<_VideoScene> {
   Future<void> _initVideo() async {
     try {
       final ctrl = VideoPlayerController.asset(widget.asset);
-      await ctrl.initialize();
+      // Timeout de 6 segundos — si no carga, salta
+      await ctrl.initialize().timeout(
+        const Duration(seconds: 6),
+        onTimeout: () { ctrl.dispose(); throw Exception('timeout'); },
+      );
       if (!mounted) { ctrl.dispose(); return; }
       ctrl.addListener(_onEnd);
       setState(() { _ctrl = ctrl; _initialized = true; });
       ctrl.play();
     } catch (e) {
-      // Si el video no existe o falla → saltar directamente
       if (mounted) widget.onFinish();
     }
   }
@@ -531,7 +534,8 @@ class _DockSceneState extends State<DockScene> with SingleTickerProviderStateMix
     _splashAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..forward();
     _splashFade = CurvedAnimation(parent: _splashAnim, curve: Curves.easeIn);
     // Después de 2.5s mostrar el video
-    Future.delayed(const Duration(milliseconds: 2500), _startVideo);
+    // Splash 2s luego video, si falla en 6s → sigue
+    Future.delayed(const Duration(milliseconds: 2000), _startVideo);
   }
 
   Future<void> _startVideo() async {
@@ -679,19 +683,17 @@ class _AppRootState extends State<AppRoot> {
 
   @override Widget build(BuildContext ctx) => switch (_screen) {
     AppScreen.dockIntro  => DockScene(onFinish: _onDockDone),
-    AppScreen.preIntro   => _VideoScene(asset: 'assets/videos/batalla_regreso.mp4', onFinish: () => setState(() => _screen = AppScreen.intro)),
+    AppScreen.preIntro   => CinematicScreen(scenes: _batallaScenes, onDone: _onIntroDone),
     AppScreen.intro      => CinematicScreen(scenes: _introScenes, onDone: _onIntroDone),
     AppScreen.menu       => MenuScreen(bestAmateur: _bestAmateur, bestVeterano: _bestVeterano, bestComandante: _bestComandante, totalRuns: _totalRuns, onStart: () => setState(() => _screen = AppScreen.diffSelect), sprites: _sprites),
     AppScreen.diffSelect => DiffSelectScreen(onSelect: _startWithDiff, bestAmateur: _bestAmateur, bestVeterano: _bestVeterano, bestComandante: _bestComandante),
     AppScreen.playing    => GameScreen(key: ValueKey('s${_currentStage}_${_diff.level.name}'), stageConfig: _stages[_currentStage - 1], initialBuild: _carry, initialScore: _score, onStageClear: _onStageClear, onGameOver: _gameOver, audio: _audio, sprites: _sprites, diff: _diff),
     AppScreen.stageClear => StageClearScreen(stageNum: _currentStage, diff: _diff, onContinue: () => setState(() => _screen = AppScreen.cinematic)),
-    AppScreen.cinematic  => _stages[_currentStage - 1].misionVideo.isNotEmpty
-      ? _VideoScene(asset: _stages[_currentStage - 1].misionVideo, onFinish: () => setState(() => _screen = AppScreen.cinematicText))
-      : CinematicScreen(scenes: _stages[_currentStage].scenes, onDone: _onCinematicDone),
+    AppScreen.cinematic  => CinematicScreen(scenes: _stages[_currentStage].scenes, onDone: _onCinematicDone),
     AppScreen.cinematicText => CinematicScreen(scenes: _stages[_currentStage].scenes, onDone: _onCinematicDone),
     AppScreen.gameOver   => GameOverScreen(score: _score, best: _currentBest, diff: _diff, stagesReached: _stagesReached, runDuration: _runDuration, totalDmg: _totalDamageDealt, onRetry: () => _startWithDiff(_diff), onChangeDiff: () => setState(() => _screen = AppScreen.diffSelect), onMenu: () => setState(() => _screen = AppScreen.menu)),
-    AppScreen.finalNave  => _VideoScene(asset: 'assets/videos/final_nave.mp4', onFinish: () => setState(() => _screen = AppScreen.finalFinal)),
-    AppScreen.finalFinal  => _VideoScene(asset: 'assets/videos/final_final.mp4', onFinish: () => setState(() => _screen = AppScreen.menu)),
+    AppScreen.finalNave  => CinematicScreen(scenes: _finalNaveScenes, onDone: () => setState(() => _screen = AppScreen.finalFinal)),
+    AppScreen.finalFinal  => CinematicScreen(scenes: _finalFinalScenes, onDone: () => setState(() => _screen = AppScreen.menu)),
     AppScreen.victory    => VictoryScreen(score: _score, best: _currentBest, diff: _diff, runDuration: _runDuration, totalDmg: _totalDamageDealt, onTryNextDiff: () { final next = switch (_diff.level) { Difficulty.amateur => const DifficultyConfig(Difficulty.veterano), Difficulty.veterano => const DifficultyConfig(Difficulty.comandante), Difficulty.comandante => null }; if (next != null) _startWithDiff(next); else setState(() => _screen = AppScreen.menu); }, onMenu: () => setState(() => _screen = AppScreen.menu)),
   };
 }
@@ -2117,4 +2119,29 @@ class _Btn extends StatelessWidget {
 // Extension para DifficultyConfig
 extension DiffExt on DifficultyConfig {
   bool get heatAffectsAccuracy => level != Difficulty.amateur;
-}
+}  List<CinematicScene> get _batallaScenes => [
+    CinematicScene(speaker: 'SISTEMA', text: 'La batalla fue real.', color: cDanger),
+    CinematicScene(speaker: 'SISTEMA', text: 'El portal... resistio.', color: cDanger),
+    CinematicScene(speaker: 'NUCLEO', text: 'Pero no fue suficiente.', color: cIce),
+    CinematicScene(speaker: 'NUCLEO', text: 'Hay algo al otro lado.', color: cIce),
+    CinematicScene(speaker: 'SISTEMA', text: 'Preparando nueva mision.', color: cGold),
+  ];
+
+  List<CinematicScene> get _finalNaveScenes => [
+    CinematicScene(speaker: 'GENERAL G.G.', text: 'Lo lograste, comandante.', color: cGold),
+    CinematicScene(speaker: 'GENERAL G.G.', text: 'El portal dimensional fue cerrado.', color: cGold),
+    CinematicScene(speaker: 'DRA. DENISE', text: 'Analizamos la tecnologia del Doppelganger.', color: cIce),
+    CinematicScene(speaker: 'DRA. DENISE', text: 'Hemos construido algo nuevo con ella.', color: cIce),
+    CinematicScene(speaker: 'SISTEMA', text: 'PHOENIX v2.0 — en linea.', color: cFire),
+  ];
+
+  List<CinematicScene> get _finalFinalScenes => [
+    CinematicScene(speaker: '???', text: 'La puerta fue cerrada...', color: Colors.white70),
+    CinematicScene(speaker: '???', text: 'por ahora.', color: cShield),
+    CinematicScene(speaker: 'DOPPELGANGER', text: 'Ya se como peleas.', color: cRed),
+    CinematicScene(speaker: 'DOPPELGANGER', text: 'La proxima vez que nos veamos...', color: cRed),
+    CinematicScene(speaker: 'DOPPELGANGER', text: 'No puedes ganarte a ti mismo siendo tu mismo.', color: cDanger),
+    CinematicScene(speaker: 'SISTEMA', text: 'PHOENIX CORE II — COMING SOON', color: cGold),
+  ];
+
+  
