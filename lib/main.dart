@@ -2120,28 +2120,28 @@ class _Btn extends StatelessWidget {
 extension DiffExt on DifficultyConfig {
   bool get heatAffectsAccuracy => level != Difficulty.amateur;
 }  List<CinematicScene> get _batallaScenes => [
-    CinematicScene(location: 'SECTOR ALPHA', speaker: 'SISTEMA', speakerColor: cDanger, dialogue: 'La batalla fue real.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'SECTOR ALPHA', speaker: 'SISTEMA', speakerColor: cDanger, dialogue: 'El portal... resistio.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'NUCLEO CUANTICO', speaker: 'NUCLEO', speakerColor: cIce, dialogue: 'Pero no fue suficiente.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'NUCLEO CUANTICO', speaker: 'NUCLEO', speakerColor: cIce, dialogue: 'Hay algo al otro lado.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'DOCK 7A', speaker: 'SISTEMA', speakerColor: cGold, dialogue: 'Preparando nueva mision.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'SECTOR ALPHA', speaker: 'SISTEMA', speakerColor: 'danger', dialogue: 'La batalla fue real.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'SECTOR ALPHA', speaker: 'SISTEMA', speakerColor: 'danger', dialogue: 'El portal... resistio.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'NUCLEO CUANTICO', speaker: 'NUCLEO', speakerColor: 'ice', dialogue: 'Pero no fue suficiente.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'NUCLEO CUANTICO', speaker: 'NUCLEO', speakerColor: 'ice', dialogue: 'Hay algo al otro lado.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'DOCK 7A', speaker: 'SISTEMA', speakerColor: 'gold', dialogue: 'Preparando nueva mision.', imageAsset: 'assets/images/hangar1.jpg'),
   ];
 
   List<CinematicScene> get _finalNaveScenes => [
-    CinematicScene(location: 'DOCK 7A', speaker: 'GENERAL G.G.', speakerColor: cGold, dialogue: 'Lo lograste, comandante.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'DOCK 7A', speaker: 'GENERAL G.G.', speakerColor: cGold, dialogue: 'El portal dimensional fue cerrado.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'LABORATORIO', speaker: 'DRA. DENISE', speakerColor: cIce, dialogue: 'Analizamos la tecnologia del Doppelganger.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'LABORATORIO', speaker: 'DRA. DENISE', speakerColor: cIce, dialogue: 'Hemos construido algo nuevo con ella.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'DOCK 7A', speaker: 'SISTEMA', speakerColor: cFire, dialogue: 'PHOENIX v2.0 — en linea.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'DOCK 7A', speaker: 'GENERAL G.G.', speakerColor: 'gold', dialogue: 'Lo lograste, comandante.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'DOCK 7A', speaker: 'GENERAL G.G.', speakerColor: 'gold', dialogue: 'El portal dimensional fue cerrado.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'LABORATORIO', speaker: 'DRA. DENISE', speakerColor: 'ice', dialogue: 'Analizamos la tecnologia del Doppelganger.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'LABORATORIO', speaker: 'DRA. DENISE', speakerColor: 'ice', dialogue: 'Hemos construido algo nuevo con ella.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'DOCK 7A', speaker: 'SISTEMA', speakerColor: 'fire', dialogue: 'PHOENIX v2.0 — en linea.', imageAsset: 'assets/images/hangar1.jpg'),
   ];
 
   List<CinematicScene> get _finalFinalScenes => [
-    CinematicScene(location: 'SECTOR OMEGA-9', speaker: '???', speakerColor: Colors.white70, dialogue: 'La puerta fue cerrada...', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'SECTOR OMEGA-9', speaker: '???', speakerColor: cShield, dialogue: 'por ahora.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'UNIVERSO ESPEJO', speaker: 'DOPPELGANGER', speakerColor: cRed, dialogue: 'Ya se como peleas.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'UNIVERSO ESPEJO', speaker: 'DOPPELGANGER', speakerColor: cRed, dialogue: 'La proxima vez que nos veamos...', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'UNIVERSO ESPEJO', speaker: 'DOPPELGANGER', speakerColor: cDanger, dialogue: 'No puedes ganarte a ti mismo siendo tu mismo.', imageAsset: 'assets/images/hangar1.jpg'),
-    CinematicScene(location: 'SISTEMA', speaker: 'SISTEMA', speakerColor: cGold, dialogue: 'PHOENIX CORE II — COMING SOON', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'SECTOR OMEGA-9', speaker: '???', speakerColor: 'white', dialogue: 'La puerta fue cerrada...', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'SECTOR OMEGA-9', speaker: '???', speakerColor: 'ice', dialogue: 'por ahora.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'UNIVERSO ESPEJO', speaker: 'DOPPELGANGER', speakerColor: 'red', dialogue: 'Ya se como peleas.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'UNIVERSO ESPEJO', speaker: 'DOPPELGANGER', speakerColor: 'red', dialogue: 'La proxima vez que nos veamos...', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'UNIVERSO ESPEJO', speaker: 'DOPPELGANGER', speakerColor: 'danger', dialogue: 'No puedes ganarte a ti mismo siendo tu mismo.', imageAsset: 'assets/images/hangar1.jpg'),
+    CinematicScene(location: 'SISTEMA', speaker: 'SISTEMA', speakerColor: 'gold', dialogue: 'PHOENIX CORE II — COMING SOON', imageAsset: 'assets/images/hangar1.jpg'),
   ];
 
   
